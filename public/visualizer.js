@@ -81,6 +81,10 @@ export function refreshSymbolSelection(selection, graph, display) {
   return { ...selection, line: selection.manualLine ? selection.line : part.line, endLine: part.endLine };
 }
 
+export function selectedEdge(id, graph, display) {
+  return display.edges.find(edge => edge.id === id) || display.partEdges?.find(edge => edge.id === id) || graph.edges.find(edge => edge.id === id) || displayGraph(graph, 'blocks').edges.find(edge => edge.id === id);
+}
+
 export function sectionGroups(nodes) {
   const grouped = new Map();
   for (const node of nodes) {
@@ -947,7 +951,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       if (label) label.textContent = `${display.nodes.find(node => node.id === edge.from)?.label || edge.from} → ${display.nodes.find(node => node.id === edge.to)?.label || edge.to} · ${edge.label || edge.kind}`;
     }
     const selected = state.selection;
-    if (selected && !(selected.type === 'node' ? graph.nodes.some(node => node.id === selected.id) && (!selected.partId || display.nodes.some(node => node.id === selected.partId) || graph.hierarchy?.nodes.some(node => node.id === selected.partId)) : selected.type === 'area' ? display.areas?.some(area => area.id === selected.id) : selected.type === 'block' ? graph.overview?.nodes.some(node => node.id === selected.id) : edgeIds.has(selected.id) || graph.edges.some(edge => edge.id === selected.id) || display.partEdges?.some(edge => edge.id === selected.id))) { state.selection = null; state.source = null; state.sourceRequest++; }
+    if (selected && !(selected.type === 'node' ? graph.nodes.some(node => node.id === selected.id) && (!selected.partId || display.nodes.some(node => node.id === selected.partId) || graph.hierarchy?.nodes.some(node => node.id === selected.partId)) : selected.type === 'area' ? display.areas?.some(area => area.id === selected.id) : selected.type === 'block' ? graph.overview?.nodes.some(node => node.id === selected.id) : selectedEdge(selected.id, graph, display))) { state.selection = null; state.source = null; state.sourceRequest++; }
     state.selection = refreshSymbolSelection(state.selection, graph, display);
     const nowSelected = state.selection?.type === 'node' ? graph.nodes.find(node => node.id === state.selection.id) : null;
     if (nowSelected && previousSelected?.hash !== nowSelected.hash) { state.source = null; state.sourceRequest++; }
@@ -1253,7 +1257,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   }
 
   function renderEdge(body) {
-    const edge = state.display.edges.find(item => item.id === state.selection.id) || state.display.partEdges?.find(item => item.id === state.selection.id) || state.graph.edges.find(item => item.id === state.selection.id) || displayGraph(state.graph, 'blocks').edges.find(item => item.id === state.selection.id);
+    const edge = selectedEdge(state.selection.id, state.graph, state.display);
     if (!edge) return;
     $('panel-eyebrow').textContent = `SOURCE RELATION · ${edge.kind}`;
     const endpointNames = [];

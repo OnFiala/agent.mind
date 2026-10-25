@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
+import { selectedEdge, refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
 import { projectAreas } from '../public/hierarchy.mjs';
 
 const nodes = [
@@ -485,4 +485,20 @@ test('refreshing a symbol range preserves an explicitly chosen source cursor and
   assert.equal(refreshSymbolSelection(fileSelection, graph, { nodes: [] }), fileSelection);
   assert.equal(refreshSymbolSelection(null, graph, { nodes: [] }), null);
   assert.equal(refreshSymbolSelection(manual, { hierarchy: { nodes: [] } }, { nodes: [] }), manual);
+});
+
+
+test('overview relations remain selected from deep scopes across unrelated refreshes and disappear when removed', () => {
+  const relation = { id: 'overview:app-helper', from: 'block:app', to: 'block:helper', sourceEdgeIds: ['import'] };
+  const overview = { nodes: [{ id: 'block:app', fileIds: ['server'] }, { id: 'block:helper', fileIds: ['index'] }], edges: [relation] };
+  const current = { ...graph, overview };
+  const deepDisplay = { nodes: [{ id: 'symbol:run' }], edges: [], partEdges: [] };
+  assert.equal(selectedEdge(relation.id, current, deepDisplay)?.id, relation.id);
+  assert.equal(selectedEdge(relation.id, { ...current, revision: 'unrelated-update' }, deepDisplay)?.id, relation.id);
+  assert.equal(selectedEdge(relation.id, { ...current, overview: { ...overview, edges: [] } }, deepDisplay), undefined);
+  assert.equal(selectedEdge(relation.id, { ...current, overview: { ...overview, nodes: overview.nodes.slice(0, 1) } }, deepDisplay), undefined);
+  assert.equal(selectedEdge('import', current, deepDisplay), edges[0]);
+  const local = { id: 'local' };
+  assert.equal(selectedEdge('local', current, { ...deepDisplay, edges: [local] }), local);
+  assert.equal(selectedEdge('local', current, { ...deepDisplay, partEdges: [local] }), local);
 });
