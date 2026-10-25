@@ -72,7 +72,7 @@ export function createVisualizer({ root = APP_ROOT, intervalMs = 900, indexOptio
       try { const bytes = fs.readFileSync(path.join(APP_ROOT, 'public', asset[0])); res.writeHead(200, { 'Content-Type': `${asset[1]}; charset=utf-8` }); return res.end(bytes); }
       catch { return json(res, 404, { error: 'Asset missing.' }); }
     }
-    return json(res, 404, { error: 'Not found. Builder endpoints are retired.' });
+    return json(res, 404, { error: 'Not found. Check the path and available read-only endpoints.' });
   });
   live.on('state', state => {
     try { binding?.verify?.(); }

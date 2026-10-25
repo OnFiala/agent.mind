@@ -27,7 +27,7 @@ export class LiveIndex extends EventEmitter {
       if (candidate.revision !== verified.revision) {
         candidate = verified;
         verified = this.indexer(this.root, { ...this.indexOptions, previous: candidate });
-        if (candidate.revision !== verified.revision) throw new Error('Source files changed during indexing; waiting for a stable snapshot.');
+        if (candidate.revision !== verified.revision) throw new Error('Files changed while the map was reading them. Waiting for two scans to agree.');
       }
       if (verified.project && verified.diagnostics) attachOverview(verified);
       const changed = !old || old.revision !== verified.revision || old.status !== verified.status;

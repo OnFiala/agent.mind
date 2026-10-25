@@ -1,47 +1,49 @@
 # agent.mind
 
-A live map of the actual source project. The overview shows named project blocks,
-their responsibilities and source-backed relationships. Click through blocks,
-files and nested functions. Deeper levels start as a compact map of areas; click
-an area to expand its members in place. The development default project is agent.mind itself; installations bind to their target project.
-Saved source changes update the canvas automatically.
+A live map of your code. See the main blocks, open their files and functions, and
+follow the connections between them. Saved source changes update the map.
+The same names work in the canvas and in context for your coding agent.
+
+agent.mind reads source files without running your project. It currently analyzes
+JavaScript (`.js`, `.mjs`); TypeScript/TSX and framework routing are not supported.
+It runs locally, with no global install, account, API key or model required.
 
 ## Install into a project
 
-Requires Node.js 22 or newer. macOS and Linux are the supported initial platforms.
-Download the pinned release from [GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.0).
-The release includes its own Acorn dependency; installation does not touch the
-target project's package.json, lockfile or node_modules.
+Requires Node.js 22 or newer on macOS or Linux. Download
+[v1.0.1 from GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.1):
 
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.0.0.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.0/agent-mind-1.0.0.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.0/SHA256SUMS
+curl --fail --location --output agent-mind-1.0.1.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.1/agent-mind-1.0.1.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.1/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.0.0.tar.gz
-node agent-mind-1.0.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.0" --attach
+tar -xzf agent-mind-1.0.1.tar.gz
+node agent-mind-1.0.1/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.1" --attach
 ```
 
-Stop if checksum verification fails. The installer also checks the complete runtime
-manifest and rejects unknown files and symlinks. Checksums verify release bytes;
-choose the source repository deliberately. No global install, daemon, account,
-API key or model is required. The target project is never executed by the index.
-An existing unowned `agent.mind/` directory is not overwritten.
+Stop if checksum verification fails. Checksums check the downloaded bytes, so
+choose the source repository deliberately. The installer also checks the full
+runtime manifest and rejects unknown files and symlinks. It will not overwrite
+an existing unowned `agent.mind/` directory.
 
-The only integration outside `agent.mind/` is one marked block in the target's
-`AGENTS.md`, added by `--attach`. Existing instructions are preserved. Then, from
-the target project:
+The release includes Acorn and keeps its dependencies inside `agent.mind/`.
+It leaves your project's package.json, lockfile and node_modules alone. `--attach`
+adds one marked block to the project's `AGENTS.md`, preserving existing instructions.
+This is the only integration outside `agent.mind/`.
+
+From your project directory:
 
 ```sh
 node agent.mind/cli.mjs status
 node agent.mind/cli.mjs view
 ```
 
-`view` prints the actual loopback URL and project identity. It runs in the
-foreground; stop with Ctrl+C. It does not open a public port or start automatically.
-Use `view --port 4317` to request a fixed port; a conflict fails rather than
-connecting you to somebody else's server.
+Open the loopback URL printed by `view`; it also prints the project identity.
+The server runs in the foreground. Stop it with Ctrl+C. It has no public port or
+automatic startup. Use `view --port 4317` for a fixed port; if it is occupied,
+the command fails.
 
 ```text
 project/
@@ -49,67 +51,181 @@ project/
 └── agent.mind/
     ├── README.md              # installed usage and cleanup
     ├── cli.mjs                # stable entry point
-    ├── project.json           # portable intent and runtime pin
-    ├── project-map.json       # your names, aliases and module membership
+    ├── project.json           # project settings and pinned runtime
+    ├── project-map.json       # your names, aliases and file groups
     ├── .gitignore             # ignores .local/
-    └── .local/                # local binding receipt and private runtime copy
+    └── .local/                # local project binding and runtime copy
 ```
 
-Keep the map and descriptor with your project if useful. `.local/` belongs to the
-specific machine and directory. A copied installation does not silently bind to a
-new project; inspect `status` and use explicit `rebind`/`attach` after a move. Do
-not copy `.local/` through Git. Fresh clones need a local installation. Download the same pinned release, then
-explicitly adopt the known portable integration (your map is preserved):
+You can commit the map and descriptor with your project. Keep `.local/` out of
+Git: it belongs to this machine and directory. After moving an installation,
+inspect `status` and explicitly `rebind`/`attach` it to the new location.
+
+A fresh clone needs a local installation. Download the same pinned release,
+then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.0.0/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.0 --adopt --attach
+node /path/to/agent-mind-1.0.1/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.1 --adopt --attach
 ```
 
+Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
+release exists. A clone pinned to 1.0.0 needs the 1.0.0 release.
 Adoption requires a recognized launcher and descriptor with the same runtime pin.
-Unknown or modified integration instructions are a conflict, not permission to
-overwrite them.
+Unknown or modified integration instructions cause a conflict and are not overwritten.
+
+## Read the map
+
+- **Left rail:** Whole project, Security and Testing show different views of the same graph.
+- **Top bar:** search, index status, zoom, fit and layout controls.
+- **Canvas path:** open an ancestor, or use Back to restore its camera, positions,
+  selection and expanded areas.
+- **Right panel:** source, connections, project scope and recent changes.
+
+Open a block, then a file, then a function or class and its nested parts. A leaf
+opens its source; the separate detail control opens source for parents too.
+If a source part disappears, navigation returns to its nearest remaining ancestor.
+
+At file and function levels, related parts start in compact area cards. Click a
+card to expand it, use its header control to collapse it, or choose **Collapse all**.
+**Outside** collects parts outside the current source scope. Expansion stays with
+the scope as you navigate and receive live updates within the page.
+
+Lines between areas combine the underlying connections of the same type and
+origin. Opposite directions and different types stay separate. Connections inside
+an area appear when you expand it. The counts show both displayed lines and
+underlying references; collapsing an area does not remove dependencies.
+
+Use **Select** on an area to highlight its connections without expanding it.
+Incoming and outgoing lines have different styles and a text legend. Other cards
+and lines fade. You can inspect a connector while keeping the area selected;
+its details list the contributing source parts, direction and source links.
+Missing references are reported. Clear the area focus to return to the overview.
+
+Compact maps show their lines by default. Dense expanded maps offer
+**Selected relations** and **All relations**. Hover, keyboard focus and selection
+show nearby connections. Hidden lines cannot receive pointer or keyboard focus.
+Search finds members inside collapsed areas, including original function names,
+and expands their area before opening them. Fit includes the whole current map.
 
 ## Use the same names with your coding agent
 
-Give blocks stable IDs and names/aliases in `agent.mind/project-map.json`. The
-canvas and agent context read this same map. Unknown files initially use neutral
-source-derived groups; installation does not invent a “Module C”.
+Set block names, stable IDs and aliases in `agent.mind/project-map.json`. The
+canvas and agent context use this map. Files without names stay visible in neutral
+path groups until you name them.
 
-When you say “module C needs another test”, the coding agent interprets the intent,
-then resolves the exact name before choosing files:
+For example, this names one source file **Module C**. Replace `src/module-c.mjs`
+with a real path relative to your project root. `files` lists exact paths;
+`prefixes` includes files whose paths start with a given prefix.
+
+```json
+{
+  "schemaVersion": 1,
+  "blocks": [{
+    "id": "module-c",
+    "label": "Module C",
+    "aliases": ["modul C"],
+    "type": "module",
+    "group": "core",
+    "description": "Describe what this part does.",
+    "files": ["src/module-c.mjs"],
+    "prefixes": []
+  }]
+}
+```
+
+When you say “module C needs another test”, the coding agent resolves that name
+before choosing files:
 
 ```sh
 node agent.mind/cli.mjs context "Module C"
 node agent.mind/cli.mjs context block:module-c
 ```
 
-The result includes the bound root, binding ID/generation, graph revision, selected
-identity, file hashes, relationships and static test references. Multiple matching
-parts are an explicit error with candidates. Use the full breadcrumb or stable ID
-to disambiguate. The agent must read the implementation and tests; static references
-do not establish test coverage, execution or adequacy.
+Context includes the project root, binding ID/generation, graph revision, selected
+part, file hashes, connections and test references. If a name matches several
+parts, the command returns an error with candidates. Use the full breadcrumb path
+or stable ID. The agent still needs to read the implementation and tests.
 
-Immediately before an authorized edit, revalidate the returned receipt:
+Immediately before an authorized edit, recheck the context:
 
 ```sh
 node agent.mind/cli.mjs preflight block:module-c --revision <graph-revision> --binding-id <binding-id> --generation <generation>
 ```
 
-Replace placeholders with values from the actual context. Changes require a fresh
-resolution. This is a cooperative preflight, not a transactional lock or a sandbox
-for all agent tools. The CLI accepts exact selectors, not natural-language sentences.
-Voice input uses the host agent's transcript; agent.mind does not transcribe audio.
+Replace the placeholders with values from that context. If anything changes,
+resolve it again. Preflight checks the selected context; it does not lock files
+or control every agent tool. The CLI accepts exact selectors. The host agent
+interprets natural-language requests and supplies any voice transcript;
+agent.mind does not transcribe audio.
 
-Codex must load the managed instructions in the target project. Check the active
-instructions after attachment; start a fresh session in that directory if needed.
-Instruction discovery depends on the host and its instruction chain, including
-nested overrides and projects without a Git root. Installation alone does not
-prove the main agent has used the map. See [Codex AGENTS.md documentation](https://learn.chatgpt.com/docs/agent-configuration/agents-md).
+The coding agent must load the managed instructions in the target project.
+Check its active instructions after attachment; a fresh session in that directory
+may be needed. Loading depends on the host's instruction chain, nested overrides
+and whether the project has a Git root. Installation alone cannot activate a
+host session or establish that an agent used the map. See
+[Codex AGENTS.md documentation](https://learn.chatgpt.com/docs/agent-configuration/agents-md).
+
+### Names and areas
+
+`project-map.json` defines IDs, names, aliases, roles and file membership. Optional
+`parts` name existing files and symbols. `section` groups siblings into a display
+area; it does not change their source hierarchy. Its required `sectionId` is a
+stable lowercase slug, unchanged when the label changes. Area IDs belong to their
+source parent. Invalid or missing area IDs produce a diagnostic and put the
+members in Other parts, keeping their names.
+
+Keep block IDs stable when renaming. File and symbol IDs come from source.
+Original source names, previous Czech labels and qualified paths remain aliases.
+Ambiguous short names need a full path or stable ID. Invalid metadata produces
+diagnostics and does not hide parts. Names describe intended responsibilities;
+the source determines connections.
+
+## What it can read
+
+Acorn parses JavaScript without executing it. The index reads static imports,
+reexports, literal dynamic imports and supported local URL/HTML asset references.
+It finds named functions, classes, methods, their lexical nesting and some
+same-file calls. Shadowed, reassigned or ambiguous targets remain unresolved.
+
+Anonymous callbacks can add references to their nearest named symbol, marked
+`nested-closure`; that does not mean the parent calls them directly. Imported
+function calls, arbitrary object dispatch, TypeScript and runtime behavior are
+unsupported. **Entry** and **File body** show statements at the current source
+level. File imports are not treated as function calls. CSS, JSON, Markdown and
+Python files are listed without internal call analysis. Binary assets are not
+read as source text.
+
+HTTP/SSE connections match global `fetch`/`EventSource` calls with fixed local
+`/api/` paths to one matching handler in a verified `node:http` server callback.
+Dynamic query strings are supported. Dynamic paths, shadowed bindings, mismatched
+methods and multiple providers remain unresolved. The details include both source
+locations and hashes; they do not establish that a request happened.
+
+Security highlights recognized sensitive Node imports, supported callsites and
+some browser inputs/outputs. These are places to review, not vulnerability findings
+or a safety verdict. Testing shows test files and their static dependencies, not
+coverage or passing results. Unsupported source files, parse failures and unresolved
+references stay visible.
+
+### Scope and updates
+
+Installed projects exclude their exact agent.mind integration directory,
+node_modules, hidden/sensitive files and symlinks. Development also excludes this
+repository's legacy/, backups/, evidence/ and workspace/ directories. The index
+limits are 1000 files, 512 KiB per file, 16 MiB text, 10000 directory entries and
+depth 20. Scope and limitations are available in the UI and context JSON. Large
+projects may hit these limits or pause during synchronous indexing.
+
+`live-index.mjs` checks inventory and contents every 900 ms, reusing parsed data
+when content is unchanged. Two scans must agree before a new revision is published.
+Persistent changes mark the previous snapshot as an error. Files can change again
+after a scan; opening source checks its indexed hash separately. A parse failure
+removes that file's derived connections and marks the index as partial. SSE sends
+new revisions without reloading the page.
 
 ## Detach and uninstall
 
-Stop the foreground view first. These commands operate only on the identified
-installation:
+Stop the foreground view first. These commands act on the identified installation:
 
 ```sh
 node agent.mind/cli.mjs detach
@@ -118,37 +234,57 @@ node agent.mind/cli.mjs uninstall
 ```
 
 Detach invalidates old bindings and removes only the unchanged managed AGENTS
-block. It keeps your map and runtime for reattachment. An edited or duplicate
-managed block is a conflict; surrounding user instructions are never restored from
-an old whole-file backup. Detach cannot erase instructions already in chat history.
+block. It keeps your map and runtime for reattachment. Edited or duplicate managed
+blocks cause a conflict. Surrounding instructions are preserved; detach never
+restores an old copy of the whole AGENTS file. Instructions already loaded into
+chat history remain there.
 
-Uninstall removes owned files from their active locations and reports exact leftovers.
-Your map and changed/unknown files are preserved, with a local cleanup receipt.
-Displaced files are retained under `.local/recovery/` so concurrent owner edits,
-including writes through already open file descriptors, remain recoverable. These
-local backups are never part of a release.
-There is no implicit purge. Keep the downloaded release CLI for inspecting/retrying
-cleanup with `--install-dir /absolute/project/agent.mind`.
+Uninstall removes owned files from their active locations and lists leftovers.
+It preserves your map and changed or unknown files, and records what was removed.
+Moved files stay in `.local/recovery/`, including files that another process may
+still write through an open descriptor. These recovery copies are local and are
+never included in releases. There is no automatic purge.
 
-To deliberately delete **all remaining installation data**, including your map and
-recovery copies, stop external writers, inspect the exact plan, then use its digest:
+Keep the downloaded release CLI to inspect or retry cleanup with
+`--install-dir /absolute/project/agent.mind`. To delete **all remaining installation
+data**, including your map and recovery copies, stop external writers, inspect
+the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.0.0/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.0.0/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.0.1/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.0.1/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
-Purge is permanent. A changed inventory, identity or symlink invalidates the plan.
-Only listed paths inside that installation are eligible; incomplete cleanup reports
-conflicts and remaining paths. This is not a transaction against unrelated writers.
+Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
+plan. Only listed paths inside that installation can be deleted. Incomplete cleanup
+reports conflicts and remaining paths. Purge cannot prevent unrelated processes
+from writing, so keep external writers stopped.
 
-A crashed foreground process may leave a view lease. `status` reports it; the
-explicit `release-view --token <recorded-token>` command refuses while its recorded
-process still exists and never kills a process. Retain the original release archive
-for recovery. Replace a version through deliberate uninstall/reinstall after
-preserving the map; there is no automatic updater.
+After a crash, `status` may report a leftover view lease. Use
+`release-view --token <recorded-token>` to release it. The command refuses while
+the recorded process exists and never kills a process. Retain the original
+release archive for recovery. There is no automatic updater.
 
-## Develop and navigate
+### Update from an older version
+
+1. Stop the view and save `agent.mind/project-map.json` outside the installation.
+2. Run `node agent.mind/cli.mjs uninstall` using the existing installation.
+   If it reports a conflict, resolve it before continuing.
+3. Move the preserved `agent.mind/` directory to a separate backup location.
+   Keep it and the original release download for recovery. Do not overwrite an
+   existing backup or use purge as part of this update.
+4. Follow the installation steps above for 1.0.1, then restore your saved map to
+   the new `agent.mind/project-map.json`.
+5. Run `status` and `context` through the new CLI. Reload the project instructions
+   in your coding agent before using the new installation.
+
+Each release has its own runtime digest and generated integration files. Installing
+1.0.1 over 1.0.0, or adopting a 1.0.0 clone with the 1.0.1 release, is rejected.
+To return to an older version, use the same steps with that version's original
+release and your saved map. Existing installations do not change when a new
+release is published.
+
+## Development
 
 ```sh
 npm ci --ignore-scripts
@@ -157,125 +293,20 @@ npm start
 npm run package
 ```
 
-The development server reads this repository and listens on http://127.0.0.1:4317.
-`PORT` changes its port. `AGENT_MIND_PROJECT=/absolute/path` selects another local
-root for development inspection; installed projects should use their own CLI.
-`npm run package` creates a self-contained release in `dist/` and refuses to
-replace existing output. Use `npm run package -- --output /absolute/new-directory`
-for another build. Build output contains an exact file manifest and archive checksum.
+The development server maps this repository at http://127.0.0.1:4317. `PORT`
+changes the port. `AGENT_MIND_PROJECT=/absolute/path` selects another local root
+for development inspection; installed projects should use their own CLI.
 
-- **Left rail:** Whole project, Security and Testing change emphasis within the same graph.
-- **Top bar:** project/search, index freshness, zoom, fit and layout controls.
-- **Canvas path:** jump to an ancestor or use Back to restore its camera, positions,
-  selection and expanded areas.
-- **Right panel:** source and relationship evidence, project scope and recent changes.
-  Builder, approval, model selection and app execution are retired.
+`npm run package` creates a release in `dist/` with its dependencies, exact file
+manifest and archive checksum. It refuses to replace existing output. Use
+`npm run package -- --output /absolute/new-directory` for another build.
 
-The main blocks are **Map**, **Server**, **Live changes**, **Code index** and
-**Agent context**, supported by **Tests**, **Settings** and **Documentation**.
-A source-backed hierarchy remains block → file → function/class → nested parts.
-Areas are a presentation of siblings, not new source parents or invented modules.
-A leaf opens its actual source. The separate detail control also works on parents.
-A removed source scope returns to the nearest existing ancestor.
+This repository's main blocks are **Map**, **Server**, **Live changes**, **Code index**
+and **Agent context**, with **Installation**, **Tests**, **Settings** and
+**Documentation**. The old builder, approval, model selection and app execution
+features are retired.
 
-## Areas and relationships
-
-File and symbol scopes initially collapse named areas such as **Controls**,
-**Rendering**, **Live data** and **Details** into one card each. **Outside** collects
-parts outside the current source scope. Expand an area by clicking it; collapse
-it with its header control, or use **Collapse all**. Expansion is local to that
-scope and survives navigation and live updates within the current page.
-
-A link between collapsed areas aggregates actual directed relationships with the
-same type and provenance. It retains every underlying scope/source edge ID,
-source evidence and layer. Reverse links and different types remain separate.
-Relationships inside a collapsed area are retained as internal references and
-become visible when it expands. Full expansion recovers the original endpoints.
-Counts distinguish displayed links from underlying references; fewer visible links
-do not imply fewer source dependencies.
-
-Use **Select** on an area card to pin its relationships without expanding it.
-Incoming and outgoing links use distinct line styles with a text legend; unrelated
-links and cards fade. The pinned area remains active while inspecting a connector.
-Connector labels identify both endpoints and direction. Its detail lists the actual
-contributing source-part pairs with their own evidence and source links, rather
-than only the area names. Missing references are reported, never reconstructed
-from labels. Clear the area focus to return to the normal overview.
-
-A compact area map shows its links by default. Dense expanded views support
-**Selection relations** and **All relations**. Hovering, keyboard focus and selection show
-local relationships without changing the source graph. Hidden links are not
-keyboard or pointer targets. Search also finds members inside collapsed areas,
-including original function names, and expands the relevant area before opening
-the result. Fit explicitly includes the whole current map; initial views keep
-readable card sizes.
-
-## Shared names and stable identity
-
-`project-map.json` is the single vocabulary for IDs, names, aliases, roles and file
-membership. Optional `parts` name actual files and symbols. `section` names an area;
-`sectionId` is its required stable lowercase slug and does not change when its label
-changes. A named area without a valid ID produces a diagnostic and falls back to
-Other parts, preserving its members and friendly part names.
-Area IDs are scoped by source parent. Source-derived IDs and parent relationships
-remain unchanged by grouping or translation.
-
-The current vocabulary and interface are English. Original source names and prior
-Czech labels remain aliases; old qualified breadcrumb paths still resolve through
-the aliases at each level. Ambiguous short names require a full path or stable ID.
-Labels and descriptions are declared responsibilities, not evidence of runtime flow.
-
-Unknown files remain visible in neutral path groups. A project without naming
-metadata receives neutral labels rather than agent.mind-specific roles. Invalid
-metadata produces diagnostics instead of silently hiding source parts.
-
-## What the map proves
-
-Acorn parses JavaScript (`.js`, `.mjs`) without execution. The index includes static
-imports, reexports, literal dynamic imports and recognized local URL/HTML asset
-references. `symbol-index.mjs` uses the same AST for named functions, classes,
-methods, lexical nesting and conservative same-file calls. Shadowed, reassigned
-or ambiguous targets are not asserted as resolved calls.
-
-Anonymous callbacks can contribute references to their containing named symbol
-with `nested-closure` evidence; this does not prove direct execution by that parent.
-Imported function calls, arbitrary object dispatch, TypeScript and runtime/dynamic
-behavior remain unsupported. **Entry** and **File body** represent statements at
-the current source level; a file import is never invented as a function call.
-CSS, JSON, Markdown and Python files are inventoried without internal call analysis.
-Binary assets are not read as source text.
-
-Security highlights recognized sensitive Node imports, supported callsites and
-limited browser inputs/outputs. It is review context, not an audit, safety verdict
-or vulnerability list. Testing highlights test files and their static dependencies;
-an import is neither coverage nor a test result. Unresolved references and parse
-failures remain explicit diagnostics.
-
-A bounded HTTP/SSE contract recognizes global `fetch`/`EventSource` with a fixed
-local `/api/` pathname and an unambiguous matching handler inside a verified
-`node:http` server callback. Dynamic query strings are supported; dynamic paths,
-shadowed bindings, mismatched methods or multiple providers do not create guessed
-links. Evidence includes both sources and their hashes, not proof of a request.
-
-## Scope and freshness
-
-Installed projects exclude their exact agent.mind integration subtree, node_modules,
-hidden/sensitive files and symlinks. Development defaults also exclude this
-repository's historical legacy/, backups/, evidence/ and workspace/ directories. Limits: 1000 files, 512 KiB per file,
-16 MiB text, 10000 directory entries and depth 20. Scope and limitations are
-available in the UI and context JSON.
-
-`live-index.mjs` checks inventory and contents every 900 ms without depending on
-filesystem watchers. Unchanged content reuses parsed data. Two successive scans
-must agree before publication; persistent changes mark the previous snapshot as
-an error. This is not a transactional filesystem snapshot: another process may
-change a file immediately afterward. Source detail independently verifies its
-indexed hash. Parse failures remove that file's derived links and mark a partial
-index. SSE publishes revisions without reloading the page.
-
-## Agent context and APIs
-
-Before a nontrivial change, obtain fresh context and read the relevant source:
+Before a nontrivial change, get fresh context and read the relevant source:
 
 ```sh
 node graph-context.mjs "Map"
@@ -286,36 +317,29 @@ node graph-context.mjs 'symbol:public/visualizer.js#startVisualizer.drawEdges'
 npm test
 ```
 
-Context contains the same vocabulary and default area projection as the canvas,
-selected source identity and ancestry, source hashes, graph digest and relationships.
-`canvas` is the default collapsed view; `partCanvas` retains its uncollapsed source
-members and edges. `public/hierarchy.mjs` supplies both browser and agent projections.
-This is a cooperative preflight, not an installed global hook or proof that every
-agent action used it.
+Context includes the same names and collapsed areas as the canvas, the selected
+part and its ancestors, file hashes, graph digest and connections. `canvas` is the
+collapsed view; `partCanvas` keeps the full source members and edges.
+`public/hierarchy.mjs` supplies both browser and agent views. Agents cooperate by
+running these checks; there is no global hook enforcing them.
 
-- `GET /api/graph`: graph, hierarchy and live-check status.
+### Local APIs
+
+- `GET /api/graph`: graph, hierarchy and index status.
 - `GET /api/events`: SSE `state` in the same shape, plus heartbeat.
-- `GET /api/source?path=server.mjs&line=20`: bounded source excerpt; changed content,
-  symlinks and unindexed paths are rejected.
+- `GET /api/source?path=server.mjs&line=20`: source excerpt; rejects changed content,
+  symlinks and paths outside the index.
 - `GET /api/context?path=server.mjs`: fresh file context.
-- `GET /api/context?block=block:canvas`: named context; accepts a label, alias,
-  source ID or full breadcrumb path as well.
+- `GET /api/context?block=block:canvas`: named context; also accepts a label, alias,
+  source ID or full breadcrumb path.
 
-The server rejects foreign Host/Origin and cross-site fetch. Mutating methods and
-retired builder endpoints are unsupported. Tests use temporary local fixtures and
-one-shot loopback servers; no model or production services. A sandbox that blocks
-listen requires a permitted local test run.
+The server rejects foreign Host/Origin and cross-site fetch. It does not support
+mutating methods or retired builder endpoints. Tests use disposable local fixtures
+and one-shot loopback servers, with no model or production services. If a sandbox
+blocks listening, run them with permission to use local ports.
 
-## Release boundaries
+## License and artwork
 
-The current release supports bounded JavaScript source analysis. TypeScript/TSX,
-framework-specific routing and dynamic dispatch are not supported; relevant
-unsupported files and partial-index diagnostics remain visible. Large projects
-may reach the documented limits or experience synchronous indexing pauses.
-
-A valid installation and deterministic selector result are separate from a real
-main-agent turn. No guarantee of universal natural-language understanding, automatic
-host-session activation, arbitrary agent-tool enforcement or test coverage is made.
-
-The source is ISC-licensed. Bundled Acorn retains its MIT license. The visual assets
-are local generated assets; provenance is recorded in public/assets/README.md.
+The source is ISC-licensed. Bundled Acorn keeps its MIT license. The artwork was
+generated for this project; [public/assets/README.md](public/assets/README.md) records its
+origin and prompts.

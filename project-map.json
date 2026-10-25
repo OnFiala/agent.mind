@@ -6,7 +6,7 @@
       "label": "Map",
       "type": "interface",
       "group": "core",
-      "description": "Shows the project and its relationships.",
+      "description": "Shows project parts and their connections.",
       "aliases": [
         "canvas",
         "plátno",
@@ -60,7 +60,7 @@
       "label": "Code index",
       "type": "process",
       "group": "core",
-      "description": "Reads source code and derives parts and relationships.",
+      "description": "Finds parts and connections in source code.",
       "aliases": [
         "index",
         "indexer",
@@ -97,7 +97,7 @@
       "label": "Installation",
       "type": "process",
       "group": "support",
-      "description": "Packages the runtime and safely attaches it to a local project.",
+      "description": "Builds releases and attaches agent.mind to a local project.",
       "aliases": [
         "installer",
         "package",
@@ -211,7 +211,7 @@
     {
       "target": "file:code-index.mjs",
       "label": "Source reading",
-      "description": "Finds files and derives supported source relationships.",
+      "description": "Finds files and the code they reference.",
       "aliases": [
         "Čtení zdrojů"
       ],
@@ -231,7 +231,7 @@
     {
       "target": "file:symbol-index.mjs",
       "label": "Functions and calls",
-      "description": "Recognizes functions, methods and static call references.",
+      "description": "Finds functions, methods and supported calls in code.",
       "aliases": [
         "Funkce a volání"
       ],
@@ -311,7 +311,7 @@
     {
       "target": "symbol:public/visualizer.js#startVisualizer.syncGraph",
       "label": "Apply updates",
-      "description": "Reconciles cards, connectors, navigation and panels with the new graph.",
+      "description": "Updates cards, connectors, navigation and panels when code changes.",
       "section": "Live data",
       "aliases": [
         "Promítnutí změn"
@@ -351,7 +351,7 @@
     {
       "target": "symbol:public/visualizer.js#startVisualizer.loadSource",
       "label": "Load source",
-      "description": "Loads a code excerpt and checks its fingerprint.",
+      "description": "Loads source lines and checks their hash.",
       "section": "Source",
       "aliases": [
         "Načtení zdroje"
@@ -2124,7 +2124,7 @@
     {
       "target": "file:AGENTS.md",
       "label": "Agent rules",
-      "description": "Defines agent work, source authority and change verification.",
+      "description": "Sets the rules for agent work and checking changes.",
       "section": "Rules",
       "aliases": [
         "Pravidla agenta"
@@ -2134,7 +2134,7 @@
     {
       "target": "file:README.md",
       "label": "Project guide",
-      "description": "Describes startup, map usage and the limits of source evidence.",
+      "description": "Explains setup, map controls and what the map can read.",
       "section": "Usage",
       "aliases": [
         "Průvodce projektem"
@@ -2164,7 +2164,7 @@
     {
       "target": "symbol:public/hierarchy.mjs#projectAreas",
       "label": "Area overview",
-      "description": "Groups sibling parts into expandable areas while retaining directed relationships and source evidence.",
+      "description": "Groups sibling parts into expandable areas and keeps their links to source.",
       "section": "Grouping",
       "sectionId": "grouping",
       "aliases": []
@@ -2180,7 +2180,7 @@
     {
       "target": "symbol:test/hierarchy.test.mjs#areaFixture.part",
       "label": "Part sample",
-      "description": "Prepares a source-backed part with a stable area identity.",
+      "description": "Creates a sample part with a stable area ID.",
       "section": "Test setup",
       "sectionId": "test-setup",
       "aliases": []
@@ -2244,7 +2244,7 @@
     {
       "target": "symbol:public/hierarchy.mjs#sourceRelations",
       "label": "Source pairs",
-      "description": "Resolves the concrete source parts and evidence behind a grouped link.",
+      "description": "Finds the source parts and lines behind a grouped link.",
       "section": "Relationships",
       "sectionId": "relationships",
       "aliases": []

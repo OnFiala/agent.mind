@@ -662,15 +662,15 @@ export function indexProject(directory, options = {}) {
     generic: policy.generic,
     metadataPath: policy.metadataPath,
     limitations: [
-      'Read-only static evidence; scanned code is never executed. Security relevance is not a vulnerability or safety verdict.',
-      'Testing relationships are static references, not coverage, execution, or passing-test evidence.',
-      'JavaScript modules use Acorn. Only literal imports/reexports/dynamic imports and new URL(literal, import.meta.url) are resolved; CommonJS require, computed paths, aliases and extension inference are unsupported.',
-      'HTTP/SSE edges are static-contract matches, never runtime execution: nonshadowed fetch/EventSource fixed same-origin /api paths (dynamic query only) match one inline imported http.createServer handler using one unmodified new URL(request.url, base) binding and exact pathname guard. SSE requires static event-stream response evidence. Frameworks, indirect handlers, computed pathnames and ambiguous providers are unsupported; method assurance is explicit on each contract.',
-      'Symbol hierarchy is lexical containment. Call edges are same-file direct lexical references and known same-class this.method references, not runtime execution, callback scheduling, dynamic dispatch, coverage or control flow. Imported/aliased/computed calls and class field/static-block bodies are omitted; ambiguous or directly reassigned bindings/methods are excluded. Anonymous closures retain nearest named owner with nested-closure evidence. Symbol analysis has per-file node/edge/AST/depth budgets.',
-      'HTML links inspect script src and link href; inline scripts, CSS imports/URLs, Python dependencies and Markdown links are not analyzed.',
-      'Only .mjs, .js, .json, .html, .css, .md and .py files are inventoried. Hidden paths, secrets/env files, symlinks and configured excluded paths are excluded. Other source languages are reported as unsupported.',
-      `Budgets: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes/file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
-      'Each file uses no-follow open and realpath/inode checks. A scan is not an atomic filesystem snapshot; concurrent writes can yield partial diagnostics.'
+      'The map reads source files without running them. Security signals point to code to review; they do not establish vulnerabilities or safety.',
+      'Test links come from source references. Run tests for results and enable coverage to measure what they cover.',
+      'Acorn parses JavaScript modules. The map resolves literal imports, reexports, dynamic imports and new URL(literal, import.meta.url). It does not resolve CommonJS require, computed paths or aliases, or guess missing extensions.',
+      'HTTP/SSE links match code on both sides of a request; they do not show requests that ran. A nonshadowed fetch/EventSource call must use a fixed same-origin /api path; query strings may be dynamic. It must match one inline handler passed to an imported http.createServer, with one unmodified new URL(request.url, base) binding and an exact pathname check. SSE also requires code that sets an event-stream response. Frameworks, indirect handlers, computed paths and multiple possible providers are unsupported. Each match states what is known about its HTTP method.',
+      'Functions and classes are nested as they appear in source. Call links cover direct same-file references and known this.method calls within a class. They do not show runtime execution, callback scheduling, dynamic dispatch, coverage or control flow. Imported, aliased and computed calls, class fields and static-block bodies are omitted. Ambiguous or directly reassigned bindings and methods are excluded. Anonymous closures use the nearest named owner and carry a nested-closure marker. Per-file limits apply to symbols, calls, AST nodes and nesting depth.',
+      'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, Python dependencies and Markdown links.',
+      'The map lists .mjs, .js, .json, .html, .css, .md and .py files. It skips hidden paths, secrets/env files, symlinks and configured exclusions. Other source languages are reported as unsupported.',
+      `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
+      'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
     ]
   };
   const result = {

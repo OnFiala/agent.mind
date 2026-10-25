@@ -34,7 +34,7 @@ export function projectContext(graph, selector) {
     overview: { ...graph.overview, nodes: graph.overview.nodes.filter(node => !blockIds || blockIds.has(node.id)), edges: relations },
     vocabulary: graph.hierarchy.vocabulary,
     diagnostics: graph.diagnostics, scope: graph.scope,
-    interpretation: 'Names and areas are project metadata; ancestry and relationships come from source. The default canvas groups areas, while partCanvas retains their members. Links preserve direction, types and source evidence; internal links remain attached to each area. Calls and HTTP/SSE are static references, not runtime proof. Test references are not coverage; Security is not an audit.'
+    interpretation: 'The project map supplies names and areas. Source code determines nesting and connections. canvas groups parts into areas; partCanvas keeps the full set of parts. Links keep their direction, type and source references, including links within an area. Calls and HTTP/SSE links show code references, not observed execution. Run tests for results and coverage. Review Security links in source; this map does not perform a security audit.'
   };
 }
 

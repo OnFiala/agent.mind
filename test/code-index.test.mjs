@@ -72,7 +72,7 @@ test('security layer records exact dependencies and AST operations, suppressing 
   assert.ok(edge(graph, 'security.mjs', 'external:node:fs', 'import').layers.includes('security'));
   assert.ok(!edge(graph, 'security.mjs', 'external:acorn', 'import').layers.includes('security'));
   assert.equal(graph.status, 'current');
-  assert.ok(graph.scope.limitations.some(item => item.includes('not a vulnerability')));
+  assert.ok(graph.scope.limitations.some(item => item.includes('do not establish vulnerabilities or safety')));
 });
 
 test('testing highlights literal source references and imports, without claiming coverage or pass evidence', t => {
@@ -91,7 +91,7 @@ test('testing highlights literal source references and imports, without claiming
   assert.ok(edge(graph, 'test/app.test.mjs', 'file:src/app.mjs', 'import').layers.includes('testing'));
   assert.equal(edge(graph, 'test/app.test.mjs', 'file:src/app.mjs', 'test-reference').evidence[0].line, 2);
   assert.ok(edge(graph, 'test/app.test.mjs', 'file:test/fixture.json', 'test-reference'));
-  assert.ok(graph.scope.limitations.some(item => item.includes('not coverage')));
+  assert.ok(graph.scope.limitations.some(item => item.includes('Run tests for results and enable coverage')));
   assert.equal(graph.status, 'current');
 });
 

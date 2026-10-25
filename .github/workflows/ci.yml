@@ -20,4 +20,6 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run package
-      - run: node scripts/smoke-release.mjs dist/agent-mind-1.0.0/agent-mind-1.0.0
+      - run: |
+          version="$(node -p "require('./package.json').version")"
+          node scripts/smoke-release.mjs "dist/agent-mind-${version}/agent-mind-${version}"

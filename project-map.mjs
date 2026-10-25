@@ -30,12 +30,12 @@ function validateConfiguration(config) {
 }
 
 function fallback(file) {
-  if (file.kind === 'test') return { id: 'auto:tests', label: 'Tests', type: 'tests', group: 'tests', description: 'Test files and their static references.' };
+  if (file.kind === 'test') return { id: 'auto:tests', label: 'Tests', type: 'tests', group: 'tests', description: 'Test files and the code they reference.' };
   if (file.kind === 'document') return { id: 'auto:documents', label: 'Documentation', type: 'document', group: 'support', description: 'Project rules and documentation.' };
   if (file.kind === 'config') return { id: 'auto:config', label: 'Settings', type: 'config', group: 'support', description: 'Project configuration files.' };
   const folder = path.posix.dirname(file.path);
   const key = folder === '.' ? file.path : folder;
-  return { id: `auto:${sha(key).slice(0, 16)}`, label: folder === '.' ? path.posix.basename(file.path) : folder, type: 'module', group: 'core', description: 'Grouped by path. Its purpose has not been named yet.', inferred: true };
+  return { id: `auto:${sha(key).slice(0, 16)}`, label: folder === '.' ? path.posix.basename(file.path) : folder, type: 'module', group: 'core', description: 'Grouped by path. Add a name and purpose in the project map.', inferred: true };
 }
 
 /** Names/types describe source membership; all relationships come from the source graph. */

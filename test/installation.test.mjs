@@ -106,7 +106,7 @@ test('uninstall removes hash-matching owned files and preserves user map, edits,
 test('active view lease blocks lifecycle and exact release token cannot kill another process', t => {
   const f = fixture(t); install(f); attachInstallation(f.install);
   fs.writeFileSync(path.join(f.install, '.local/view.json'), JSON.stringify({ token: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', pid: process.pid }));
-  for (const operation of [detachInstallation, uninstallInstallation, rebindInstallation]) assert.throws(() => operation(f.install), /foreground view lease/);
+  for (const operation of [detachInstallation, uninstallInstallation, rebindInstallation]) assert.throws(() => operation(f.install), /foreground view/);
   const result = spawnSync(process.execPath, [path.join(f.install, 'cli.mjs'), 'release-view', '--token', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'], { encoding: 'utf8' });
   assert.equal(result.status, 1); assert.match(result.stderr, /still alive/); assert.equal(fs.existsSync(path.join(f.install, '.local/view.json')), true);
 });
@@ -148,7 +148,7 @@ test('preflight requires a complete well-formed exact context receipt and reject
   }
   for (const [name, value] of [['--revision', 'invalid'], ['--binding-id', 'invalid'], ['--generation', '0'], ['--generation', '1e3']]) {
     const args = [...receipt]; args[args.indexOf(name) + 1] = value;
-    const result = preflight(['main.mjs', ...args]); assert.equal(result.status, 1); assert.match(result.stderr, /receipt format/);
+    const result = preflight(['main.mjs', ...args]); assert.equal(result.status, 1); assert.match(result.stderr, /Invalid preflight values/);
   }
   const wrong = [...receipt]; wrong[wrong.indexOf('--binding-id') + 1] = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   const wrongResult = preflight(['main.mjs', ...wrong]); assert.equal(wrongResult.status, 1); assert.match(wrongResult.stderr, /binding has expired/);
@@ -168,7 +168,7 @@ test('AGENTS custody keeps concurrent owner bytes and never overwrites a recreat
   // A fresh fixture tests publication after someone creates the displaced name.
   const g = fixture(t); install(g); const other = path.join(g.project, 'AGENTS.md'); fs.writeFileSync(other, 'Original\n'); injected = false;
   fs.renameSync = (from, to) => { const result = rename(from, to); if (from === other && !injected) { injected = true; fs.writeFileSync(other, 'Owner recreated path\n'); } return result; };
-  try { assert.throws(() => attachInstallation(g.install), /publication conflict/); } finally { fs.renameSync = rename; }
+  try { assert.throws(() => attachInstallation(g.install), /Could not replace AGENTS/); } finally { fs.renameSync = rename; }
   assert.equal(fs.readFileSync(other, 'utf8'), 'Owner recreated path\n'); recovery = statusInstallation(g.install).recovery;
   assert.ok(recovery.some(entry => fs.readFileSync(path.join(g.install, entry.path), 'utf8') === 'Original\n'));
 });
@@ -186,7 +186,7 @@ test('explicit portable clone adoption preserves map and unknown data and create
   const clone = path.join(f.dir, 'clone'); fs.mkdirSync(clone); fs.cpSync(f.install, path.join(clone, 'agent.mind'), { recursive: true, filter: p => path.basename(p) !== '.local' });
   fs.copyFileSync(path.join(f.project, 'AGENTS.md'), path.join(clone, 'AGENTS.md')); const cloneInstall = path.join(clone, 'agent.mind');
   const map = '{"schemaVersion":1,"blocks":[],"owner":"retained"}\n'; fs.writeFileSync(path.join(cloneInstall, 'project-map.json'), map); fs.writeFileSync(path.join(cloneInstall, 'unknown.txt'), 'owner');
-  assert.throws(() => installProject({ project: clone, release: f.release }), /explicit install --adopt/);
+  assert.throws(() => installProject({ project: clone, release: f.release }), /run install --adopt/);
   const adopted = installProject({ project: clone, release: f.release, adopt: true }); assert.equal(adopted.state, 'detached'); assert.notEqual(adopted.binding.id, original.binding.id); assert.equal(adopted.runtime.digest, original.runtime.digest);
   assert.equal(fs.readFileSync(path.join(cloneInstall, 'project-map.json'), 'utf8'), map); assert.equal(fs.readFileSync(path.join(cloneInstall, 'unknown.txt'), 'utf8'), 'owner');
   attachInstallation(cloneInstall); assert.equal(resolveInstallation(cloneInstall).binding.installId, JSON.parse(fs.readFileSync(path.join(f.install, '.local/install.json'))).installId);
@@ -213,7 +213,7 @@ test('uninstall retains owned inode writes made through descriptors until explic
   assert.ok(retained); assert.match(fs.readFileSync(path.join(f.install, retained), 'utf8'), /Late owned descriptor update/);
 });
 test('purge requires exact uninstalled inventory and explicit digest, then removes only the reviewed installation', t => {
-  const f = fixture(t); install(f); assert.throws(() => purgePlan(f.install), /uninstalled tombstone/); uninstallInstallation(f.install);
+  const f = fixture(t); install(f); assert.throws(() => purgePlan(f.install), /Run uninstall before purge/); uninstallInstallation(f.install);
   const plan = purgePlan(f.install); assert.match(plan.digest, /^[a-f0-9]{64}$/); assert.ok(plan.entries.some(entry => entry.path === 'project-map.json' && entry.kind === 'file' && entry.hash));
   assert.throws(() => purgeInstallation(f.install, '0'.repeat(64)), /inventory or root identity changed/); assert.equal(fs.existsSync(f.install), true);
   const result = purgeInstallation(f.install, plan.digest); assert.equal(result.state, 'purged'); assert.equal(fs.existsSync(f.install), false); assert.equal(fs.existsSync(path.join(f.project, 'main.mjs')), true);

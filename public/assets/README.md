@@ -1,11 +1,11 @@
-# Canvas surface assets
+# Canvas artwork
 
-Generated with the built-in imagegen tool from the owner-supplied paper canvas reference on 2026-10-24. WebP encoding uses cwebp; no remote asset dependency.
+Generated with the built-in imagegen tool on 2026-10-24, using the owner’s paper canvas reference. Encoded as WebP with cwebp and served locally.
 
 - `canvas-paper.webp`: warm cream seamless paper texture; rendered at a fixed 768 px tile size.
 - `agent-mind-wordmark.webp`: transparent Agent.mind wordmark derived from the reference; fixed screen overlay, 90 × 30 CSS pixels including transparent padding.
 
-The dot grid is rendered separately in CSS and follows the graph camera across the full workspace. The paper and wordmark remain fixed. Controls are outside this visual change.
+The CSS dot grid moves with the graph camera. The paper and wordmark stay fixed on screen.
 
 ## Image prompts
 

@@ -51,7 +51,7 @@ function filesBelow(root, prefix = '', allowedDirectories, budget = { entries: 0
   const result = [];
   for (const item of fs.readdirSync(prefix ? checked(root, prefix) : root, { withFileTypes: true })) {
     const relative = prefix ? `${prefix}/${item.name}` : item.name;
-    if (++budget.entries > 300) throw new Error('Artifact directory budget exceeded.');
+    if (++budget.entries > 300) throw new Error('Release has too many directory entries.');
     if (item.isSymbolicLink()) throw new Error(`Symbolic link rejected: ${relative}`);
     if (item.isDirectory()) {
       if (allowedDirectories && !allowedDirectories.has(relative)) throw new Error(`Artifact contains unknown directory: ${relative}`);
@@ -59,7 +59,7 @@ function filesBelow(root, prefix = '', allowedDirectories, budget = { entries: 0
     }
     else if (item.isFile()) result.push(relative);
     else throw new Error(`Unsupported file type: ${relative}`);
-    if (result.length > 200) throw new Error('Artifact inventory exceeds limit.');
+    if (result.length > 200) throw new Error('Release has too many files.');
   }
   return result.sort();
 }
@@ -80,7 +80,7 @@ export function verifyArtifact(directory, expectedDigest) {
   if (JSON.stringify(filesBelow(root, '', directories)) !== JSON.stringify([...Object.keys(manifest.files), 'artifact.json'].sort())) throw new Error('Artifact contains missing or unknown files.');
   for (const [relative, hash] of entries) if (sha(read(root, relative)) !== hash) throw new Error(`Artifact hash mismatch: ${relative}`);
   const pkg = readJSON(root, 'package.json'), acorn = readJSON(root, 'node_modules/acorn/package.json'), lockfile = readJSON(root, 'package-lock.json');
-  if (pkg.version !== manifest.version || pkg.dependencies?.acorn !== acorn.version || lockfile.packages?.['node_modules/acorn']?.version !== acorn.version) throw new Error('Runtime package, lock and Acorn pin disagree.');
+  if (pkg.version !== manifest.version || pkg.dependencies?.acorn !== acorn.version || lockfile.packages?.['node_modules/acorn']?.version !== acorn.version) throw new Error('Runtime package, lockfile and Acorn versions do not match.');
   return { root, ...manifest };
 }
 function load(installDir) {
@@ -89,21 +89,21 @@ function load(installDir) {
   const dir = fs.realpathSync(requested);
   if (path.basename(dir) !== 'agent.mind') throw new Error('Install directory must be a real agent.mind directory.');
   const descriptor = readJSON(dir, 'project.json'), receipt = readJSON(dir, '.local/install.json');
-  if (descriptor.schemaVersion !== 1 || descriptor.projectRoot !== '..' || !HASH.test(descriptor.runtime?.digest) || receipt.schemaVersion !== 1 || !UUID.test(receipt.installId) || !UUID.test(receipt.binding?.id) || !Number.isSafeInteger(receipt.binding?.generation) || receipt.binding.generation < 1 || !['attached', 'detached', 'attaching', 'detaching', 'uninstalling', 'uninstalled', 'rebinding', 'installing'].includes(receipt.state) || receipt.runtimeDigest !== descriptor.runtime.digest || !receipt.owned || Array.isArray(receipt.owned)) throw new Error('Invalid installation descriptor or receipt.');
+  if (descriptor.schemaVersion !== 1 || descriptor.projectRoot !== '..' || !HASH.test(descriptor.runtime?.digest) || receipt.schemaVersion !== 1 || !UUID.test(receipt.installId) || !UUID.test(receipt.binding?.id) || !Number.isSafeInteger(receipt.binding?.generation) || receipt.binding.generation < 1 || !['attached', 'detached', 'attaching', 'detaching', 'uninstalling', 'uninstalled', 'rebinding', 'installing'].includes(receipt.state) || receipt.runtimeDigest !== descriptor.runtime.digest || !receipt.owned || Array.isArray(receipt.owned)) throw new Error('Invalid project.json or .local/install.json. Check the installation files.');
   for (const [relative, hash] of Object.entries(receipt.owned)) {
     safeRelative(relative);
     const prefix = `.local/runtime/${descriptor.runtime.digest}/`;
-    if (!HASH.test(hash) || (!['cli.mjs', 'project.json', 'README.md', '.gitignore'].includes(relative) && !(relative.startsWith(prefix) && (allowedArtifact(relative.slice(prefix.length)) || relative.slice(prefix.length) === 'artifact.json')))) throw new Error('Invalid ownership inventory.');
+    if (!HASH.test(hash) || (!['cli.mjs', 'project.json', 'README.md', '.gitignore'].includes(relative) && !(relative.startsWith(prefix) && (allowedArtifact(relative.slice(prefix.length)) || relative.slice(prefix.length) === 'artifact.json')))) throw new Error('The installation file list in .local/install.json is invalid.');
   }
   for (const entry of receipt.recovery ?? []) {
-    if (!entry || !/^\.local\/recovery\/[a-f0-9-]{36}-(?:AGENTS\.md|owned)$/.test(entry.path) || !['prepared', 'displaced', 'retained', 'not-moved', 'removed', 'conflict'].includes(entry.phase) || (entry.source !== 'AGENTS.md' && !Object.hasOwn(receipt.owned, entry.source))) throw new Error('Invalid recovery journal.');
+    if (!entry || !/^\.local\/recovery\/[a-f0-9-]{36}-(?:AGENTS\.md|owned)$/.test(entry.path) || !['prepared', 'displaced', 'retained', 'not-moved', 'removed', 'conflict'].includes(entry.phase) || (entry.source !== 'AGENTS.md' && !Object.hasOwn(receipt.owned, entry.source))) throw new Error('The recovery record in .local/install.json is invalid.');
   }
   return { dir, descriptor, receipt };
 }
 function validateBinding(state, { requireAttached = true, verifyRuntime = true } = {}) {
   const { dir, descriptor, receipt } = state;
   const root = fs.realpathSync(path.join(dir, descriptor.projectRoot)), stat = fs.statSync(root), binding = receipt.binding;
-  if (root !== binding.root || stat.dev !== binding.dev || stat.ino !== binding.ino) throw new Error('Project binding changed. Run explicit rebind.');
+  if (root !== binding.root || stat.dev !== binding.dev || stat.ino !== binding.ino) throw new Error('Project binding changed. Run rebind for this directory.');
   if (process.env.AGENT_MIND_PROJECT && fs.realpathSync(process.env.AGENT_MIND_PROJECT) !== root) throw new Error('AGENT_MIND_PROJECT conflicts with the installed binding.');
   if (requireAttached && receipt.state !== 'attached') throw new Error(`Installation is ${receipt.state}; attach before context or view.`);
   if (verifyRuntime) verifyArtifact(checked(dir, `.local/runtime/${descriptor.runtime.digest}`), descriptor.runtime.digest);
@@ -115,7 +115,7 @@ export function resolveInstallation(installDir, options = {}) {
   Object.defineProperty(binding, 'verify', { enumerable: false, value: () => {
     const latest = load(state.dir);
     validateBinding(latest, { ...options, verifyRuntime: false });
-    if (latest.receipt.binding.id !== binding.id || latest.receipt.binding.generation !== binding.generation) throw new Error('Context binding has expired.');
+    if (latest.receipt.binding.id !== binding.id || latest.receipt.binding.generation !== binding.generation) throw new Error('Context binding has expired. Run context again.');
   } });
   return { root, binding, indexOptions: { generic: true, excludePaths: ['agent.mind'], metadataPath: 'agent.mind/project-map.json' }, runtime: checked(state.dir, `.local/runtime/${state.descriptor.runtime.digest}`) };
 }
@@ -126,7 +126,7 @@ function lock(state, operation) {
   catch (error) {
     if (error.code !== 'EEXIST') throw error;
     const previous = readJSON(state.dir, '.local/operation.lock');
-    if (!Number.isSafeInteger(previous.pid) || previous.pid < 1) throw new Error('Invalid operation lock; manual review required.');
+    if (!Number.isSafeInteger(previous.pid) || previous.pid < 1) throw new Error('Invalid operation lock. Check .local/operation.lock before retrying.');
     try { process.kill(previous.pid, 0); throw new Error('Another installation operation is active.'); }
     catch (probe) { if (probe.code !== 'ESRCH') throw probe; }
     fs.unlinkSync(lockPath);
@@ -138,10 +138,10 @@ function lock(state, operation) {
 function assertNoView(state) {
   // A view lease is deliberately not removed using a PID guess. A crashed view
   // can be released by explicit `release-view --token <recorded token>`.
-  if (exists(checked(state.dir, '.local/view.json', true))) throw new Error('A foreground view lease exists. Stop that view or explicitly release its recorded token.');
+  if (exists(checked(state.dir, '.local/view.json', true))) throw new Error('A foreground view is recorded. Stop it first. If it crashed, use release-view with its recorded token.');
 }
 export const LAUNCHER = `#!/usr/bin/env node\nimport fs from 'node:fs';\nimport path from 'node:path';\nimport { createHash } from 'node:crypto';\nimport { fileURLToPath, pathToFileURL } from 'node:url';\nconst dir = path.dirname(fileURLToPath(import.meta.url));\ntry {\n const p = JSON.parse(fs.readFileSync(path.join(dir, 'project.json'), 'utf8'));\n const r = JSON.parse(fs.readFileSync(path.join(dir, '.local/install.json'), 'utf8'));\n const digest = p.runtime?.digest;\n if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error('Invalid runtime pin.');\n const relative = '.local/runtime/' + digest + '/installation.mjs';\n let current = dir;\n for (const part of relative.split('/')) { current = path.join(current, part); if (fs.lstatSync(current).isSymbolicLink()) throw new Error('Runtime symlink rejected.'); }\n const bytes = fs.readFileSync(current);\n if (createHash('sha256').update(bytes).digest('hex') !== r.owned?.[relative]) throw new Error('Runtime loader integrity mismatch.');\n const { runCLI } = await import(pathToFileURL(current));\n await runCLI(process.argv.slice(2), { installDir: dir });\n} catch (error) { console.error(error.message); process.exitCode = 1; }\n`;
-function portableFiles(descriptor) { return { 'cli.mjs': LAUNCHER, 'project.json': json(descriptor), '.gitignore': '.local/\n', 'README.md': '# agent.mind project integration\n\nRun `node agent.mind/cli.mjs status`, `attach`, `context "selector"`, `view`, `detach`, or `uninstall` from the project root. The project-map.json is user-owned and retained by uninstall. Stop the foreground view before lifecycle changes. After attach, reload project instructions in the main coding agent. An attached file does not prove those instructions were loaded.\n\nUninstall removes active paths and retains every displaced inode under .local/recovery, plus the user map and changed/unknown data. For final deletion, use the original release CLI: `purge-plan --install-dir /absolute/project/agent.mind`, inspect the full inventory, stop external writers, then `purge --install-dir /absolute/project/agent.mind --digest <exact plan digest>`. Purge permanently deletes reviewed owner data; it is a separate explicit operation and cannot exclude unrelated concurrent writers transactionally.\n' }; }
+function portableFiles(descriptor) { return { 'cli.mjs': LAUNCHER, 'project.json': json(descriptor), '.gitignore': '.local/\n', 'README.md': '# agent.mind in this project\n\nRun `node agent.mind/cli.mjs status`, `attach`, `context "selector"`, `view`, `detach`, or `uninstall` from the project root.\n\nproject-map.json is your map. Uninstall keeps it. Stop the foreground view before attach, detach, rebind or uninstall. After attach, reload the project instructions in the main coding agent and check that it loaded them.\n\nUninstall removes active files and saves the originals in .local/recovery. It also keeps your map, changed files and unknown files.\n\nFor permanent deletion, use the original release CLI: `purge-plan --install-dir /absolute/project/agent.mind`. Review the full file list and stop other programs from writing to those files. Then run `purge --install-dir /absolute/project/agent.mind --digest <exact plan digest>`.\n\nPurge is a separate command. It permanently deletes the listed data, including your files and saved originals. Other programs can still change files while it runs; purge does not lock them out.\n' }; }
 export function installProject({ project, release, expectedDigest, adopt = false }) {
   if (!project || !path.isAbsolute(project)) throw new Error('Install requires an explicit absolute --project path.');
   const root = fs.realpathSync(project);
@@ -149,17 +149,17 @@ export function installProject({ project, release, expectedDigest, adopt = false
   const artifact = verifyArtifact(release, expectedDigest), dir = path.join(root, 'agent.mind');
   if (exists(dir)) {
     if (!exists(checked(dir, '.local', true))) {
-      if (!adopt) throw new Error('Existing directory is not a local installation. A verified portable clone requires explicit install --adopt.');
+      if (!adopt) throw new Error('This agent.mind directory has no local installation. To use a recognized portable clone, run install --adopt.');
       return adoptPortable(dir, root, artifact);
     }
     const state = load(dir);
     if (state.receipt.state === 'installing') {
-      if (!adopt) throw new Error('Incomplete adoption requires explicit install --adopt to resume.');
+      if (!adopt) throw new Error('Adoption did not finish. Run install --adopt again to resume.');
       return lock(state, () => materializePortable(state, artifact));
     }
-    if (state.receipt.state === 'uninstalled') throw new Error('An uninstalled receipt and preserved data remain. Review the exact remnants, move the entire preserved agent.mind directory aside, then install again.');
+    if (state.receipt.state === 'uninstalled') throw new Error('Uninstall is complete; preserved data remain. Review them, move the whole agent.mind directory aside, then install again.');
     validateBinding(state, { requireAttached: false });
-    if (state.descriptor.runtime.digest !== artifact.digest) throw new Error('Different runtime already installed; explicit replacement is required.');
+    if (state.descriptor.runtime.digest !== artifact.digest) throw new Error('A different runtime is already installed. Replace it explicitly before installing this release.');
     return statusInstallation(dir);
   }
   const stage = path.join(root, `.agent-mind-stage-${randomUUID()}`);
@@ -193,7 +193,7 @@ export function installProject({ project, release, expectedDigest, adopt = false
 function portableReceipt(dir, root, artifact) {
   const descriptor = readJSON(dir, 'project.json');
   const expected = { schemaVersion: 1, projectRoot: '..', runtime: { version: artifact.version, digest: artifact.digest } };
-  if (JSON.stringify(descriptor) !== JSON.stringify(expected)) throw new Error('Portable descriptor must pin this exact artifact.');
+  if (JSON.stringify(descriptor) !== JSON.stringify(expected)) throw new Error('project.json must pin this exact release.');
   const generated = portableFiles(expected), owned = {};
   for (const [relative, bytes] of Object.entries(generated)) {
     if (sha(read(dir, relative)) !== sha(bytes)) throw new Error(`Unrecognized portable file: ${relative}`);
@@ -205,20 +205,20 @@ function portableReceipt(dir, root, artifact) {
   let installId = randomUUID(), agents = null;
   if (/<!-- agent\.mind:/.test(text)) {
     const matches = [...text.matchAll(/<!-- agent\.mind:([a-f0-9-]{36}):start -->/g)];
-    if (matches.length !== 1 || !UUID.test(matches[0][1])) throw new Error('Unrecognized portable AGENTS block.');
+    if (matches.length !== 1 || !UUID.test(matches[0][1])) throw new Error('The portable AGENTS block does not match this release. Review it before adopting.');
     installId = matches[0][1]; const block = managedBlock(installId, text.includes('\r\n') ? '\r\n' : '\n');
     agents = { installId, block, prefix: '', existed: true, beforeHash: sha(text.replace(block, '')), afterHash: sha(text) };
     checkBlock(text, agents);
-    if ((text.match(/<!-- agent\.mind:/g) ?? []).length !== 2) throw new Error('Multiple portable AGENTS blocks are unsupported.');
+    if ((text.match(/<!-- agent\.mind:/g) ?? []).length !== 2) throw new Error('Found more than one portable AGENTS block. Resolve them before adopting.');
   }
   return { schemaVersion: 1, installId, state: 'installing', runtimeDigest: artifact.digest, binding: { id: randomUUID(), generation: 1, root, dev: stat.dev, ino: stat.ino }, owned, agents };
 }
 function materializePortable(state, artifact) {
   validateBinding(state, { requireAttached: false, verifyRuntime: false });
-  if (state.descriptor.runtime.digest !== artifact.digest) throw new Error('Adoption artifact does not match the portable pin.');
+  if (state.descriptor.runtime.digest !== artifact.digest) throw new Error('This release does not match the runtime pinned in project.json.');
   // Revalidate all known portable bytes on resume; unknown files remain untouched.
   const expected = portableReceipt(state.dir, state.receipt.binding.root, artifact);
-  if (JSON.stringify(expected.owned) !== JSON.stringify(state.receipt.owned)) throw new Error('Adoption ownership journal differs from the verified artifact.');
+  if (JSON.stringify(expected.owned) !== JSON.stringify(state.receipt.owned)) throw new Error('The adoption file list does not match the verified release.');
   if (state.receipt.agents) checkBlock(readAgents(state.receipt.binding.root), state.receipt.agents);
   for (const relative of [...Object.keys(artifact.files), 'artifact.json']) {
     const destination = `.local/runtime/${artifact.digest}/${relative}`, bytes = read(artifact.root, relative), hash = state.receipt.owned[destination];
@@ -278,10 +278,10 @@ function displace(state, root, relative, expectedHash, kind) {
   entry.phase = 'displaced'; save(state);
   let actual;
   try { actual = sha(read(state.dir, entry.path)); }
-  catch (error) { entry.phase = 'conflict'; save(state); throw new Error(`Displaced file is unsafe; preserved at ${backup}: ${error.message}`); }
+  catch (error) { entry.phase = 'conflict'; save(state); throw new Error(`Could not verify the moved file. It is saved at ${backup}: ${error.message}`); }
   if (actual !== expectedHash) {
     restoreExclusive(state, root, entry); entry.phase = 'conflict'; save(state);
-    throw new Error(`Concurrent owner change preserved at ${backup}; source restored only if vacant.`);
+    throw new Error(`Concurrent owner change preserved at ${backup}. The original path is restored only if it is free.`);
   }
   return entry;
 }
@@ -294,29 +294,29 @@ function replaceAgents(state, root, expectedText, nextText) {
     if (entry) { entry.phase = 'retained'; save(state); }
   } catch (error) {
     if (entry) { restoreExclusive(state, root, entry); entry.phase = 'conflict'; save(state); }
-    throw new Error(`AGENTS.md publication conflict; owner bytes preserved${entry ? ` at ${path.join(state.dir, entry.path)}` : ' in the concurrently created AGENTS.md'}. ${error.message}`);
+    throw new Error(`Could not replace AGENTS.md. Your text is saved${entry ? ` at ${path.join(state.dir, entry.path)}` : ' in the AGENTS.md created by another process'}. ${error.message}`);
   }
 }
 function managedBlock(installId, eol) {
-  return [`<!-- agent.mind:${installId}:start -->`, '## agent.mind source context', 'Before nontrivial source work, run `node agent.mind/cli.mjs status` and obtain fresh context.', 'Interpret the human request and extract a candidate selector (for example: "module C needs another test" -> "module C").', 'Run `node agent.mind/cli.mjs context "selector"`; use the exact stable ID or full breadcrumb when ambiguous. Read the returned implementation and relevant tests before editing.', 'Before a concrete action, run `node agent.mind/cli.mjs preflight "selector" --revision <returned revision> --binding-id <returned binding.id> --generation <returned binding.generation>` to verify that exact context receipt. Compare source hashes as well. Obtain context again after edits and run the meaningful project tests.', 'The map is bounded static evidence. Test imports are not coverage or PASS; Security is not a vulnerability verdict. Unknown names or ambiguous matches require clarification.', 'These are cooperative instructions for the main coding agent, not automatic enforcement. Attach does not prove this chat loaded the instructions; reload them after attach/rebind. Detached or expired bindings cannot supply valid installed context.', `<!-- agent.mind:${installId}:end -->`, ''].join(eol);
+  return [`<!-- agent.mind:${installId}:start -->`, '## agent.mind source context', 'Before nontrivial source work, run `node agent.mind/cli.mjs status` and get current context.', 'Choose a name from the request (for example: "module C needs another test" -> "module C").', 'Run `node agent.mind/cli.mjs context "selector"`. If more than one part matches, use its stable ID or full breadcrumb. Read the selected implementation and relevant tests before editing.', 'Before an authorized action, run `node agent.mind/cli.mjs preflight "selector" --revision <returned revision> --binding-id <returned binding.id> --generation <returned binding.generation>` with the values from context. Compare source hashes too. After edits, get context again and run the relevant project tests.', 'The map reads supported source patterns and may be incomplete. Test imports do not show coverage or a test result. Security labels are not vulnerability findings. Ask for clarification if a name is missing or still matches more than one part.', 'The main coding agent must follow these steps; this file does not enforce them automatically. After attach or rebind, reload these instructions and check that the chat loaded them. Detached or expired bindings cannot return valid installed context.', `<!-- agent.mind:${installId}:end -->`, ''].join(eol);
 }
 function readAgents(root) { return exists(checked(root, 'AGENTS.md', true)) ? read(root, 'AGENTS.md', 1024 * 1024).toString('utf8') : ''; }
 function checkBlock(text, agents) {
   const start = `<!-- agent.mind:${agents.installId}:start -->`, end = `<!-- agent.mind:${agents.installId}:end -->`;
-  if (text.split(start).length !== 2 || text.split(end).length !== 2 || !text.includes(agents.block)) throw new Error('Managed AGENTS block changed or duplicated; manual resolution required.');
+  if (text.split(start).length !== 2 || text.split(end).length !== 2 || !text.includes(agents.block)) throw new Error('Managed AGENTS block changed or duplicated. Review it before retrying.');
 }
 export function attachInstallation(installDir) {
   const state = load(installDir);
   return lock(state, () => {
     const root = validateBinding(state, { requireAttached: false }); assertNoView(state); recoverPending(state, root);
-    if (['uninstalling', 'installing'].includes(state.receipt.state)) throw new Error('Install/uninstall is in progress; complete its explicit operation first.');
+    if (['uninstalling', 'installing'].includes(state.receipt.state)) throw new Error('Install or uninstall is in progress. Finish that operation first.');
     const text = readAgents(root);
     if (state.receipt.agents) {
       if (state.receipt.state === 'attaching' && sha(text) === state.receipt.agents.beforeHash) replaceAgents(state, root, text, text + state.receipt.agents.prefix + state.receipt.agents.block);
       checkBlock(readAgents(root), state.receipt.agents);
       state.receipt.state = 'attached'; save(state); return statusInstallation(installDir);
     }
-    if (/<!-- agent\.mind:/.test(text)) throw new Error('Another or incomplete agent.mind AGENTS block exists.');
+    if (/<!-- agent\.mind:/.test(text)) throw new Error('Another or incomplete agent.mind AGENTS block exists. Review it before attaching.');
     const eol = text.includes('\r\n') ? '\r\n' : '\n', block = managedBlock(state.receipt.installId, eol);
     const prefix = text && !text.endsWith('\n') ? eol + eol : text ? eol : '';
     state.receipt.agents = { installId: state.receipt.installId, block, prefix, beforeHash: sha(text), afterHash: sha(text + prefix + block), existed: exists(checked(root, 'AGENTS.md', true)) };
@@ -350,8 +350,8 @@ export function statusInstallation(installDir) {
   let root = null;
   try { root = validateBinding(state, { requireAttached: false, verifyRuntime: state.receipt.state !== 'uninstalled' }); } catch (error) { conflicts.push(error.message); }
   if (state.receipt.agents && root) try { checkBlock(readAgents(root), state.receipt.agents); } catch (error) { conflicts.push(error.message); }
-  for (const [relative, hash] of Object.entries(state.receipt.owned).filter(([relative]) => state.receipt.state !== 'uninstalled' || exists(checked(state.dir, relative, true)))) try { if (sha(read(state.dir, relative)) !== hash) conflicts.push(`Modified owned file: ${relative}`); } catch (error) { conflicts.push(`Missing or unsafe owned file: ${relative}`); }
-  return { schemaVersion: 1, state: state.receipt.state, root: root ?? state.receipt.binding.root, binding: state.receipt.binding, runtime: state.descriptor.runtime, integrity: conflicts.length ? 'needs-attention' : 'verified', conflicts, recovery: state.receipt.recovery ?? [], instructionActivation: 'not-verified', instructionWarnings: root && exists(checked(root, 'AGENTS.override.md', true)) ? ['Root AGENTS.override.md may take precedence; activation requires explicit verification.'] : [], view: exists(checked(state.dir, '.local/view.json', true)) ? readJSON(state.dir, '.local/view.json') : null };
+  for (const [relative, hash] of Object.entries(state.receipt.owned).filter(([relative]) => state.receipt.state !== 'uninstalled' || exists(checked(state.dir, relative, true)))) try { if (sha(read(state.dir, relative)) !== hash) conflicts.push(`Installed file changed: ${relative}`); } catch (error) { conflicts.push(`Installed file is missing or unsafe: ${relative}`); }
+  return { schemaVersion: 1, state: state.receipt.state, root: root ?? state.receipt.binding.root, binding: state.receipt.binding, runtime: state.descriptor.runtime, integrity: conflicts.length ? 'needs-attention' : 'verified', conflicts, recovery: state.receipt.recovery ?? [], instructionActivation: 'not-verified', instructionWarnings: root && exists(checked(root, 'AGENTS.override.md', true)) ? ['AGENTS.override.md in the project root may take precedence. Check which instructions the coding agent loaded.'] : [], view: exists(checked(state.dir, '.local/view.json', true)) ? readJSON(state.dir, '.local/view.json') : null };
 }
 export function rebindInstallation(installDir) {
   const state = load(installDir);
@@ -399,7 +399,7 @@ export function uninstallInstallation(installDir) {
     pruneEmpty(state.dir, Object.keys(state.receipt.owned));
     const remaining = listRemaining(state.dir).filter(p => !['.local/install.json', '.local/operation.lock'].includes(p));
     state.receipt.state = 'uninstalled'; state.receipt.uninstalled = true; state.receipt.remnants = remaining; save(state);
-    return { state: 'uninstalled', removed, preserved: remaining, receipt: path.join(state.dir, '.local/install.json'), note: 'Active paths removed. All displaced inodes, user map and changed/unknown files retained. Use original release CLI purge-plan, review its exact inventory, then explicitly purge --digest to delete them.' };
+    return { state: 'uninstalled', removed, preserved: remaining, receipt: path.join(state.dir, '.local/install.json'), note: 'Active files removed. The originals, your map, and changed or unknown files are kept. For permanent deletion, use purge-plan from the original release CLI, review the full file list, then use purge --digest.' };
   });
 }
 function fileFingerprint(root, relative) {
@@ -415,10 +415,10 @@ function fileFingerprint(root, relative) {
   } finally { fs.closeSync(fd); }
 }
 function purgeInventory(root, prefix = '', budget = { count: 0, depth: 0 }) {
-  if (budget.depth > 30) throw new Error('Purge inventory depth limit exceeded.');
+  if (budget.depth > 30) throw new Error('Purge stopped: the directory tree is too deep.');
   const entries = [];
   for (const item of fs.readdirSync(prefix ? checked(root, prefix) : root, { withFileTypes: true })) {
-    if (++budget.count > 10000) throw new Error('Purge inventory entry limit exceeded.');
+    if (++budget.count > 10000) throw new Error('Purge stopped: the file list is too large.');
     const relative = prefix ? `${prefix}/${item.name}` : item.name;
     const filename = checked(root, relative), stat = fs.lstatSync(filename);
     if (stat.isDirectory()) {
@@ -430,17 +430,17 @@ function purgeInventory(root, prefix = '', budget = { count: 0, depth: 0 }) {
 }
 export function purgePlan(installDir) {
   const state = load(installDir);
-  if (state.receipt.state !== 'uninstalled') throw new Error('Purge requires an uninstalled tombstone. Run uninstall first.');
+  if (state.receipt.state !== 'uninstalled') throw new Error('Run uninstall before purge; its local record must still exist.');
   const root = validateBinding(state, { requireAttached: false, verifyRuntime: false }); assertNoView(state);
-  if (exists(checked(state.dir, '.local/operation.lock', true))) throw new Error('An installation operation lock exists; purge refuses active or unresolved operations.');
+  if (exists(checked(state.dir, '.local/operation.lock', true))) throw new Error('An installation operation lock exists. Finish or resolve that operation before purge.');
   const stat = fs.statSync(state.dir), parent = fs.statSync(root);
   const plan = { schemaVersion: 1, installDir: state.dir, rootIdentity: { dev: stat.dev, ino: stat.ino, projectRoot: root, projectDev: parent.dev, projectIno: parent.ino, bindingId: state.receipt.binding.id, generation: state.receipt.binding.generation }, entries: purgeInventory(state.dir) };
-  return { ...plan, digest: sha(JSON.stringify(plan)), warning: 'This exact inventory includes owner data and retained recovery inodes. Purge deliberately deletes them permanently; stop external writers before executing.' };
+  return { ...plan, digest: sha(JSON.stringify(plan)), warning: 'This list includes your data and saved originals. Purge deletes them permanently. Stop other programs from writing to these files before running it.' };
 }
 export function purgeInstallation(installDir, expectedDigest) {
-  if (!HASH.test(expectedDigest ?? '')) throw new Error('Purge requires the exact reviewed plan digest.');
+  if (!HASH.test(expectedDigest ?? '')) throw new Error('Purge requires the digest from the exact purge-plan you reviewed.');
   const plan = purgePlan(installDir);
-  if (plan.digest !== expectedDigest) throw new Error('Purge inventory or root identity changed. Obtain and review a new purge-plan.');
+  if (plan.digest !== expectedDigest) throw new Error('Purge inventory or root identity changed. Run purge-plan again and review it before deleting files.');
   const root = plan.installDir, workspaceRelative = `.purge-${randomUUID()}`, workspace = checked(root, workspaceRelative, true);
   fs.mkdirSync(workspace, { mode: 0o700 });
   const removed = [], conflicts = [], stagedControls = [], controls = new Set(['project.json', '.local/install.json']);
@@ -460,7 +460,7 @@ export function purgeInstallation(installDir, expectedDigest) {
       const displaced = fileFingerprint(root, destination);
       if (displaced.hash !== entry.hash || displaced.dev !== entry.dev || displaced.ino !== entry.ino || displaced.bytes !== entry.bytes) {
         try { fs.linkSync(checked(root, destination), checked(root, entry.path, true)); } catch {}
-        throw new Error(`Displaced replacement retained at ${destination}.`);
+        throw new Error(`The file changed during purge. Its replacement is saved at ${destination}.`);
       }
       if (retainControl) stagedControls.push({ path: entry.path, destination });
       else { fs.unlinkSync(checked(root, destination)); removed.push(entry.path); }
@@ -472,14 +472,14 @@ export function purgeInstallation(installDir, expectedDigest) {
   try {
     assertRoot();
     const allowedRemainder = new Set([workspaceRelative + '/', ...controls, ...plan.entries.filter(item => item.kind === 'directory').map(item => item.path + '/')]);
-    for (const relative of listRemaining(root)) if (!allowedRemainder.has(relative)) conflicts.push({ path: relative, error: 'Unexpected or conflicted remainder; tombstone retained.' });
+    for (const relative of listRemaining(root)) if (!allowedRemainder.has(relative)) conflicts.push({ path: relative, error: 'Unexpected or changed file remains. Local installation records kept for another purge-plan.' });
     if (!conflicts.length) for (const entry of plan.entries.filter(item => item.kind === 'file' && controls.has(item.path)).sort((a, b) => a.path === '.local/install.json' ? 1 : b.path === '.local/install.json' ? -1 : 0)) {
       if (conflicts.length) break;
       removeFile(entry, true);
     }
     if (stagedControls.length) {
       const expected = new Set([...plan.entries.filter(item => item.kind === 'directory').map(item => item.path + '/'), ...stagedControls.map(item => item.destination)]);
-      for (const relative of listRemaining(root)) if (!expected.has(relative)) conflicts.push({ path: relative, error: 'Unexpected remainder before control commit.' });
+      for (const relative of listRemaining(root)) if (!expected.has(relative)) conflicts.push({ path: relative, error: 'Unexpected file remains. Local installation records kept for another purge-plan.' });
       if (conflicts.length) {
         for (const control of stagedControls) try { fs.linkSync(checked(root, control.destination), checked(root, control.path, true)); } catch {}
       } else {
@@ -501,7 +501,7 @@ export function purgeInstallation(installDir, expectedDigest) {
     assertRoot(); try { fs.rmdirSync(workspace); } catch {}
     remainder = listRemaining(root);
     if (!remainder.length) { try { fs.rmdirSync(root); } catch (error) { conflicts.push({ path: '.', error: error.message }); remainder = listRemaining(root); } }
-  } catch (error) { conflicts.push({ path: '.', error: error.message }); remainder = ['Install root changed or became unavailable; inspect manually.']; }
+  } catch (error) { conflicts.push({ path: '.', error: error.message }); remainder = ['The installation directory changed or is unavailable. Check it before further cleanup.']; }
   return { state: exists(root) ? 'purge-incomplete' : 'purged', digest: plan.digest, removed, conflicts, remainder };
 }
 function pruneEmpty(root, ownedPaths) {
@@ -541,24 +541,24 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
   if (command === 'release-view') {
     const token = option('--token'); if (argv.length || !UUID.test(token ?? '')) throw new Error('release-view requires the exact recorded --token.');
     const state = load(installDir);
-    return lock(state, () => { const lease = readJSON(state.dir, '.local/view.json'); if (lease.token !== token) throw new Error('View token mismatch.'); try { process.kill(lease.pid, 0); throw new Error('View process is still alive.'); } catch (error) { if (error.code !== 'ESRCH') throw error; } fs.unlinkSync(checked(state.dir, '.local/view.json')); emit({ state: 'released' }); });
+    return lock(state, () => { const lease = readJSON(state.dir, '.local/view.json'); if (lease.token !== token) throw new Error('View token mismatch.'); try { process.kill(lease.pid, 0); throw new Error('View process is still alive. Stop it before releasing its token.'); } catch (error) { if (error.code !== 'ESRCH') throw error; } fs.unlinkSync(checked(state.dir, '.local/view.json')); emit({ state: 'released' }); });
   }
   if (command === 'purge-plan') { if (argv.length) throw new Error('Unexpected argument.'); return emit(purgePlan(installDir)); }
-  if (command === 'purge') { const digest = option('--digest'); if (argv.length || !HASH.test(digest ?? '')) throw new Error('Purge requires --digest from the exact reviewed purge-plan.'); const result = purgeInstallation(installDir, digest); emit(result); if (result.state !== 'purged') process.exitCode = 1; return; }
+  if (command === 'purge') { const digest = option('--digest'); if (argv.length || !HASH.test(digest ?? '')) throw new Error('Purge requires --digest from the exact purge-plan you reviewed.'); const result = purgeInstallation(installDir, digest); emit(result); if (result.state !== 'purged') process.exitCode = 1; return; }
   const resolved = resolveInstallation(installDir);
   if (command === 'context' || command === 'preflight') {
     const revision = option('--revision'), bindingId = option('--binding-id'), generation = option('--generation');
     if (argv.length > 1) throw new Error('Pass one exact selector.');
     if (command === 'preflight') {
-      if (argv.length !== 1 || !argv[0].trim() || argv[0].startsWith('--') || !revision || !bindingId || !generation) throw new Error('Preflight requires one exact selector and --revision, --binding-id, --generation from the context receipt.');
-      if (!HASH.test(revision) || !UUID.test(bindingId) || !/^[1-9][0-9]*$/.test(generation) || !Number.isSafeInteger(Number(generation))) throw new Error('Invalid preflight receipt format.');
+      if (argv.length !== 1 || !argv[0].trim() || argv[0].startsWith('--') || !revision || !bindingId || !generation) throw new Error('Preflight requires one exact selector and --revision, --binding-id, --generation from the context output.');
+      if (!HASH.test(revision) || !UUID.test(bindingId) || !/^[1-9][0-9]*$/.test(generation) || !Number.isSafeInteger(Number(generation))) throw new Error('Invalid preflight values. Use the revision, binding ID and generation returned by context.');
     }
     const { freshContext } = await import(pathToFileURL(path.join(resolved.runtime, 'graph-context.mjs')));
     const context = freshContext(resolved.root, argv[0], resolved.indexOptions);
     resolved.binding.verify();
-    if (command === 'preflight' && context.status !== 'current') throw new Error(`Preflight requires current context; project index is ${context.status}. Inspect context diagnostics before acting.`);
-    if (revision && revision !== context.revision) throw new Error('Project revision changed. Obtain fresh context.');
-    if (bindingId && bindingId !== resolved.binding.id || generation && Number(generation) !== resolved.binding.generation) throw new Error('Context binding has expired.');
+    if (command === 'preflight' && context.status !== 'current') throw new Error(`Preflight requires current context; project index is ${context.status}. Check the context diagnostics before acting.`);
+    if (revision && revision !== context.revision) throw new Error('Project revision changed. Run context again.');
+    if (bindingId && bindingId !== resolved.binding.id || generation && Number(generation) !== resolved.binding.generation) throw new Error('Context binding has expired. Run context again.');
     return emit({ ...context, binding: resolved.binding, preflight: command === 'preflight' ? 'verified-at-read' : undefined });
   }
   if (command === 'view') {

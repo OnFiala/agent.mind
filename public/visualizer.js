@@ -36,7 +36,7 @@ export function reconcileNavigation(navigation, nodes, previousNodes = []) {
   const survives = id => id === null || valid.has(id) && valid.get(id).hasChildren !== false;
   const history = navigation.history.filter(survives);
   while (history.length && history.at(-1) === scopeId) history.pop();
-  return { ...navigation, scopeId, history, snapshots: new Map([...navigation.snapshots].filter(([id]) => survives(id))), notice: scopeId !== navigation.scopeId ? 'The open part changed or was removed. Showing its nearest available parent.' : navigation.notice };
+  return { ...navigation, scopeId, history, snapshots: new Map([...navigation.snapshots].filter(([id]) => survives(id))), notice: scopeId !== navigation.scopeId ? 'This part changed or was removed. Showing its nearest parent.' : navigation.notice };
 }
 
 export function decorateScope(scope, graph) {
@@ -626,12 +626,12 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     const statusNode = $('live-status');
     let label;
     let kind;
-    if (state.indexError || runtime.status === 'error') { kind = 'error'; label = 'Index error'; }
+    if (state.indexError || runtime.status === 'error') { kind = 'error'; label = 'Update failed'; }
     else if (!state.connected) { kind = 'offline'; label = state.received ? 'Disconnected' : 'Connecting'; }
-    else if (runtime.status === 'indexing') { kind = 'indexing'; label = 'Indexing…'; }
-    else if (state.graph?.status === 'partial') { kind = 'partial'; label = 'Partial index'; }
-    else if (state.received && runtime.status === 'current') { kind = 'current'; label = 'Live index'; }
-    else { kind = 'indexing'; label = 'Checking index'; }
+    else if (runtime.status === 'indexing') { kind = 'indexing'; label = 'Reading changes…'; }
+    else if (state.graph?.status === 'partial') { kind = 'partial'; label = 'Incomplete map'; }
+    else if (state.received && runtime.status === 'current') { kind = 'current'; label = 'Up to date'; }
+    else { kind = 'indexing'; label = 'Checking files'; }
     statusNode.dataset.state = kind;
     $('live-text').textContent = label;
     statusNode.title = [label, runtime.lastCheckedAt ? `Checked ${timeLabel(runtime.lastCheckedAt)}` : '', state.indexError || runtime.error || ''].filter(Boolean).join(' · ');
@@ -751,8 +751,8 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     $('relation-count').textContent = `${policy.visible.size} / ${policy.total} ${policy.total === 1 ? 'relation' : 'relations'}`;
     const visibleLayer = [...policy.visible].filter(id => layer.edges.has(id)).length;
     const layerName = { project: 'Whole project', security: 'Security', testing: 'Testing' }[state.view];
-    const hint = policy.mode === 'focus' ? 'Hover a part, focus it with the keyboard or inspect its details.' : 'All relations in the open scope.';
-    const countDescription = `${hint} Showing ${policy.visible.size} of ${policy.total} relations. ${layerName} layer: ${visibleLayer} of ${layer.edges.size}.${state.display.areaMode ? ` All ${state.display.partEdges.length} part relations are retained, including links inside collapsed areas.` : ''}`;
+    const hint = policy.mode === 'focus' ? 'Hover, focus or select a part to show its links.' : 'All links in this part of the map.';
+    const countDescription = `${hint} Showing ${policy.visible.size} of ${policy.total} relations. ${layerName} layer: ${visibleLayer} of ${layer.edges.size}.${state.display.areaMode ? ` The map keeps all ${state.display.partEdges.length} links between parts, including those inside collapsed areas.` : ''}`;
     $('relation-count').title = countDescription;
     $('relation-count').setAttribute('aria-label', countDescription);
     $('relation-mode').title = hint;
@@ -881,7 +881,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         const main = element('span', 'node-main');
         main.append(element('span', 'node-glyph', node.isArea ? '▦' : node.kind === 'block' ? ({ interface: '▣', service: '◉', process: '↳', tests: 'T', config: '⚙', document: '≡', module: '{ }' }[node.type] || '{ }') : GLYPH[node.kind] || '·'));
         const titles = element('span', 'node-titles');
-        titles.append(element('span', 'node-name', node.label), element('span', 'node-path', node.isArea ? node.group === 'context' ? 'Parts outside the current scope' : 'Expand to inspect source parts' : node.kind === 'block' ? node.description : node.path || 'External package / module'));
+        titles.append(element('span', 'node-name', node.label), element('span', 'node-path', node.isArea ? node.group === 'context' ? 'Parts outside this view' : 'Expand to see its parts' : node.kind === 'block' ? node.description : node.path || 'External module'));
         main.append(titles);
         const footer = element('span', 'node-footer');
         const count = display.edges.filter(edge => edge.from === node.id || edge.to === node.id).length;
@@ -905,7 +905,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         detail.setAttribute('aria-label', node.isArea ? `Select area: ${node.label}` : `Detail: ${node.label}`);
         detail.title = node.isArea ? `Select area: ${node.label}` : `Detail: ${node.label}`;
       }
-      card.title = `${node.label || node.path} · ${node.kind === 'block' ? BLOCK_TYPES[node.type] || 'Module' : KIND[node.kind] || node.kind}\n${node.isArea ? 'Click to expand this area' : node.hasChildren ? 'Click to open smaller parts' : 'Click to open source'}; Alt + arrows move the card.`;
+      card.title = `${node.label || node.path} · ${node.kind === 'block' ? BLOCK_TYPES[node.type] || 'Module' : KIND[node.kind] || node.kind}\n${node.isArea ? 'Click to expand this area' : node.hasChildren ? 'Click to see its parts' : 'Click to open source'}; Alt + arrows move the card.`;
       card.setAttribute('aria-label', `${node.label || node.path}, ${node.kind === 'block' ? BLOCK_TYPES[node.type] : KIND[node.kind] || node.kind}, ${node.isArea ? 'expand area' : node.hasChildren ? 'open smaller parts' : 'source details'}`);
       placeCard(node.id);
     }
@@ -951,7 +951,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     $('activity-count').hidden = !state.runtime?.changes?.length;
     $('activity-count').textContent = Math.min(state.runtime?.changes?.length || 0, 99);
     drawGroups(); drawEdges(); emphasize(); status(); renderBreadcrumbs();
-    setMessage(graph.nodes.length ? null : 'No indexed project files yet', graph.nodes.length ? '' : 'Project information contains the index scope and limitations.');
+    setMessage(graph.nodes.length ? null : 'No project files to show', graph.nodes.length ? '' : 'Open project details to see which files the map can read.');
     if (state.panel) renderPanel();
     if ((!state.fitted || changedMode) && display.nodes.length) { fit({ initial: true }); state.fitted = true; }
   }
@@ -1000,11 +1000,11 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   }
 
   function renderProject(body) {
-    $('panel-eyebrow').textContent = 'PROJECT INDEX';
+    $('panel-eyebrow').textContent = 'PROJECT MAP';
     $('panel-title').textContent = state.graph?.project?.name || 'Project';
-    if (!state.graph) { note(state.indexError || 'Waiting for the first project index.', false, body); return; }
+    if (!state.graph) { note(state.indexError || 'Reading project files…', false, body); return; }
     const graph = state.graph;
-    if (graph.hierarchy && !projectScope) note('Nested navigation is unavailable. Showing the supported block overview.', false, body);
+    if (graph.hierarchy && !projectScope) note('Could not open the nested map. Showing project blocks.', false, body);
     section('Map display', body);
     const modes = element('div', 'map-mode-controls');
     for (const [mode, label] of [['blocks', 'Blocks'], ['files', 'Files']]) {
@@ -1013,33 +1013,33 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       control.disabled = mode === 'blocks' && !graph.overview?.nodes.length;
     }
     body.append(modes);
-    if (state.display.mode === 'blocks') body.append(element('p', 'hint', `Blocks: ${graph.overview.source === 'inferred' ? 'derived from source' : `named in ${graph.overview.source}`}. Open a block to reach its source files and lines.`));
-    body.append(element('div', 'path-label', graph.project?.root || 'Project root not provided'));
+    if (state.display.mode === 'blocks') body.append(element('p', 'hint', `Blocks: ${graph.overview.source === 'inferred' ? 'grouped from files' : `named in ${graph.overview.source}`}. Open a block to see its files.`));
+    body.append(element('div', 'path-label', graph.project?.root || 'Project path unavailable'));
     if (graph.binding) {
       section('Project attachment', body);
       body.append(element('p', 'primary-text', `Attached · ${graph.binding.bindingId || graph.binding.id || 'local project'}`));
       body.append(element('p', 'hint', `Runtime ${graph.binding.version || graph.binding.runtime?.version || 'pinned'} · ${graph.binding.artifactDigest || graph.binding.digest || graph.binding.runtime?.digest || ''}`));
-      note('This confirms the local project binding. It does not prove that a coding agent has loaded or used this context.', true, body);
+      note('This view doesn\'t track whether your agent has read the context.', true, body);
     }
-    if (state.indexError || state.runtime?.status === 'error') note(`Could not refresh the index: ${state.indexError || state.runtime.error || 'unknown error'}. The map shows the last available state.`, false, body);
-    else if (!state.connected) note('Live connection lost. The last available map may be stale; reconnecting.', false, body);
-    else if (state.runtime?.status === 'indexing') note('Indexing changes. The map shows the last completed index.', true, body);
-    if (graph.status === 'partial') note('Partial index. Some files or relations could not be analyzed reliably; see details below.', false, body);
+    if (state.indexError || state.runtime?.status === 'error') note(`Could not update the map: ${state.indexError || state.runtime.error || 'unknown error'}. Showing the last map we could read.`, false, body);
+    else if (!state.connected) note('Connection lost. Reconnecting; the map may be out of date.', false, body);
+    else if (state.runtime?.status === 'indexing') note('Reading changes. Showing the previous map until they are ready.', true, body);
+    if (graph.status === 'partial') note('Some files or links couldn\'t be read. See the notes below.', false, body);
     const facts = element('div', 'fact-grid');
     fact(graph.stats?.files ?? graph.nodes.filter(node => node.kind !== 'external').length, 'indexed files', facts);
-    fact(graph.edges.length, 'static relations', facts);
+    fact(graph.edges.length, 'links in code', facts);
     fact(graph.stats?.tests ?? graph.nodes.filter(node => node.kind === 'test').length, 'test files', facts);
     fact(graph.stats?.security ?? graph.nodes.filter(node => node.security?.length).length, 'files with security signals', facts);
     body.append(facts);
     body.append(element('p', 'hint', `Index ${timeLabel(graph.generatedAt)} · last checked ${timeLabel(state.runtime?.lastCheckedAt)} · revision ${shortHash(graph.revision)}`));
-    note('The map shows static source references. It does not run code or tests, or establish security or coverage.', true, body);
+    note('The map reads code without running it. Test results and coverage need a separate test run. Security links point to code to review.', true, body);
     if (graph.overview) {
       section('Block types', body);
-      body.append(element('p', 'hint', 'Interfaces use a screen shape, services a rounded block and processes a double-sided rectangle. Tests use a dashed border; documents a folded corner. Shapes describe roles, not completion.'));
+      body.append(element('p', 'hint', 'Screen shapes mark interfaces, rounded blocks mark services, and double-sided rectangles mark processes. Tests have dashed borders; documents have a folded corner. Shapes show roles. They say nothing about progress.'));
       for (const diagnostic of graph.overview.diagnostics || []) note(typeof diagnostic === 'string' ? diagnostic : diagnostic.message, false, body);
     }
     if (graph.diagnostics?.length) {
-      section(`Diagnostics (${graph.diagnostics.length})`, body);
+      section(`Index notes (${graph.diagnostics.length})`, body);
       for (const diagnostic of graph.diagnostics) {
         const item = element('div', 'evidence-item');
         item.append(element('strong', '', diagnostic.severity || 'info'), element('p', '', diagnostic.message));
@@ -1047,19 +1047,19 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         body.append(item);
       }
     }
-    section('Scope and limitations', body);
+    section('What the map can read', body);
     const limitations = graph.scope?.limitations || [];
     const excluded = graph.scope?.excluded || [];
     if (limitations.length) {
       const list = element('ul', 'scope-list');
       for (const limitation of limitations) list.append(element('li', '', typeof limitation === 'string' ? limitation : limitation.message || JSON.stringify(limitation)));
       body.append(list);
-    } else body.append(element('p', 'hint', 'No additional scope limitations reported.'));
+    } else body.append(element('p', 'hint', 'No other limits reported.'));
     const excludedDetails = element('details');
     excludedDetails.append(element('summary', 'hint', `Excluded paths (${excluded.length})`));
     const list = element('ul', 'scope-list');
     for (const entry of excluded) list.append(element('li', '', typeof entry === 'string' ? entry : `${entry.path || entry.pattern || ''} ${entry.reason || ''}`.trim()));
-    if (!excluded.length) list.append(element('li', '', 'The index lists no excluded paths.'));
+    if (!excluded.length) list.append(element('li', '', 'No excluded paths listed.'));
     excludedDetails.append(list); body.append(excludedDetails);
     renderFileList(body);
   }
@@ -1080,9 +1080,9 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     $('panel-title').textContent = 'Source changes';
     if (!state.connected) note('Connection lost. New changes will appear after reconnecting.', false, body);
     if (state.runtime?.status === 'error' || state.indexError) note(state.runtime?.error || state.indexError, false, body);
-    body.append(element('p', 'hint', `Last checked: ${timeLabel(state.runtime?.lastCheckedAt)}. History contains changes observed by this server.`));
+    body.append(element('p', 'hint', `Last checked: ${timeLabel(state.runtime?.lastCheckedAt)}. Recent changes seen by this server.`));
     const changes = state.runtime?.changes || [];
-    if (!changes.length) note('No source changes recorded since startup.', true, body);
+    if (!changes.length) note('No file changes seen since this server started.', true, body);
     for (const change of [...changes].sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))) {
       const item = element('div', 'activity-item');
       const kinds = { added: 'Added', modified: 'Changed', changed: 'Changed', removed: 'Deleted', deleted: 'Deleted' };
@@ -1099,7 +1099,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (!state.selection || !state.graph) {
       $('panel-title').textContent = 'Selection details';
       const empty = element('div', 'empty-detail');
-      empty.append(element('p', 'primary-text', 'Select a block or relation.'), element('p', '', 'Inspect its role, source files and relation evidence.'));
+      empty.append(element('p', 'primary-text', 'Select a block or relation.'), element('p', '', 'See its role, files and links in code.'));
       body.append(empty); return;
     }
     if (state.selection.type === 'edge') { renderEdge(body); return; }
@@ -1111,11 +1111,11 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (owner) button(`← Back to block ${owner.label}`, () => selectNode(owner.id, { inspect: true }), null, body);
     const part = state.selection.partId ? state.graph.hierarchy?.nodes.find(item => item.id === state.selection.partId) || state.display.nodes.find(item => item.id === state.selection.partId) : null;
     $('panel-title').textContent = part?.label || node.label;
-    if (part) { body.append(element('p', 'primary-text', `${part.description || 'Named source part.'} · lines ${state.selection.line}–${state.selection.endLine || state.selection.line}`)); if (part.sourceName || part.qualifiedName) body.append(element('p', 'hint', `Source name: ${part.qualifiedName || part.sourceName}`)); }
+    if (part) { body.append(element('p', 'primary-text', `${part.description || 'Source part.'} · lines ${state.selection.line}–${state.selection.endLine || state.selection.line}`)); if (part.sourceName || part.qualifiedName) body.append(element('p', 'hint', `Source name: ${part.qualifiedName || part.sourceName}`)); }
     body.append(element('div', 'path-label', node.path || node.label));
     body.append(element('p', 'hint', `${KIND[node.kind] || node.kind}${node.language ? ` · ${node.language}` : ''}${Number.isFinite(node.bytes) ? ` · ${node.bytes.toLocaleString('en-GB')} B` : ''} · hash ${shortHash(node.hash)}`));
     if (node.kind === 'external') {
-      note('External dependency identified from an import. Its source is outside this index; package contents are neither read nor executed.', true, body);
+      note('This import points to an external module. The map doesn\'t read or run its code.', true, body);
     } else {
       section('Source', body);
       const target = element('div'); target.id = 'source-excerpt'; body.append(target);
@@ -1123,7 +1123,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       else loadSource(node, state.selection.line || 1, target);
     }
     if (node.diagnostics?.length) {
-      section('File diagnostics', body);
+      section('File notes', body);
       for (const diagnostic of node.diagnostics) body.append(element('p', 'hint', typeof diagnostic === 'string' ? diagnostic : diagnostic.message || JSON.stringify(diagnostic)));
     }
     if (node.symbols?.length) {
@@ -1131,7 +1131,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       for (const symbol of node.symbols) button(symbol.name, () => showSourceLine(node, symbol.line || 1), `${symbol.kind} · line ${symbol.line || '?'}`, body);
     }
     section('Security', body);
-    if (!node.security?.length) body.append(element('p', 'hint', 'No security signals identified in this file. This is not a security audit.'));
+    if (!node.security?.length) body.append(element('p', 'hint', 'No recognized security patterns in this file. The map only checks for specific patterns.'));
     for (const evidence of node.security || []) {
       const item = element('div', 'evidence-item');
       const detail = evidence.evidence;
@@ -1151,7 +1151,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     renderRelations('Used by', incoming, 'from', body);
     const testEdges = [...outgoing, ...incoming].filter(edge => edge.layers?.includes('testing') || [edge.from, edge.to].some(id => state.graph.nodes.find(item => item.id === id)?.kind === 'test'));
     section(`Test relations (${testEdges.length})`, body);
-    note('A test reference shows a source relationship. It does not prove execution, results or coverage.', true, body);
+    note('These links involve test files. Run tests for results; enable coverage to measure what they cover.', true, body);
     for (const edge of testEdges) button(edge.label || edge.kind, () => selectEdge(edge.id), `${state.graph.nodes.find(item => item.id === edge.from)?.label} → ${state.graph.nodes.find(item => item.id === edge.to)?.label}`, body);
   }
 
@@ -1166,7 +1166,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     const ids = new Set(block.fileIds);
     const members = state.graph.nodes.filter(node => ids.has(node.id));
     const primary = members.find(node => node.path === block.primaryPath);
-    if (primary) button('Open primary source', () => selectNode(primary.id), primary.path, body);
+    if (primary) button('Open main file', () => selectNode(primary.id), primary.path, body);
     section('Block files', body);
     const memberGroups = new Map();
     for (const node of members) {
@@ -1184,21 +1184,21 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     for (const edge of relations) {
       const incoming = edge.to === block.id;
       const other = overview.nodes.find(node => node.id === (incoming ? edge.from : edge.to));
-      button(`${incoming ? '←' : '→'} ${other?.label || '?'} · ${edge.label}`, () => selectEdge(edge.id), edge.provenance === 'declared-contract' ? 'Declared contract · open origin' : `${edge.sourceEdgeIds?.length || 0} source references · open evidence`, body);
+      button(`${incoming ? '←' : '→'} ${other?.label || '?'} · ${edge.label}`, () => selectEdge(edge.id), edge.provenance === 'declared-contract' ? 'Named relation · open definition' : `${edge.sourceEdgeIds?.length || 0} source references · show code`, body);
     }
     const rawRelations = state.graph.edges.filter(edge => ids.has(edge.from) || ids.has(edge.to));
     const externalIds = new Set(rawRelations.flatMap(edge => [edge.from, edge.to]));
     const externals = state.graph.nodes.filter(node => node.kind === 'external' && externalIds.has(node.id));
     section(`External modules (${externals.length})`, body);
-    if (!externals.length) body.append(element('p', 'hint', 'No identified external dependencies.'));
-    for (const node of externals) button(node.label, () => selectNode(node.id), 'External module · source is outside the index', body);
+    if (!externals.length) body.append(element('p', 'hint', 'No external modules found.'));
+    for (const node of externals) button(node.label, () => selectNode(node.id), 'External module · code isn\'t included in the map', body);
     const testRelations = rawRelations.filter(edge => edge.layers?.includes('testing'));
     section(`Test references (${testRelations.length})`, body);
-    note('Static source references. These do not prove test execution, results or coverage.', true, body);
+    note('These links involve test files. Run tests for results; enable coverage to measure what they cover.', true, body);
     for (const edge of testRelations) button(`${state.graph.nodes.find(node => node.id === edge.from)?.label} → ${state.graph.nodes.find(node => node.id === edge.to)?.label}`, () => selectEdge(edge.id), edge.label || edge.kind, body);
     const security = members.flatMap(node => (node.security || []).map(signal => ({ ...signal, node })));
     section(`Security signals (${security.length})`, body);
-    if (!security.length) body.append(element('p', 'hint', 'No identified signals. This does not confirm safety.'));
+    if (!security.length) body.append(element('p', 'hint', 'No recognized security patterns in these files. The map only checks for specific patterns.'));
     for (const signal of security) button(signal.label || signal.kind, () => selectNode(signal.node.id, { line: signal.line }), `${signal.node.path}:${signal.line || '?'}`, body);
   }
 
@@ -1212,7 +1212,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     const directional = areaDirections(state.display, area.id);
     for (const [title, edges, side] of [['Incoming', directional.incoming, 'from'], ['Outgoing', directional.outgoing, 'to']]) {
       section(`${title} (${edges.length})`, body);
-      if (!edges.length) body.append(element('p', 'hint', `No ${title.toLowerCase()} relations in this scope.`));
+      if (!edges.length) body.append(element('p', 'hint', `No ${title.toLowerCase()} links here.`));
       for (const edge of edges) {
         const otherId = edge[side];
         const otherArea = state.display.areas.find(candidate => candidate.id === otherId || candidate.memberIds.includes(otherId));
@@ -1237,7 +1237,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
 
   function renderRelations(title, edges, direction, body) {
     section(`${title} (${edges.length})`, body);
-    if (!edges.length) body.append(element('p', 'hint', 'No statically identified relations.'));
+    if (!edges.length) body.append(element('p', 'hint', 'No links found in the code.'));
     for (const edge of edges) {
       const target = state.graph.nodes.find(node => node.id === edge[direction]);
       button(target?.path || target?.label || edge[direction], () => selectEdge(edge.id), edge.label || edge.kind, body);
@@ -1256,25 +1256,25 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       if (node) button(node.label || node.path, () => selectNode(node.id, { center: true }), [node.sourceName || node.qualifiedName, node.path ? `${node.path}${node.line ? `:${node.line}` : ''}` : KIND[node.kind]].filter(Boolean).join(' · '), body);
     }
     $('panel-title').textContent = endpointNames.join(' → ');
-    if (edge.provenance === 'declared-contract') note('Declared contract from project-map.json. Its direction describes a named role, not an import or observed runtime call.', true, body);
+    if (edge.provenance === 'declared-contract') note('Named in project-map.json. The arrow describes the intended relationship. It isn\'t a link found in the code.', true, body);
     let contribution = null;
     if (resolveSourceRelations) {
       try { contribution = resolveSourceRelations(state.graph, edge); }
-      catch (error) { note(`Source references could not be resolved: ${error.message}`, false, body); }
+      catch (error) { note(`Could not find the source references: ${error.message}`, false, body); }
     }
-    section(`Contributing parts (${contribution?.references.length || 0})`, body);
-    if (!contribution) note('The source-pair resolver is unavailable. Collected evidence is shown below.', false, body);
+    section(`Linked parts (${contribution?.references.length || 0})`, body);
+    if (!contribution) note('Could not find the linked parts. Available source lines are shown below.', false, body);
     else {
       for (const reference of contribution.references) {
         const item = element('div', 'source-pair evidence-item');
         item.append(element('strong', '', `${reference.fromNode?.label || reference.from} → ${reference.toNode?.label || reference.to}`));
         item.append(element('p', 'hint', `${reference.kind} · ${reference.id}${reference.execution ? ` · ${reference.execution}` : ''}`));
         for (const [side, node, id] of [['From', reference.fromNode, reference.from], ['To', reference.toNode, reference.to]]) {
-          if (!node) { item.append(element('p', 'hint', `${side}: named source endpoint unavailable (${id}).`)); continue; }
+          if (!node) { item.append(element('p', 'hint', `${side}: source part unavailable (${id}).`)); continue; }
           const location = [node.qualifiedName || node.sourceName, node.path ? `${node.path}${node.line ? `:${node.line}` : ''}` : null].filter(Boolean).join(' · ');
           button(`${side}: ${node.label || node.path || id}`, () => selectNode(node.id, { line: node.line || 1, inspect: true }), location, item);
         }
-        if (!reference.evidence?.length) item.append(element('p', 'hint', 'No source excerpt supplied for this reference.'));
+        if (!reference.evidence?.length) item.append(element('p', 'hint', 'No source lines available for this link.'));
         for (const evidence of reference.evidence || []) {
           item.append(element('p', 'primary-text', `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}`));
           if (evidence.snippet) item.append(element('p', '', evidence.snippet));
@@ -1282,12 +1282,12 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         }
         body.append(item);
       }
-      for (const id of contribution.unresolvedSourceEdgeIds) note(`Source reference is no longer available: ${id}`, false, body);
-      if (!contribution.references.length && !contribution.unresolvedSourceEdgeIds.length) body.append(element('p', 'hint', 'No underlying source references were supplied for this relation.'));
+      for (const id of contribution.unresolvedSourceEdgeIds) note(`Source link no longer available: ${id}`, false, body);
+      if (!contribution.references.length && !contribution.unresolvedSourceEdgeIds.length) body.append(element('p', 'hint', 'No source references available for this link.'));
     }
     if (!contribution?.references.length) {
-      section('Collected source evidence', body);
-      if (!edge.evidence?.length) note('The index did not provide a specific source line for this relation.', false, body);
+      section('Source lines', body);
+      if (!edge.evidence?.length) note('No source line available for this link.', false, body);
       for (const evidence of edge.evidence || []) {
         const item = element('div', 'evidence-item');
         item.append(element('p', 'primary-text', `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}`));
@@ -1295,8 +1295,8 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         pathButton(evidence.path, evidence.line, 'Open source line', item); body.append(item);
       }
     }
-    if (edge.layers?.includes('testing')) note('Static test reference. This relation does not establish execution, results or coverage.', true, body);
-    if (edge.layers?.includes('security')) note('Security context in source. The relation alone establishes neither a vulnerability nor safety.', true, body);
+    if (edge.layers?.includes('testing')) note('This link involves a test file. Run the test for results; enable coverage to measure what it covers.', true, body);
+    if (edge.layers?.includes('security')) note('This link marks a security-related dependency or call. Review its source.', true, body);
   }
 
   async function loadSource(node, line, target) {
@@ -1307,10 +1307,10 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       if (!response.ok) throw new Error(`Source unavailable (HTTP ${response.status}).`);
       const source = await response.json();
       if (request !== state.sourceRequest || !target.isConnected) return;
-      if (source.path !== node.path || !Array.isArray(source.lines)) throw new Error('The source response does not match the selected file.');
+      if (source.path !== node.path || !Array.isArray(source.lines)) throw new Error('Could not read the selected file from the server response. Select it again.');
       if (node.hash && source.hash !== node.hash) {
         target.replaceChildren();
-        note('The file changed after indexing. Source will be available when the map updates.', false, target);
+        note('The file changed. Its source will be ready when the map updates.', false, target);
         void refresh(); return;
       }
       state.source = source;
@@ -1366,7 +1366,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   }
 
   function accept(graph) {
-    if (!validGraph(graph)) throw new Error('The server returned an invalid graph format.');
+    if (!validGraph(graph)) throw new Error('Could not read the map returned by the server.');
     if (!shouldAcceptRuntime(state.runtime, graph.runtime)) return;
     version++;
     syncGraph(graph);
@@ -1375,7 +1375,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   function failure(error) {
     state.indexError = error.message || String(error);
     status();
-    if (!state.received) setMessage('Index unavailable', state.indexError, true);
+    if (!state.received) setMessage('Map unavailable', state.indexError, true);
     if (state.panel === 'project' || state.panel === 'activity') renderPanel();
   }
 
@@ -1384,7 +1384,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     const before = version;
     try {
       const response = await fetch('/api/graph', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`Could not load the index (HTTP ${response.status}).`);
+      if (!response.ok) throw new Error(`Could not load the map (HTTP ${response.status}).`);
       const graph = await response.json();
       if (request !== fetchSequence || before !== version) return;
       accept(graph);
