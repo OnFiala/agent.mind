@@ -110,6 +110,9 @@ At file and function levels, related parts start in compact area cards. Click a
 card to expand it, use its header control to collapse it, or choose **Collapse all**.
 **Outside** collects parts outside the current source scope. Expansion stays with
 the scope as you navigate and receive live updates within the page.
+A selected symbol follows its current source range after an update, including
+when restored with Back. A source line chosen manually remains a numeric cursor;
+the symbol's displayed range still follows the current source.
 
 Lines between areas combine the underlying connections of the same type and
 origin. Opposite directions and different types stay separate. Connections inside

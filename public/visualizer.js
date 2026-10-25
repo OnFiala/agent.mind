@@ -74,6 +74,13 @@ export function selectedDisplayId(selection, display) {
   return display.nodes.find(node => node.id === selection.id)?.id || display.nodes.find(node => (!node.hierarchyKind || node.hierarchyKind === 'block') && node.fileIds?.includes(selection.id))?.id || null;
 }
 
+export function refreshSymbolSelection(selection, graph, display) {
+  if (selection?.type !== 'node' || !selection.partId) return selection;
+  const part = graph.hierarchy?.nodes.find(node => node.id === selection.partId) || display.nodes.find(node => node.id === selection.partId);
+  if (!part) return selection;
+  return { ...selection, line: selection.manualLine ? selection.line : part.line, endLine: part.endLine };
+}
+
 export function sectionGroups(nodes) {
   const grouped = new Map();
   for (const node of nodes) {
@@ -779,7 +786,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     const file = state.graph.nodes.find(item => item.path === node.path || item.id === node.sourceId);
     if (sourceKind === 'symbol' || sourceKind === 'file') {
       if (!file) return;
-      state.selection = { type: 'node', id: file.id, line: line || node.line || 1, partId: sourceKind === 'symbol' || node.isEntry ? id : null, endLine: node.endLine };
+      state.selection = { type: 'node', id: file.id, line: line || node.line || 1, partId: sourceKind === 'symbol' || node.isEntry ? id : null, endLine: node.endLine, manualLine: Boolean(line) };
     } else state.selection = { type: sourceKind === 'block' || node.fileIds ? 'block' : 'node', id, line };
     state.source = null;
     state.sourceRequest++;
@@ -941,6 +948,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     }
     const selected = state.selection;
     if (selected && !(selected.type === 'node' ? graph.nodes.some(node => node.id === selected.id) && (!selected.partId || display.nodes.some(node => node.id === selected.partId) || graph.hierarchy?.nodes.some(node => node.id === selected.partId)) : selected.type === 'area' ? display.areas?.some(area => area.id === selected.id) : selected.type === 'block' ? graph.overview?.nodes.some(node => node.id === selected.id) : edgeIds.has(selected.id) || graph.edges.some(edge => edge.id === selected.id) || display.partEdges?.some(edge => edge.id === selected.id))) { state.selection = null; state.source = null; state.sourceRequest++; }
+    state.selection = refreshSymbolSelection(state.selection, graph, display);
     const nowSelected = state.selection?.type === 'node' ? graph.nodes.find(node => node.id === state.selection.id) : null;
     if (nowSelected && previousSelected?.hash !== nowSelected.hash) { state.source = null; state.sourceRequest++; }
     $('project-name').textContent = graph.project?.name || 'Project';
@@ -1111,7 +1119,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (owner) button(`← Back to block ${owner.label}`, () => selectNode(owner.id, { inspect: true }), null, body);
     const part = state.selection.partId ? state.graph.hierarchy?.nodes.find(item => item.id === state.selection.partId) || state.display.nodes.find(item => item.id === state.selection.partId) : null;
     $('panel-title').textContent = part?.label || node.label;
-    if (part) { body.append(element('p', 'primary-text', `${part.description || 'Source part.'} · lines ${state.selection.line}–${state.selection.endLine || state.selection.line}`)); if (part.sourceName || part.qualifiedName) body.append(element('p', 'hint', `Source name: ${part.qualifiedName || part.sourceName}`)); }
+    if (part) { body.append(element('p', 'primary-text', `${part.description || 'Source part.'} · lines ${part.line}–${part.endLine || part.line}`)); if (part.sourceName || part.qualifiedName) body.append(element('p', 'hint', `Source name: ${part.qualifiedName || part.sourceName}`)); }
     body.append(element('div', 'path-label', node.path || node.label));
     body.append(element('p', 'hint', `${KIND[node.kind] || node.kind}${node.language ? ` · ${node.language}` : ''}${Number.isFinite(node.bytes) ? ` · ${node.bytes.toLocaleString('en-GB')} B` : ''} · hash ${shortHash(node.hash)}`));
     if (node.kind === 'external') {
@@ -1332,7 +1340,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       anchor.setAttribute('aria-label', `Line ${entry.number}`);
       anchor.addEventListener('click', event => {
         event.preventDefault();
-        if (state.selection?.type === 'node') state.selection.line = entry.number;
+        if (state.selection?.type === 'node') { state.selection.line = entry.number; state.selection.manualLine = true; }
         view.querySelectorAll('.source-line').forEach(item => item.classList.toggle('target-line', item === row));
         history.replaceState(null, '', anchor.getAttribute('href'));
       });
@@ -1352,7 +1360,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
 
   function showSourceLine(node, line) {
     if (!node || state.selection?.type !== 'node' || state.selection.id !== node.id) return;
-    state.selection.line = line;
+    state.selection.line = line; state.selection.manualLine = true;
     const target = $('source-excerpt');
     state.source = null;
     target.replaceChildren();

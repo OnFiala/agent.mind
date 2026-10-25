@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
+import { refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
 import { projectAreas } from '../public/hierarchy.mjs';
 
 const nodes = [
@@ -460,4 +460,29 @@ test('connector captions always identify named endpoints, kind and exact unique 
   const expanded = decorateScope(projectAreas(areaScope, new Set(display.areas.map(area => area.id))), areaRaw);
   const internal = expanded.edges.find(edge => edge.scopeEdgeIds.includes('part:internal'));
   assert.equal(connectorLabel(internal, expanded), 'Cards → Edges · call · 1 source relation');
+});
+
+
+test('symbol selections follow current source ranges, including saved Back selections', () => {
+  const selection = { type: 'node', id: 'file:app.mjs', partId: 'symbol:run', line: 4, endLine: 7 };
+  const current = { hierarchy: { nodes: [{ id: 'symbol:run', line: 14, endLine: 19 }] } };
+  const display = { nodes: [] };
+  const next = refreshSymbolSelection(selection, current, display);
+  assert.equal(next.line, 14);
+  assert.equal(next.endLine, 19);
+  assert.equal(next.partId, selection.partId);
+  assert.equal(selection.line, 4);
+  let navigation = navigateScope(createNavigationState(), 'file:app.mjs', { selection });
+  navigation = backScope(navigation, {});
+  assert.deepEqual(refreshSymbolSelection(navigation.snapshots.get(null).selection, current, display), next);
+});
+
+test('refreshing a symbol range preserves an explicitly chosen source cursor and ordinary file selections', () => {
+  const graph = { hierarchy: { nodes: [{ id: 'symbol:run', line: 14, endLine: 19 }] } };
+  const manual = { type: 'node', id: 'file:app.mjs', partId: 'symbol:run', line: 5, endLine: 7, manualLine: true };
+  assert.deepEqual(refreshSymbolSelection(manual, graph, { nodes: [] }), { ...manual, endLine: 19 });
+  const fileSelection = { type: 'node', id: 'file:app.mjs', line: 5 };
+  assert.equal(refreshSymbolSelection(fileSelection, graph, { nodes: [] }), fileSelection);
+  assert.equal(refreshSymbolSelection(null, graph, { nodes: [] }), null);
+  assert.equal(refreshSymbolSelection(manual, { hierarchy: { nodes: [] } }, { nodes: [] }), manual);
 });
