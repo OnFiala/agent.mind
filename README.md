@@ -98,6 +98,8 @@ Unknown or modified integration instructions cause a conflict and are not overwr
 
 - **Left rail:** Whole project, Security and Testing show different views of the same graph.
 - **Top bar:** search, index status, zoom, fit and layout controls.
+  **Last reported check** is the check time in the latest state received by the
+  page. The server keeps scanning, but unchanged scans do not send a new state.
 - **Canvas path:** open an ancestor, or use Back to restore its camera, positions,
   selection and expanded areas.
 - **Right panel:** source, connections, project scope and recent changes.

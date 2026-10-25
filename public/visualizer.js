@@ -645,7 +645,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     else { kind = 'indexing'; label = 'Checking files'; }
     statusNode.dataset.state = kind;
     $('live-text').textContent = label;
-    statusNode.title = [label, runtime.lastCheckedAt ? `Checked ${timeLabel(runtime.lastCheckedAt)}` : '', state.indexError || runtime.error || ''].filter(Boolean).join(' · ');
+    statusNode.title = [label, runtime.lastCheckedAt ? `Last reported check ${timeLabel(runtime.lastCheckedAt)} (unchanged scans are not sent)` : '', state.indexError || runtime.error || ''].filter(Boolean).join(' · ');
   }
 
   function drawGroups() {
@@ -1043,7 +1043,8 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     fact(graph.stats?.tests ?? graph.nodes.filter(node => node.kind === 'test').length, 'test files', facts);
     fact(graph.stats?.security ?? graph.nodes.filter(node => node.security?.length).length, 'files with security signals', facts);
     body.append(facts);
-    body.append(element('p', 'hint', `Index ${timeLabel(graph.generatedAt)} · last checked ${timeLabel(state.runtime?.lastCheckedAt)} · revision ${shortHash(graph.revision)}`));
+    body.append(element('p', 'hint', `Index ${timeLabel(graph.generatedAt)} · last reported check ${timeLabel(state.runtime?.lastCheckedAt)} · revision ${shortHash(graph.revision)}`));
+    body.append(element('p', 'hint', 'This time comes from the latest received state. Unchanged scans are not sent to this page.'));
     note('The map reads code without running it. Test results and coverage need a separate test run. Security links point to code to review.', true, body);
     if (graph.overview) {
       section('Block types', body);
@@ -1092,7 +1093,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     $('panel-title').textContent = 'Source changes';
     if (!state.connected) note('Connection lost. New changes will appear after reconnecting.', false, body);
     if (state.runtime?.status === 'error' || state.indexError) note(state.runtime?.error || state.indexError, false, body);
-    body.append(element('p', 'hint', `Last checked: ${timeLabel(state.runtime?.lastCheckedAt)}. Recent changes seen by this server.`));
+    body.append(element('p', 'hint', `Last reported check: ${timeLabel(state.runtime?.lastCheckedAt)}. Unchanged scans are not sent to this page. Recent changes seen by this server.`));
     const changes = state.runtime?.changes || [];
     if (!changes.length) note('No file changes seen since this server started.', true, body);
     for (const change of [...changes].sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))) {
