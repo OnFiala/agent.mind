@@ -214,7 +214,8 @@ function scopeNames(node) {
       if (item.type === 'VariableDeclaration') item.declarations.forEach(declaration => patternNames(declaration.id, names));
       if (['FunctionDeclaration', 'ClassDeclaration'].includes(item.type) && item.id) names.add(item.id.name);
     }
-  } else if (node.type === 'CatchClause') patternNames(node.param, names);
+  } else if (node.type === 'ClassExpression' && node.id) names.add(node.id.name);
+  else if (node.type === 'CatchClause') patternNames(node.param, names);
   else if (['ForStatement', 'ForInStatement', 'ForOfStatement'].includes(node.type)) {
     const declaration = node.init ?? node.left;
     if (declaration?.type === 'VariableDeclaration') declaration.declarations.forEach(item => patternNames(item.id, names));

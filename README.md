@@ -223,6 +223,8 @@ HTTP/SSE connections match global `fetch`/`EventSource` calls with fixed local
 Dynamic query strings are supported. Dynamic paths, shadowed bindings, mismatched
 methods and multiple providers remain unresolved. The details include both source
 locations and hashes; they do not establish that a request happened.
+Named class expressions shadow matching API names within that class, including
+its superclass expression, without hiding calls outside it.
 
 Security highlights recognized sensitive Node imports, supported callsites and
 some browser inputs/outputs. These are places to review, not vulnerability findings

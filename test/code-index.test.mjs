@@ -266,6 +266,45 @@ ${receiver}.createServer((req, res) => {
   ${body}
 });`;
 
+test('named class expressions shadow APIs only inside their own class scope', t => {
+  const root = fixture(t, {
+    'client.mjs': [
+      'const A = class fetch extends fetch("/api/graph") { [fetch("/api/graph")]() {} run() { fetch("/api/graph"); } };',
+      'const B = class EventSource { stream = new EventSource("/api/events"); };',
+      'const C = class URL { static { new URL("./hidden.json", import.meta.url); } };',
+      'fetch("/api/graph");',
+      'new EventSource("/api/events");',
+      'new URL("./visible.json", import.meta.url);'
+    ].join('\n'),
+    'server.mjs': handler('if (url.pathname === "/api/graph") return res.end(); if (url.pathname === "/api/events") { res.writeHead(200, {"Content-Type":"text/event-stream"}); res.write("event"); }'),
+    'hidden.json': '{}',
+    'visible.json': '{}'
+  });
+  const graph = indexProject(root);
+  assert.ok(!graph.diagnostics.some(item => item.message.includes('parse error')));
+  assert.deepEqual(file(graph, 'client.mjs').security.filter(item => item.kind === 'network').map(item => item.line), [4, 5]);
+  assert.equal(transportEdges(graph).length, 2);
+  assert.deepEqual(transportEdges(graph).flatMap(item => item.evidence.filter(e => e.role === 'consumer').map(e => e.line)).sort(), [4, 5]);
+  assert.ok(!edge(graph, 'client.mjs', 'file:hidden.json', 'asset'));
+  assert.ok(edge(graph, 'client.mjs', 'file:visible.json', 'asset'));
+});
+
+test('class expression names suppress imported HTTP factories without hiding the outer import', t => {
+  const callback = '(req, res) => { const url = new URL(req.url, "http://localhost"); if (url.pathname === "/api/graph") return res.end(); }';
+  const root = fixture(t, {
+    'client.mjs': 'fetch("/api/graph");',
+    'server.mjs': [
+      'import http from "node:http";',
+      `const A = class http { run() { http.createServer(${callback}); } };`,
+      `http.createServer(${callback});`
+    ].join('\n')
+  });
+  const graph = indexProject(root);
+  assert.equal(transportEdges(graph).length, 1);
+  assert.deepEqual(file(graph, 'server.mjs').security.filter(item => item.kind === 'operation').map(item => item.line), [3]);
+  assert.ok(transportEdges(graph)[0].evidence.some(item => item.role === 'server' && item.line === 3));
+});
+
 test('static HTTP/SSE contracts connect both actual endpoint sources with hash evidence and preserve imports', t => {
   const root = fixture(t, {
     'public/client.js': [
