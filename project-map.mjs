@@ -173,7 +173,7 @@ export function buildHierarchy(graph, configuration = null) {
   }
   for (const node of nodes) if (node.parentId && byId.has(node.parentId)) byId.get(node.parentId).hasChildren = true;
   const hierarchy = { schemaVersion: 1, nodes, edges: [...graph.edges, ...(graph.symbolGraph?.edges ?? [])], diagnostics };
-  for (const node of nodes) node.qualifiedLabel = ancestorPath(hierarchy, node.id).map(part => part.label).join(' / ');
+  for (const node of nodes) node.qualifiedLabel = ancestorPath(hierarchy, node.id, byId).map(part => part.label).join(' / ');
   hierarchy.vocabulary = nodes.map(({ id, parentId, label, qualifiedLabel, aliases, kind, path, fileIds, section, sectionId }) => ({ id, parentId, label, qualifiedLabel, aliases, kind, path, fileIds, ...(section ? { section, ...(sectionId ? { sectionId } : {}) } : {}) }));
   return hierarchy;
 }
@@ -190,11 +190,12 @@ export function resolvePart(hierarchy, selector) {
   const normalizeSelector = value => String(value).split('/').map(normalizeName).join('/');
   const name = normalizeSelector(selector);
   const claims = part => [...new Set([part.label, part.sourceName, ...(part.aliases ?? [])].filter(Boolean))];
+  const byId = new Map(nodes.map(node => [node.id, node]));
   // Qualified labels are one claim among all alias paths, never a priority rule.
   const matches = nodes.filter(node => {
     if (claims(node).some(alias => normalizeSelector(alias) === name)) return true;
     if (normalizeSelector(node.qualifiedLabel) === name) return true;
-    return matchesPath(ancestorPath(hierarchy, node.id), String(selector).split('/').map(normalizeName));
+    return matchesPath(ancestorPath(hierarchy, node.id, byId), String(selector).split('/').map(normalizeName));
   });
   if (matches.length > 1) {
     const candidates = matches.map(({ id, path, qualifiedLabel }) => ({ id, path: path ?? null, qualifiedLabel }));

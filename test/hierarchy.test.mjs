@@ -8,6 +8,41 @@ import { attachOverview, resolvePart } from '../project-map.mjs';
 import { scopeGraph, ancestorPath, projectAreas, sourceRelations } from '../public/hierarchy.mjs';
 import { freshContext } from '../graph-context.mjs';
 
+test('ancestor paths preserve references, missing parents, cycles and last duplicate IDs', () => {
+  const root = { id: 'root', parentId: null };
+  const child = { id: 'child', parentId: 'root' };
+  const orphan = { id: 'orphan', parentId: 'missing' };
+  const self = { id: 'self', parentId: 'self' };
+  const a = { id: 'a', parentId: 'b' }, b = { id: 'b', parentId: 'a' };
+  const lastRoot = { id: 'root', parentId: null, label: 'Last root' };
+  const hierarchy = { nodes: [root, child, orphan, self, a, b, lastRoot] };
+  for (const lookup of [undefined, new Map(hierarchy.nodes.map(node => [node.id, node]))]) {
+    const chain = ancestorPath(hierarchy, 'child', lookup);
+    assert.equal(chain[0], lastRoot);
+    assert.equal(chain[1], child);
+    assert.deepEqual(ancestorPath(hierarchy, 'orphan', lookup), [orphan]);
+    assert.deepEqual(ancestorPath(hierarchy, 'self', lookup), [self]);
+    assert.deepEqual(ancestorPath(hierarchy, 'a', lookup), [b, a]);
+    assert.deepEqual(ancestorPath(hierarchy, 'unknown', lookup), []);
+  }
+  assert.deepEqual(ancestorPath(null, 'missing'), []);
+});
+
+test('standalone ancestry observes replacement, insertion, removal and reparenting in the same array', () => {
+  const root = { id: 'root' }, child = { id: 'child', parentId: 'root' };
+  const hierarchy = { nodes: [root, child] };
+  assert.deepEqual(ancestorPath(hierarchy, 'child'), [root, child]);
+  const replacement = { id: 'root', label: 'Renamed' };
+  hierarchy.nodes[0] = replacement;
+  assert.equal(ancestorPath(hierarchy, 'child')[0], replacement);
+  const added = { id: 'added' };
+  hierarchy.nodes.push(added);
+  child.parentId = added.id;
+  assert.deepEqual(ancestorPath(hierarchy, 'child'), [added, child]);
+  hierarchy.nodes.pop();
+  assert.deepEqual(ancestorPath(hierarchy, 'child'), [child]);
+});
+
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mind-hierarchy-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

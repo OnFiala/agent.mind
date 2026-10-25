@@ -1,5 +1,28 @@
 # agent.mind — live code visualizer
 
+## Agents arriving from a user request
+
+Read README.md's **For agents** section first. Distinguish explaining this tool,
+installing it into the user's explicitly named project, and contributing to this
+source repository. A repository link alone does not identify an installation target
+or authorize mutations. Ask only for genuinely missing scope; preserve authorization
+already given for a named local operation.
+
+For installation, use the verified release and the target's installed CLI. Do not
+self-install into this source checkout, copy its naming map into another project,
+or treat the development server as an installed target. Inspect status/context JSON,
+not only exit codes, and verify the host loaded the target's managed instructions.
+Preserve conflicts and user data. Never publish source/context output or run target
+code merely to discover structure. Public users do not need the maintainer's private
+memory services, agent configuration, accounts or model keys.
+
+Recommend starting with a small known JavaScript project; README.md records tested
+limits, the v1.0.1 hierarchy issue and the 1.0.2 repair evidence. Input limits are not latency
+or memory guarantees. Report actual checks, target/version/binding, limitations and
+the disposition of any foreground view.
+
+## Contributing to this source repository
+
 The active product is a read-only view of the real source project. Builder is retired
 under `legacy/builder`; do not reactivate its SDK/native handoff, Store, preview,
 approval or workspace-writing paths as part of ordinary visualizer work.

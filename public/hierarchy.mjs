@@ -1,6 +1,7 @@
 // Shared by the browser and the agent context. No filesystem or browser globals.
-export function ancestorPath(hierarchy, id) {
-  const byId = new Map((hierarchy?.nodes ?? []).map(node => [node.id, node]));
+// Bulk callers share an operation-local lookup. Standalone calls read current nodes;
+// keeping a cache across calls would miss in-place additions, removals or reparenting.
+export function ancestorPath(hierarchy, id, byId = new Map((hierarchy?.nodes ?? []).map(node => [node.id, node]))) {
   const result = [];
   const seen = new Set();
   let current = byId.get(id);
@@ -36,12 +37,12 @@ export function scopeGraph(graph, parentId = null) {
   const byId = new Map(hierarchy.nodes.map(node => [node.id, node]));
   const scopeNode = parentId ? byId.get(parentId) : null;
   if (parentId && !scopeNode) throw new Error('This part is no longer in the project.');
-  const breadcrumbs = parentId ? ancestorPath(hierarchy, parentId).map(({ id, label }) => ({ id, label })) : [];
+  const breadcrumbs = parentId ? ancestorPath(hierarchy, parentId, byId).map(({ id, label }) => ({ id, label })) : [];
   if (!parentId) return { ...graph, nodes: hierarchy.nodes.filter(node => !node.parentId), edges: graph.overview?.edges ?? [], scopeId: null, scopeNode: null, breadcrumbs, mode: 'blocks' };
   const children = hierarchy.nodes.filter(node => node.parentId === parentId);
   const descendants = descendantIds(hierarchy, parentId);
   const visible = new Map(children.map(node => [node.id, { ...node }]));
-  const scopePath = ancestorPath(hierarchy, parentId);
+  const scopePath = ancestorPath(hierarchy, parentId, byId);
   let omittedExternalEdges = 0;
   const project = id => {
     const node = byId.get(id);
@@ -52,7 +53,7 @@ export function scopeGraph(graph, parentId = null) {
       if (!visible.has(entryId)) visible.set(entryId, { ...scopeNode, id: entryId, sourceId: parentId, label: scopeNode.kind === 'file' ? 'File body' : 'Entry', description: scopeNode.kind === 'file' ? 'Statements directly in this file.' : 'Statements directly in this function.', aliases: [], hasChildren: false, isEntry: true });
       return entryId;
     }
-    const chain = ancestorPath(hierarchy, id);
+    const chain = ancestorPath(hierarchy, id, byId);
     if (descendants.has(id)) {
       const position = chain.findIndex(item => item.id === parentId);
       return chain[position + 1]?.id ?? null;

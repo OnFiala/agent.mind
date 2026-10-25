@@ -8,19 +8,34 @@ agent.mind reads source files without running your project. It currently analyze
 JavaScript (`.js`, `.mjs`); TypeScript/TSX and framework routing are not supported.
 It runs locally, with no global install, account, API key or model required.
 
+**Start with a small project you know.** Try ordinary JavaScript with around
+100 analyzed files and a few hundred named functions or classes, then compare the
+map with the source. This is a starting recommendation, not a supported-size
+guarantee. Dense code can be slow even with few files: a 20-file, 20,000-function
+fixture exceeded a 15-second startup deadline in v1.0.1. Version 1.0.2 fixes
+that repeated hierarchy lookup; other parsing and rendering costs remain. See
+[validation and known limits](#validation-and-known-limits).
+
+**Sending your coding agent here?** Ask it to read [For agents](#for-agents), name
+the project you want it to inspect, and state whether you want an explanation,
+an installation, or a contribution to agent.mind.
+
 ## Install into a project
 
+The current release is **1.0.2**. Existing targets keep their pinned version; use
+the explicit update steps below to change it.
+
 Requires Node.js 22 or newer on macOS or Linux. Download
-[v1.0.1 from GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.1):
+[v1.0.2 from GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.2):
 
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.0.1.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.1/agent-mind-1.0.1.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.1/SHA256SUMS
+curl --fail --location --output agent-mind-1.0.2.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.2/agent-mind-1.0.2.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.2/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.0.1.tar.gz
-node agent-mind-1.0.1/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.1" --attach
+tar -xzf agent-mind-1.0.2.tar.gz
+node agent-mind-1.0.2/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.2" --attach
 ```
 
 Stop if checksum verification fails. Checksums check the downloaded bytes, so
@@ -45,6 +60,12 @@ The server runs in the foreground. Stop it with Ctrl+C. It has no public port or
 automatic startup. Use `view --port 4317` for a fixed port; if it is occupied,
 the command fails.
 
+The local HTTP API has no login or per-user authentication. Other local clients
+that can reach the port can read the selected project's indexed source and graph.
+Use it on a trusted machine and do not expose it through a tunnel or public proxy.
+Filename exclusions are not secret redaction: secrets embedded in ordinary source
+files may appear in excerpts or graph evidence.
+
 ```text
 project/
 ├── AGENTS.md                  # existing text + one managed block
@@ -65,7 +86,7 @@ A fresh clone needs a local installation. Download the same pinned release,
 then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.0.1/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.1 --adopt --attach
+node /path/to/agent-mind-1.0.2/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.2 --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -251,8 +272,8 @@ data**, including your map and recovery copies, stop external writers, inspect
 the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.0.1/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.0.1/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.0.2/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.0.2/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
 Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
@@ -273,16 +294,145 @@ release archive for recovery. There is no automatic updater.
 3. Move the preserved `agent.mind/` directory to a separate backup location.
    Keep it and the original release download for recovery. Do not overwrite an
    existing backup or use purge as part of this update.
-4. Follow the installation steps above for 1.0.1, then restore your saved map to
+4. Follow the installation steps above for 1.0.2, then restore your saved map to
    the new `agent.mind/project-map.json`.
 5. Run `status` and `context` through the new CLI. Reload the project instructions
    in your coding agent before using the new installation.
 
 Each release has its own runtime digest and generated integration files. Installing
-1.0.1 over 1.0.0, or adopting a 1.0.0 clone with the 1.0.1 release, is rejected.
+1.0.2 over 1.0.1, or adopting a 1.0.1 clone with the 1.0.2 release, is rejected.
 To return to an older version, use the same steps with that version's original
 release and your saved map. Existing installations do not change when a new
 release is published.
+
+## For agents
+
+These instructions apply to an agent sent here by a human, whether it reads GitHub,
+clones this repository, or uses a downloaded release. Follow the human's request
+and your host's instruction and permission rules. Reading this repository does not
+authorize installing software, editing another project, or publishing anything.
+agent.mind requires no particular agent, model, account, memory service or API key.
+
+### Choose the operation and target
+
+| Human request | Your next step |
+|---|---|
+| Explain or evaluate agent.mind | Read this guide and the relevant source; report capabilities and limits. |
+| Install/use it on their project | Identify the explicit absolute target path and follow the release installation workflow below. |
+| Change agent.mind itself | Use the source checkout, its `AGENTS.md`, and [Development](#development). |
+
+Ask only when the operation or target is missing or ambiguous. An explicit request
+to install and attach to a named project covers those local steps; do not ask again
+before every command. Keep publication, deployment, credentials, external messages
+and destructive cleanup within the human's explicit authorization.
+
+Keep the **source checkout**, **extracted release**, and **target project** distinct.
+Never default the target to this repository or install agent.mind into its own source
+checkout. Never copy this repository's `project-map.json` into the target.
+Running `npm start` here does not install anything into the human's project.
+
+### Install and verify
+
+1. Check `node --version` (22 or newer), macOS/Linux, the real target directory,
+   existing instructions, and authorized write access. Report missing prerequisites;
+   do not silently install a system runtime or change global agent configuration.
+2. Before choosing a release or running an installer, inspect any existing
+   `target/agent.mind/`. With no integration, use the fresh-install path. A portable
+   clone with no `.local/` uses its `project.json` runtime pin and the documented
+   `--adopt` command; obtain that exact release, even if it is older. An existing
+   local installation uses its installed CLI and does not need a fresh install.
+   Preserve foreign directories, edited managed blocks and mismatched pins; report
+   the exact conflict. Do not delete `.local/`, force adoption, or silently switch
+   release versions.
+3. For a fresh install or portable adoption, follow the corresponding commands in
+   [Install into a project](#install-into-a-project), using the selected release,
+   checksum and explicit `--project` / `--release` paths. Stop on a failed command or
+   checksum. Do not run the target application's install scripts or `npm install`
+   to discover its structure. agent.mind's dependencies stay inside its runtime.
+4. From the target root, run:
+
+   ```sh
+   node agent.mind/cli.mjs status
+   node agent.mind/cli.mjs context
+   ```
+
+Read the JSON, not just the exit status. For a ready attached installation, require
+`state: "attached"`, `integrity: "verified"` and an empty `conflicts` array. Match
+`root` and `binding.root` to the requested target; record `runtime.version`,
+`runtime.digest`, `binding.id` and `binding.generation`. `status` can exit zero with
+`integrity: "needs-attention"`. Context can exit zero with `status: "partial"`;
+inspect `diagnostics`, `scope` and symbol diagnostics before claiming completeness.
+
+`instructionActivation: "not-verified"` is expected: the CLI cannot verify that your
+host loaded the managed AGENTS block. Check the active instruction chain, including
+overrides and nested instructions. Reload or start a fresh session in the target if
+needed. If the host cannot establish activation, say so; do not claim installation
+alone activated the workflow. For Codex, see the
+[official instruction discovery rules](https://learn.chatgpt.com/docs/agent-configuration/agents-md).
+Do not edit another agent's global configuration to make these instructions load.
+
+The optional install `--digest` value is the **artifact manifest digest**, not the
+archive SHA256. For a moved local installation, inspect status and intentionally
+use `rebind` then `attach`; do not reuse its old binding receipt. For updates,
+uninstalled remnants or cleanup, follow [Update from an older version](#update-from-an-older-version)
+and [Detach and uninstall](#detach-and-uninstall). Purge is never an implicit update step.
+
+### Use context before an authorized source edit
+
+Resolve the human's name or alias before choosing files:
+
+```sh
+node agent.mind/cli.mjs context "Module C"
+```
+
+`Module C` is an example; use a name that exists in the target's map, an exact source
+path, stable source ID or full breadcrumb. If the command lists ambiguous candidates,
+select the matching stable ID or ask which scope was intended. Do not invent a role
+for unknown files. Area cards are presentation groups; select a source member rather
+than passing an `area:` ID to the CLI.
+
+Read `selection`, `ancestry`, the relevant file paths/hashes and connection evidence,
+then read the actual implementation and tests. Immediately before the already
+authorized edit, use the **same selector** and values from that context:
+
+```sh
+node agent.mind/cli.mjs preflight "Module C" --revision "RETURNED_REVISION" --binding-id "RETURNED_BINDING_ID" --generation "RETURNED_GENERATION"
+```
+
+Replace all placeholders: `revision` is the returned SHA256, `binding.id` the UUID,
+and `binding.generation` the positive integer. Success returns
+`preflight: "verified-at-read"`. A stale revision or binding requires fresh context
+and rereading changed code. A partial index fails preflight: investigate its
+diagnostics and report the limitation instead of bypassing the check or claiming a
+verified edit. Preflight does not lock files or control your other tools.
+
+After edits, run the target project's relevant checks and obtain fresh context.
+Static test links do not prove tests passed or measure coverage. Security labels
+identify source to review; they are not vulnerability findings. Unsupported
+TypeScript/TSX, framework routing and dynamic calls remain unsupported even when
+the visible map looks plausible. Never execute a scanned project to discover its
+structure; separately authorized project tests are a different operation.
+
+### View and hand back the result
+
+When a visual view is requested, run `node agent.mind/cli.mjs view` from the target.
+It prints `url`, `root`, `binding` and `viewToken`, and stays in the foreground.
+Verify that identity before opening the URL. Use the printed port, not an assumed
+4317. If the sandbox blocks listening, use the host's scoped approval mechanism
+when authorized; otherwise report the exact limitation. Never kill an unrelated
+process or widen permissions silently.
+
+Stop your own temporary verification view when finished. If the human requested
+a usable running view, leave it running and explain how to stop it with Ctrl+C.
+A stale lease can be released with the exact recorded token only after its process
+has exited; see [Detach and uninstall](#detach-and-uninstall).
+
+End with a concise evidence receipt: actual operation and target; installed version,
+artifact digest and binding (or source HEAD for development); context revision/status
+and selected source ID; checks actually run and results; instruction activation
+verified or unverified; changed files and preserved conflicts; URL/process state
+if applicable. State any unsupported scope or exact blocker. Do not upload source,
+context output or logs to another service merely because this guide asks for a report.
 
 ## Development
 
@@ -337,6 +487,147 @@ The server rejects foreign Host/Origin and cross-site fetch. It does not support
 mutating methods or retired builder endpoints. Tests use disposable local fixtures
 and one-shot loopback servers, with no model or production services. If a sandbox
 blocks listening, run them with permission to use local ports.
+
+## Validation and known limits
+
+This is an engineering validation record, not a formal compliance certification or
+a guarantee that every project is safe or responsive. The reviewed version is
+**1.0.1**, source commit `191c3d32480192daa70b27cbc32be92172b77719`, tested on
+**25 October 2026**, macOS with Node **22.22.0**. The historical audit below describes
+that version; the separate 1.0.2 verification section records the subsequent repair.
+
+Independent agents reviewed architecture and security source; a separate agent ran
+bounded stress fixtures. The coordinator checked evidence and ran HTTP/lifecycle
+checks. Reviewers followed read-only procedures under a workspace-write sandbox;
+OS-enforced read-only isolation was not established. Public users do not need this
+audit's agent tooling to run agent.mind.
+
+### Checked controls
+
+| Control | Observed evidence |
+|---|---|
+| HTTP Host/Origin/fetch-site, GET-only routes and indexed-source access | 15 disposable HTTP checks passed, including traversal, excluded paths, stale hashes and symlink replacement. |
+| Live reconciliation, SSE and installed binding invalidation | 6 existing server tests passed. |
+| Artifact allowlist/hashes, installation identity, AGENTS custody, adoption and explicit purge | 22 existing lifecycle tests passed. |
+| Current public source and downloaded v1.0.1 archive | 34 tracked files and 37 archive entries checked for private payload paths and known credential patterns; none found in those checks. Git history was not scanned. |
+| Locked dependency advisory snapshot | `npm audit --json --ignore-scripts --package-lock-only` reported zero known advisories on the test date. |
+
+The independent source review fully read 31 tracked text files. Naming metadata had
+partial manual review plus whole-file searches; the two WebP assets had file-type
+inspection, not a binary decoder audit. Pattern searches cannot establish the
+absence of every secret. The downloaded archive SHA256 was
+`bf73585e42cdf95f82e08c9b05a1c92a1c61a416a026cb4f67f9c2eba8557a05`.
+
+### Stress boundaries
+
+Tests used generated disposable files and trusted indexer APIs, without executing
+the generated project. Each child had a 15-second external deadline and a 256 MiB
+V8 heap setting. That heap setting is not a process RSS limit. The final matrix had
+32 named cases across 34 executions: 32 successful executions, one corrected helper
+expectation error, and one deliberate deadline termination exposing the issue below.
+The failed helper run was retained and was not counted as a product failure.
+
+| Guard | Boundary exercised | Result |
+|---|---|---|
+| Eligible files | 1000 / 1001 | Exact limit accepted; excess reported as partial. |
+| Bytes per file | 524288 / 524289 | Exact limit accepted; oversized file omitted with diagnostic. |
+| Total source bytes | 32 / 33 files of 524288 bytes | 16 MiB accepted; excess omitted with diagnostic. |
+| Directory entries | 10000 / 10001 | Excess reported as partial. |
+| Directory depth | 20 / 21 | Deeper source excluded with diagnostic. |
+| Named symbols per file | 2000 / 2001 | Excess truncated with diagnostic. |
+| Callsites per file | 10000 / 10001 | Excess evidence truncated with diagnostic. |
+| Call edges per file | 5000 / 5100 | Excess capped at 5000 with diagnostic. |
+| Symbol visitor AST nodes | 99999 / 100000 / 100001 | Excess reported with diagnostic. |
+| Symbol visitor depth | 256 / 257 | Excess reported with diagnostic. |
+
+Two deeply nested parser fixtures returned explicit parse diagnostics. These guards
+do not bound all Acorn parsing, helper loops, graph size, CPU time or memory use.
+Syntax failure and repair removed stale call edges and restored a current index.
+
+### Measured performance and open issue
+
+Single samples on this test machine, not a benchmark distribution or service-level
+guarantee. The scale fixture had five named functions and four local call edges per
+file, with chain imports. An unchanged refresh includes two scans and hierarchy
+construction; the test interval was 60 seconds to avoid background interference.
+
+| Files | Named symbols | Unchanged refresh |
+|---|---:|---:|
+| 10 | 50 | 3 ms |
+| 100 | 500 | 39 ms |
+| 500 | 2500 | 410 ms |
+| 1000 | 5000 | 1617 ms |
+
+The last sample exceeds the default 900 ms polling interval. A valid 524281-byte
+class took 3022 ms for a cold source index. Completed children reported peak RSS
+up to 158.7 MiB; live RSS monitoring was unavailable, and that is not an upper bound.
+
+**Finding in 1.0.1: quadratic hierarchy construction (low severity, CWE-407).** A
+fixture with 20 files, 1000 short functions per file and 357780 total bytes passed
+the raw input limits and indexed in 510 ms. Its subsequent `LiveIndex` construction
+did not finish before the process's 15-second deadline. The constructor consumed
+over 14 seconds after the cold index; its completion time was not measured.
+In 1.0.1, `project-map.mjs` calls `ancestorPath()` for every node, and
+`public/hierarchy.mjs` rebuilds the whole node lookup on each call. A supplied project can therefore block
+the local viewer without executing its code. No remotely reachable attack or data
+loss was demonstrated. Reducing the fixture to 20 functions let a **new process**
+construct the graph in 21 ms; automatic recovery of the blocked process was not shown.
+
+### 1.0.2 hierarchy repair verification
+
+Version 1.0.2 reuses one lookup within each hierarchy construction, name-resolution
+operation and scope projection. Standalone `ancestorPath(hierarchy, id)` still reads
+current nodes on each call; there is no persistent cache. Ancestor order, cycle
+handling, duplicate-ID behavior, node identities, aliases and source evidence remain
+part of the contract. The published 1.0.1 archive is unchanged.
+
+On the same machine and Node version, a fresh run of the 1.0.1 artifact again exceeded
+the 15-second process deadline. Three runs of the repaired source with the same
+20-file / 20,000-function / 357780-byte fixture measured:
+
+| Operation | Observed range |
+|---|---:|
+| `LiveIndex` construction | 521–532 ms |
+| Unchanged refresh | 103–126 ms |
+| Missing-name lookup | 42–50 ms |
+| File scope projection | 7–9 ms |
+
+An alternate fixture with 20,000 functions and 19,980 call edges completed construction
+in 735 ms, refresh in 224 ms and a 999-edge file projection in 13 ms. These are bounded
+local measurements, not guaranteed latency. Peak reported RSS was about 199 MiB for
+the flat runs and 286 MiB for the call-heavy run; the 256 MiB V8 heap setting is not
+an RSS cap.
+
+A before/after comparison made 76 equality checks across initial, renamed and deleted
+source states: hierarchy, overview, symbol graph, ancestry, scope output and selector
+results/errors matched 1.0.1. New regression tests exercise both dense input shapes
+under an external 15-second subprocess deadline, plus cycles, missing parents,
+duplicate IDs and in-place hierarchy changes:
+
+```sh
+node --test test/hierarchy-performance.test.mjs test/hierarchy.test.mjs test/project-map.test.mjs
+```
+
+This closes the repeated full-lookup path tested here. It does not add a global work
+budget, isolate parsing in a worker, or establish an overall time/memory bound.
+
+Start with a small trusted project and inspect diagnostics before expanding it.
+File count alone is insufficient: total symbols and source shape matter. Browser
+paint/layout, sustained polling CPU, concurrent HTTP/SSE clients, every parser shape,
+remote forwarding and OS-user isolation were not validated by these stress tests.
+The source API measurements do not establish performance for every packaged or
+installed target. Local clients remain trusted, and source exclusions are not DLP.
+
+To repeat the existing security/lifecycle checks from a source checkout:
+
+```sh
+node --test test/visualizer-server.test.mjs test/installation.test.mjs
+```
+
+These two test files cover 28 tests; they do not reproduce the separate stress
+matrix. The audit's generated helpers and raw measurements are retained with its
+local report. The focused hierarchy regression is now in the source test suite;
+the full audit matrix is not bundled as a supported public stress runner.
 
 ## License and artwork
 
