@@ -272,3 +272,15 @@ test('unsupported static blocks and field initializers still invalidate lexical 
   const deferredThis = analyze('class Store { replacement = function() { this.save = other; }; run() { this.save(); } save() {} }');
   assert.ok(!call(deferredThis, 'Store.run', 'Store.save'));
 });
+
+test('nested class superclass mutations resolve the inner class name without invalidating an outer function', () => {
+  const graph = analyze('function target() {} class Store { value = class target extends (target = 1, Object) {}; } target();');
+  assert.equal(graph.edges.length, 1);
+  assert.equal(graph.edges[0].from, 'file:source.mjs');
+  assert.equal(graph.edges[0].to, get(graph, 'target').id);
+  assert.deepEqual(graph.nodes.map(node => node.qualifiedName).sort(), ['Store', 'target']);
+  for (const declaration of ['class', 'class Other']) {
+    const outerMutation = analyze(`function target() {} class Store { value = ${declaration} extends (target = 1, Object) {}; } target();`);
+    assert.equal(outerMutation.edges.length, 0, declaration);
+  }
+});

@@ -109,9 +109,9 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
       const own = context.mutationOnly ? null : supplied ?? (node.id ? symbol(node, node.id.name, 'class', context.owner) : null);
       if (node.type === 'ClassDeclaration' && node.id) bind(context.scope, node.id.name, own);
       if (!own && node.id && truncated) return;
-      if (node.superClass) visit(node.superClass, context, depth + 1);
       const classScope = scope(context.scope, 'class');
       if (node.id) bind(classScope, node.id.name, own);
+      if (node.superClass) visit(node.superClass, { ...context, scope: classScope }, depth + 1);
       const methods = new Map();
       if (own) classMethods.set(own.id, methods);
       for (const method of node.body.body) {
