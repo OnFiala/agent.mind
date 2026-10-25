@@ -1,0 +1,10 @@
+node_modules/
+workspace/
+backups/
+evidence/
+*.log
+.DS_Store
+dist/
+.local/
+PRODUCT_DISCOVERY.md
+legacy/

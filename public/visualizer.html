@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>agent.mind — source map</title>
+  <link rel="stylesheet" href="/visualizer.css">
+  <script src="/visualizer.js" type="module"></script>
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true"><defs>
+    <symbol id="i-project" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="15" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><path d="M12 9v3M6 15v-3h12v3"/></symbol>
+    <symbol id="i-security" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="M12 8v5m0 3h.01"/></symbol>
+    <symbol id="i-test" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-6 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-6-9V3M8 14h8"/></symbol>
+    <symbol id="i-details" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8Z"/></symbol>
+    <symbol id="i-arrange" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1"/><rect x="14" y="4" width="7" height="6" rx="1"/><rect x="3" y="14" width="7" height="6" rx="1"/><rect x="14" y="14" width="7" height="6" rx="1"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </defs></svg>
+  <main id="workspace">
+    <div id="canvas" tabindex="0" role="region" aria-label="Project blocks and relations. Drag to pan, Ctrl and wheel to zoom. Press 0 to fit all.">
+      <div id="world"><svg id="connections" aria-label="Relations between files"></svg><div id="groups"></div><div id="nodes"></div></div>
+    </div>
+    <img class="wordmark" src="/assets/agent-mind-wordmark.webp" alt="agent.mind" width="120" height="40" draggable="false">
+    <header class="topbar" aria-label="Project and map controls"><svg class="edge-island edge-island-top" viewBox="0 0 1000 60" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0C45 0 38 59 90 59H910C962 59 955 0 1000 0Z"/></svg>
+      <div class="project-caption"><strong id="project-name">agent.mind</strong><span id="graph-count">Loading source…</span></div>
+      <label class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="search" type="search" aria-label="Find a block, file or symbol" placeholder="Block or file…" autocomplete="off" spellcheck="false"><kbd>/</kbd></label>
+      <div id="live-status" class="live-status" role="status" aria-live="polite"><span class="status-dot"></span><span id="live-text">Connecting</span></div>
+      <div class="camera-tools"><button id="fit" class="icon-button" title="Fit all (0)" aria-label="Fit all"><svg class="icon"><use href="#i-fit"/></svg></button><button id="zoom-out" class="icon-button" title="Zoom out" aria-label="Zoom out">−</button><button id="zoom-reset" title="Zoom to 100%" aria-label="Zoom to 100%">100 %</button><button id="zoom-in" class="icon-button" title="Zoom in" aria-label="Zoom in">+</button><button id="arrange" class="icon-button" title="Arrange files" aria-label="Arrange files"><svg class="icon"><use href="#i-arrange"/></svg></button></div>
+    </header>
+    <nav id="scope-navigation" class="scope-navigation" aria-label="Map path"><div class="scope-path"><button id="scope-back" class="scope-back" aria-label="Back to the previous scope" title="Back (Alt + left arrow)">←</button><div id="scope-breadcrumbs" class="scope-breadcrumbs"></div></div><div id="scope-tools" class="scope-tools"><select id="section-jump" aria-label="Map area" title="Jump to an area"><option value="">Map area</option></select><select id="relation-mode" aria-label="Relation display"><option value="focus">Selection relations</option><option value="all">All relations</option></select><button id="collapse-all" class="collapse-all" type="button" hidden>Collapse all</button><span id="relation-count" class="relation-count" role="status" aria-live="polite"></span></div><div id="area-focus-bar" class="area-focus-bar" hidden><strong id="area-focus-name"></strong><span class="direction-key incoming"><i></i>Incoming →</span><span class="direction-key outgoing"><i></i>→ Outgoing</span><span class="direction-key internal"><i></i>Internal</span><button id="clear-area-focus" type="button">Clear area focus</button></div><span id="scope-notice" class="scope-notice" role="status" hidden></span></nav>
+    <nav class="view-rail edge-rail" aria-label="Project views"><svg class="edge-island" viewBox="0 0 44 262" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0C0 40 44 32 44 72V190C44 230 0 222 0 262Z"/></svg>
+      <button aria-label="Whole project" data-view="project" aria-pressed="true" title="Whole project"><svg class="icon" aria-hidden="true"><use href="#i-project"/></svg><span>Whole project</span></button>
+      <button aria-label="Security" data-view="security" aria-pressed="false" title="Security — source signals and relations"><svg class="icon" aria-hidden="true"><use href="#i-security"/></svg><span>Security</span></button>
+      <button aria-label="Testing" data-view="testing" aria-pressed="false" title="Testing — test files and relations"><svg class="icon" aria-hidden="true"><use href="#i-test"/></svg><span>Testing</span></button>
+    </nav>
+    <nav class="tools-rail edge-rail" aria-label="Map information"><svg class="edge-island" viewBox="0 0 44 262" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0C0 40 44 32 44 72V190C44 230 0 222 0 262Z"/></svg>
+      <button data-panel="selection" aria-label="Selection details" aria-expanded="false" title="Selection details"><svg class="icon" aria-hidden="true"><use href="#i-details"/></svg></button>
+      <button data-panel="project" aria-label="Project and all files" aria-expanded="false" title="Project and all files"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg></button>
+      <button data-panel="activity" aria-label="Source changes" aria-expanded="false" title="Source changes"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg><span id="activity-count" class="activity-count" hidden></span></button>
+    </nav>
+    <aside id="inspector" class="inspector" aria-labelledby="panel-title" hidden><header class="panel-header"><div><span id="panel-eyebrow" class="eyebrow">SOURCE CODE</span><h1 id="panel-title">Selection details</h1></div><button id="close-panel" class="icon-button" aria-label="Close panel" title="Close (Escape)"><svg class="icon"><use href="#i-close"/></svg></button></header><div id="panel-body" class="panel-body"></div></aside>
+    <div id="canvas-message" class="canvas-message" role="status"><span class="eyebrow">PROJECT INDEX</span><h2>Reading the source map</h2><p>Files and relations appear when the index is ready.</p></div>
+    <div id="search-summary" class="search-summary" role="status" aria-live="polite" hidden></div>
+    <div class="canvas-help">Drag to pan <span>·</span> Ctrl + wheel: zoom <span>·</span> Click: open source</div>
+  </main>
+</body>
+</html>

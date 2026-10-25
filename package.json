@@ -1,0 +1,35 @@
+{
+  "name": "agent-mind",
+  "version": "1.0.0",
+  "description": "Live read-only code graph with project, security and testing views",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "context": "node graph-context.mjs",
+    "package": "node scripts/build-release.mjs"
+  },
+  "keywords": [],
+  "author": "OnFiala",
+  "repository": { "type": "git", "url": "https://github.com/OnFiala/agent.mind.git" },
+  "license": "ISC",
+  "dependencies": {
+    "acorn": "8.18.0"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "*.mjs",
+    "scripts/",
+    "public/",
+    "test/",
+    "AGENTS.md",
+    "README.md",
+    "LICENSE"
+  ]
+}

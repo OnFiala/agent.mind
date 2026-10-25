@@ -1,0 +1,2277 @@
+{
+  "schemaVersion": 1,
+  "blocks": [
+    {
+      "id": "canvas",
+      "label": "Map",
+      "type": "interface",
+      "group": "core",
+      "description": "Shows the project and its relationships.",
+      "aliases": [
+        "canvas",
+        "plátno",
+        "rozhraní",
+        "vizualizace",
+        "Mapa"
+      ],
+      "files": [
+        "public/visualizer.js",
+        "public/visualizer.html",
+        "public/visualizer.css",
+        "public/hierarchy.mjs"
+      ],
+      "prefixes": []
+    },
+    {
+      "id": "server",
+      "label": "Server",
+      "type": "service",
+      "group": "core",
+      "description": "Provides the graph, source excerpts and live events.",
+      "aliases": [
+        "API",
+        "lokální server",
+        "backend"
+      ],
+      "files": [
+        "server.mjs"
+      ],
+      "prefixes": []
+    },
+    {
+      "id": "live-index",
+      "label": "Live changes",
+      "type": "process",
+      "group": "core",
+      "description": "Watches source files and updates the graph.",
+      "aliases": [
+        "živý index",
+        "aktualizace",
+        "sledování změn",
+        "Živé změny"
+      ],
+      "files": [
+        "live-index.mjs"
+      ],
+      "prefixes": []
+    },
+    {
+      "id": "code-index",
+      "label": "Code index",
+      "type": "process",
+      "group": "core",
+      "description": "Reads source code and derives parts and relationships.",
+      "aliases": [
+        "index",
+        "indexer",
+        "parser",
+        "čtení kódu",
+        "Index kódu"
+      ],
+      "files": [
+        "code-index.mjs",
+        "project-map.mjs",
+        "symbol-index.mjs"
+      ],
+      "prefixes": []
+    },
+    {
+      "id": "agent-context",
+      "label": "Agent context",
+      "type": "module",
+      "group": "core",
+      "description": "Finds a project part and its surroundings for the agent.",
+      "aliases": [
+        "kontext",
+        "agent",
+        "souvislosti pro agenta",
+        "Kontext agenta"
+      ],
+      "files": [
+        "graph-context.mjs"
+      ],
+      "prefixes": []
+    },
+    {
+      "id": "installation",
+      "label": "Installation",
+      "type": "process",
+      "group": "support",
+      "description": "Packages the runtime and safely attaches it to a local project.",
+      "aliases": [
+        "installer",
+        "package",
+        "instalace"
+      ],
+      "files": [
+        "installation.mjs",
+        "cli.mjs"
+      ],
+      "prefixes": [
+        "scripts/"
+      ]
+    },
+    {
+      "id": "tests",
+      "label": "Tests",
+      "type": "tests",
+      "group": "tests",
+      "description": "Test scenarios and their references to source code.",
+      "aliases": [
+        "testování",
+        "ověření",
+        "Testy"
+      ],
+      "files": [],
+      "prefixes": [
+        "test/"
+      ]
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "type": "config",
+      "group": "support",
+      "description": "Startup, dependencies and shared project names.",
+      "aliases": [
+        "konfigurace",
+        "spuštění",
+        "názvosloví",
+        "Nastavení"
+      ],
+      "files": [
+        "package.json",
+        "package-lock.json",
+        "project-map.json"
+      ],
+      "prefixes": []
+    },
+    {
+      "id": "docs",
+      "label": "Documentation",
+      "type": "document",
+      "group": "support",
+      "description": "Working rules and project decisions.",
+      "aliases": [
+        "pravidla",
+        "návod",
+        "rozhodnutí",
+        "Dokumentace"
+      ],
+      "files": [
+        "AGENTS.md",
+        "README.md"
+      ],
+      "prefixes": [
+        "public/assets/"
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "target": "file:public/visualizer.js",
+      "label": "Map controls",
+      "description": "Draws project parts and responds to selection and changes.",
+      "aliases": [
+        "Ovládání mapy"
+      ],
+      "section": "Interface",
+      "sectionId": "interface"
+    },
+    {
+      "target": "file:public/visualizer.html",
+      "label": "Page structure",
+      "description": "Defines the contents of the map and panels.",
+      "aliases": [
+        "Kostra rozhraní"
+      ],
+      "section": "Interface",
+      "sectionId": "interface"
+    },
+    {
+      "target": "file:public/visualizer.css",
+      "label": "Map appearance",
+      "description": "Defines shapes, colors and dimensions.",
+      "aliases": [
+        "Vzhled mapy"
+      ],
+      "section": "Interface",
+      "sectionId": "interface"
+    },
+    {
+      "target": "file:public/hierarchy.mjs",
+      "label": "Project navigation",
+      "description": "Builds individual levels and relationships between their parts.",
+      "aliases": [
+        "Procházení projektu"
+      ],
+      "section": "Navigation",
+      "sectionId": "navigation"
+    },
+    {
+      "target": "file:code-index.mjs",
+      "label": "Source reading",
+      "description": "Finds files and derives supported source relationships.",
+      "aliases": [
+        "Čtení zdrojů"
+      ],
+      "section": "Source reading",
+      "sectionId": "source-reading"
+    },
+    {
+      "target": "file:project-map.mjs",
+      "label": "Names and grouping",
+      "description": "Assigns shared names and groups source parts into blocks.",
+      "aliases": [
+        "Pojmenování a členění"
+      ],
+      "section": "Grouping",
+      "sectionId": "grouping"
+    },
+    {
+      "target": "file:symbol-index.mjs",
+      "label": "Functions and calls",
+      "description": "Recognizes functions, methods and static call references.",
+      "aliases": [
+        "Funkce a volání"
+      ],
+      "section": "Code structure",
+      "sectionId": "code-structure"
+    },
+    {
+      "target": "file:server.mjs",
+      "label": "HTTP interface",
+      "description": "Handles read-only map and context requests.",
+      "aliases": [
+        "HTTP rozhraní"
+      ],
+      "section": "Interface",
+      "sectionId": "interface"
+    },
+    {
+      "target": "file:live-index.mjs",
+      "label": "Index updates",
+      "description": "Checks for changes and publishes a new revision.",
+      "aliases": [
+        "Obnova indexu"
+      ],
+      "section": "Live data",
+      "sectionId": "live-data"
+    },
+    {
+      "target": "file:graph-context.mjs",
+      "label": "Context selection",
+      "description": "Returns the requested project part and its surroundings.",
+      "aliases": [
+        "Výběr kontextu"
+      ],
+      "section": "Agent context",
+      "sectionId": "agent-context"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer",
+      "label": "Map session",
+      "description": "Connects rendering, controls and live updates.",
+      "section": "Interface",
+      "aliases": [
+        "Běh mapy"
+      ],
+      "sectionId": "interface"
+    },
+    {
+      "target": "symbol:public/visualizer.js#layoutOverview",
+      "label": "Block layout",
+      "description": "Arranges blocks while preserving their saved positions.",
+      "section": "Layout",
+      "aliases": [
+        "Rozmístění bloků"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#routeEdge",
+      "label": "Connector route",
+      "description": "Finds a clear path between connected cards.",
+      "section": "Relationships",
+      "aliases": [
+        "Trasa vazby"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#findNodes",
+      "label": "Search",
+      "description": "Finds parts by names, aliases and source details.",
+      "section": "Display",
+      "aliases": [
+        "Vyhledávání"
+      ],
+      "sectionId": "display"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.syncGraph",
+      "label": "Apply updates",
+      "description": "Reconciles cards, connectors, navigation and panels with the new graph.",
+      "section": "Live data",
+      "aliases": [
+        "Promítnutí změn"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.selectNode",
+      "label": "Select part",
+      "description": "Expands the selected part or opens its source detail.",
+      "section": "Controls",
+      "aliases": [
+        "Výběr části"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.drawEdges",
+      "label": "Draw connectors",
+      "description": "Redraws routes and labels for the current relationships.",
+      "section": "Rendering",
+      "aliases": [
+        "Vykreslení vazeb"
+      ],
+      "sectionId": "rendering"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderBlock",
+      "label": "Block details",
+      "description": "Shows the selected block's files, relationships and signals.",
+      "section": "Details",
+      "aliases": [
+        "Detail bloku"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.loadSource",
+      "label": "Load source",
+      "description": "Loads a code excerpt and checks its fingerprint.",
+      "section": "Source",
+      "aliases": [
+        "Načtení zdroje"
+      ],
+      "sectionId": "source"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderPanel",
+      "label": "Panel contents",
+      "description": "Chooses the panel contents and preserves the scroll position.",
+      "section": "Details",
+      "aliases": [
+        "Obsah panelu"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.refresh",
+      "label": "Refresh graph",
+      "description": "Requests the current graph and rejects superseded responses.",
+      "section": "Live data",
+      "aliases": [
+        "Obnovení grafu"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.emphasize",
+      "label": "Highlight",
+      "description": "Highlights the selection, its neighbors, layer and search matches.",
+      "section": "Controls",
+      "aliases": [
+        "Zvýraznění souvislostí",
+        "Zvýraznění"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:server.mjs#createVisualizer",
+      "label": "Request handling",
+      "description": "Creates the local read-only server and live update stream.",
+      "section": "Interface",
+      "aliases": [
+        "Obsluha požadavků"
+      ],
+      "sectionId": "interface"
+    },
+    {
+      "target": "symbol:server.mjs#sourceExcerpt",
+      "label": "Source excerpt",
+      "description": "Returns verified lines from the chosen file.",
+      "section": "Source",
+      "aliases": [
+        "Výřez zdroje"
+      ],
+      "sectionId": "source"
+    },
+    {
+      "target": "symbol:code-index.mjs#indexProject",
+      "label": "Build index",
+      "description": "Combines current files, symbols, evidence and relationships.",
+      "section": "Project index",
+      "aliases": [
+        "Sestavení indexu"
+      ],
+      "sectionId": "project-index"
+    },
+    {
+      "target": "symbol:code-index.mjs#inventory",
+      "label": "File inventory",
+      "description": "Finds files within the allowed scope and reading budget.",
+      "section": "File reading",
+      "aliases": [
+        "Seznam souborů"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#analyzeJavaScript",
+      "label": "JavaScript analysis",
+      "description": "Reads syntax, references, signals and named parts.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Čtení JavaScriptu"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#readIndexedSource",
+      "label": "Verified reading",
+      "description": "Reads source only when its fingerprint matches the index.",
+      "section": "File reading",
+      "aliases": [
+        "Ověřené čtení"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:live-index.mjs#LiveIndex",
+      "label": "Live index",
+      "description": "Keeps the latest verified project revision.",
+      "section": "Live data",
+      "aliases": [
+        "Živý index"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:live-index.mjs#LiveIndex.refresh",
+      "label": "Change check",
+      "description": "Compares revisions and publishes a stable state.",
+      "section": "Live data",
+      "aliases": [
+        "Kontrola změn"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:graph-context.mjs#projectContext",
+      "label": "Part context",
+      "description": "Selects a part, its ancestry, source surroundings and map view.",
+      "section": "Agent context",
+      "aliases": [
+        "Souvislosti části"
+      ],
+      "sectionId": "agent-context"
+    },
+    {
+      "target": "symbol:graph-context.mjs#freshContext",
+      "label": "Fresh context",
+      "description": "Verifies source stability before returning project context.",
+      "section": "Agent context",
+      "aliases": [
+        "Čerstvý kontext"
+      ],
+      "sectionId": "agent-context"
+    },
+    {
+      "target": "symbol:code-index.mjs#analyze",
+      "label": "Choose analysis",
+      "description": "Chooses analysis by extension and validates structured data syntax.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Volba čtení"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#analyzeHTML",
+      "label": "Page analysis",
+      "description": "Finds script and stylesheet sources in actual HTML tags.",
+      "section": "References",
+      "aliases": [
+        "Čtení stránky"
+      ],
+      "sectionId": "references"
+    },
+    {
+      "target": "symbol:code-index.mjs#analyzeJavaScript.globalAvailable",
+      "label": "Available global name",
+      "description": "Checks that a global name is neither shadowed nor changed.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Volné globální jméno"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#analyzeJavaScript.reference",
+      "label": "Record reference",
+      "description": "Stores a source reference with its supporting location.",
+      "section": "References",
+      "aliases": [
+        "Záznam odkazu"
+      ],
+      "sectionId": "references"
+    },
+    {
+      "target": "symbol:code-index.mjs#analyzeJavaScript.security",
+      "label": "Record signal",
+      "description": "Stores a security-relevant source location without a vulnerability verdict.",
+      "section": "Signals",
+      "aliases": [
+        "Záznam signálu"
+      ],
+      "sectionId": "signals"
+    },
+    {
+      "target": "symbol:code-index.mjs#assignmentTargets",
+      "label": "Write targets",
+      "description": "Finds changed names and properties inside assignment patterns.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Cíle zápisu"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#checkedPath",
+      "label": "Path validation",
+      "description": "Rejects symbolic links and paths outside the project.",
+      "section": "File reading",
+      "aliases": [
+        "Ověření cesty"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#children",
+      "label": "Syntax children",
+      "description": "Returns directly nested syntax tree elements.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Děti syntaxe"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#fetchMethod",
+      "label": "Request method",
+      "description": "Recognizes a directly specified client request method.",
+      "section": "HTTP links",
+      "aliases": [
+        "Metoda požadavku"
+      ],
+      "sectionId": "http-links"
+    },
+    {
+      "target": "symbol:code-index.mjs#fileId",
+      "label": "File identity",
+      "description": "Derives a stable identifier from a relative path.",
+      "section": "Helpers",
+      "aliases": [
+        "ID souboru"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:code-index.mjs#handlerPath",
+      "label": "Handler path",
+      "description": "Accepts only the exact pathname compared by the server.",
+      "section": "HTTP links",
+      "aliases": [
+        "Cesta obsluhy"
+      ],
+      "sectionId": "http-links"
+    },
+    {
+      "target": "symbol:code-index.mjs#inventory.visit",
+      "label": "Folder traversal",
+      "description": "Walks folders, skips excluded paths and enforces limits.",
+      "section": "File reading",
+      "aliases": [
+        "Průchod složkou"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#isFunction",
+      "label": "Function check",
+      "description": "Checks whether a syntax element represents a function.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Rozpoznání funkce"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#isInside",
+      "label": "Project boundary",
+      "description": "Checks whether a path stays inside the project root.",
+      "section": "File reading",
+      "aliases": [
+        "Hranice projektu"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#isTest",
+      "label": "Test file",
+      "description": "Recognizes a test from its filename and location.",
+      "section": "Classification",
+      "aliases": [
+        "Testovací soubor"
+      ],
+      "sectionId": "classification"
+    },
+    {
+      "target": "symbol:code-index.mjs#kindFor",
+      "label": "File role",
+      "description": "Classifies a file by its extension and test location.",
+      "section": "Classification",
+      "aliases": [
+        "Role souboru"
+      ],
+      "sectionId": "classification"
+    },
+    {
+      "target": "symbol:code-index.mjs#languageFor",
+      "label": "File language",
+      "description": "Chooses a language from the source extension.",
+      "section": "Classification",
+      "aliases": [
+        "Jazyk souboru"
+      ],
+      "sectionId": "classification"
+    },
+    {
+      "target": "symbol:code-index.mjs#location",
+      "label": "Source evidence",
+      "description": "Adds a path, line and short source excerpt.",
+      "section": "Helpers",
+      "aliases": [
+        "Zdrojový důkaz"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:code-index.mjs#memberOf",
+      "label": "Object property",
+      "description": "Matches an exact object and directly named property.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Vlastnost objektu"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#patternNames",
+      "label": "Assigned names",
+      "description": "Extracts variable names, including destructuring patterns.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Jména v přiřazení"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#posix",
+      "label": "Path format",
+      "description": "Normalizes relative path separators.",
+      "section": "Helpers",
+      "aliases": [
+        "Jednotný zápis cest"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:code-index.mjs#readBounded",
+      "label": "Bounded reading",
+      "description": "Reads a file within size limits and checks that it stays unchanged.",
+      "section": "File reading",
+      "aliases": [
+        "Omezené čtení"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#requestPath",
+      "label": "Request path",
+      "description": "Extracts a fixed local pathname without its query or fragment.",
+      "section": "HTTP links",
+      "aliases": [
+        "Cesta požadavku"
+      ],
+      "sectionId": "http-links"
+    },
+    {
+      "target": "symbol:code-index.mjs#resolveReference",
+      "label": "Find target",
+      "description": "Resolves a reference to an exact local file or external module.",
+      "section": "References",
+      "aliases": [
+        "Dohledání cíle"
+      ],
+      "sectionId": "references"
+    },
+    {
+      "target": "symbol:code-index.mjs#scopeNames",
+      "label": "Local names",
+      "description": "Collects local names to identify shadowed bindings.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Jména v okolí"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#securityModule",
+      "label": "Tracked dependency",
+      "description": "Recognizes a dependency with tracked security relevance.",
+      "section": "Signals",
+      "aliases": [
+        "Sledovaná závislost"
+      ],
+      "sectionId": "signals"
+    },
+    {
+      "target": "symbol:code-index.mjs#sensitive",
+      "label": "Excluded data",
+      "description": "Recognizes sensitive filenames that must be skipped.",
+      "section": "File reading",
+      "aliases": [
+        "Vyloučená data"
+      ],
+      "sectionId": "file-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#serverContracts",
+      "label": "Handled routes",
+      "description": "Identifies routes in a known local HTTP callback.",
+      "section": "HTTP links",
+      "aliases": [
+        "Obsluhované cesty"
+      ],
+      "sectionId": "http-links"
+    },
+    {
+      "target": "symbol:code-index.mjs#serverContracts.equality",
+      "label": "Request comparison",
+      "description": "Recognizes a known request property compared with fixed text.",
+      "section": "HTTP links",
+      "aliases": [
+        "Porovnání požadavku"
+      ],
+      "sectionId": "http-links"
+    },
+    {
+      "target": "symbol:code-index.mjs#serverContracts.noteWrite",
+      "label": "Binding changes",
+      "description": "Records writes that may change a local name's meaning.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Záznam změny vazby"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#serverContracts.within",
+      "label": "Scope match",
+      "description": "Checks that a name is used within its declaration scope.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Shoda prostředí"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:code-index.mjs#sha",
+      "label": "Content fingerprint",
+      "description": "Creates a stable data fingerprint for revision comparison.",
+      "section": "Helpers",
+      "aliases": [
+        "Otisk obsahu"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:code-index.mjs#stringLiteral",
+      "label": "Fixed text",
+      "description": "Returns text only when it is written directly in source.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Pevný text"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:live-index.mjs#LiveIndex.close",
+      "label": "Stop checks",
+      "description": "Stops repeated checks and removes listeners.",
+      "section": "Live data",
+      "aliases": [
+        "Ukončení kontrol"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:live-index.mjs#LiveIndex.constructor",
+      "label": "Start checks",
+      "description": "Initializes state, the first index and repeated source checks.",
+      "section": "Live data",
+      "aliases": [
+        "Spuštění kontrol"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:live-index.mjs#LiveIndex.snapshot",
+      "label": "Current state",
+      "description": "Returns the latest graph with its monitoring state.",
+      "section": "Live data",
+      "aliases": [
+        "Aktuální stav"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:project-map.mjs#attachOverview",
+      "label": "Attach structure",
+      "description": "Loads verified naming metadata and adds the overview and hierarchy.",
+      "section": "Grouping",
+      "aliases": [
+        "Připojení členění"
+      ],
+      "sectionId": "grouping"
+    },
+    {
+      "target": "symbol:project-map.mjs#buildHierarchy",
+      "label": "Nested parts",
+      "description": "Connects blocks, files and symbols to their names and parents.",
+      "section": "Grouping",
+      "aliases": [
+        "Vnořené části"
+      ],
+      "sectionId": "grouping"
+    },
+    {
+      "target": "symbol:project-map.mjs#buildOverview",
+      "label": "Block overview",
+      "description": "Groups files and actual source relationships into main blocks.",
+      "section": "Grouping",
+      "aliases": [
+        "Přehled bloků"
+      ],
+      "sectionId": "grouping"
+    },
+    {
+      "target": "symbol:project-map.mjs#diagnostic",
+      "label": "Naming warning",
+      "description": "Prepares a warning for invalid naming metadata.",
+      "section": "Validation",
+      "aliases": [
+        "Zpráva k názvům"
+      ],
+      "sectionId": "validation"
+    },
+    {
+      "target": "symbol:project-map.mjs#fallback",
+      "label": "Unassigned source",
+      "description": "Creates a neutral block for a file without clear membership.",
+      "section": "Grouping",
+      "aliases": [
+        "Nezařazený zdroj"
+      ],
+      "sectionId": "grouping"
+    },
+    {
+      "target": "symbol:project-map.mjs#normalizeName",
+      "label": "Normalize name",
+      "description": "Normalizes names across accents, case and separators.",
+      "section": "Naming",
+      "aliases": [
+        "Jednotný název"
+      ],
+      "sectionId": "naming"
+    },
+    {
+      "target": "symbol:project-map.mjs#resolveBlock",
+      "label": "Find block",
+      "description": "Finds a main block by identity, name or alias.",
+      "section": "Naming",
+      "aliases": [
+        "Výběr bloku"
+      ],
+      "sectionId": "naming"
+    },
+    {
+      "target": "symbol:project-map.mjs#resolvePart",
+      "label": "Find part",
+      "description": "Finds a part by identity, full path, name or alias.",
+      "section": "Naming",
+      "aliases": [
+        "Výběr části"
+      ],
+      "sectionId": "naming"
+    },
+    {
+      "target": "symbol:project-map.mjs#resolvePart.normalizeSelector",
+      "label": "Normalize selector",
+      "description": "Normalizes each level of the requested name path.",
+      "section": "Naming",
+      "aliases": [
+        "Jednotný výběr"
+      ],
+      "sectionId": "naming"
+    },
+    {
+      "target": "symbol:project-map.mjs#safePath",
+      "label": "Allowed path",
+      "description": "Checks the basic shape of a relative project path.",
+      "section": "Validation",
+      "aliases": [
+        "Povolená cesta"
+      ],
+      "sectionId": "validation"
+    },
+    {
+      "target": "symbol:project-map.mjs#sha",
+      "label": "Identity fingerprint",
+      "description": "Creates stable identifiers for derived parts.",
+      "section": "Helpers",
+      "aliases": [
+        "Otisk identity"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:project-map.mjs#validateConfiguration",
+      "label": "Vocabulary validation",
+      "description": "Checks blocks, names, aliases, roles and source membership.",
+      "section": "Validation",
+      "aliases": [
+        "Kontrola názvosloví"
+      ],
+      "sectionId": "validation"
+    },
+    {
+      "target": "symbol:public/hierarchy.mjs#ancestorPath",
+      "label": "Path to part",
+      "description": "Builds the parent path from the project to the selected part.",
+      "section": "Navigation",
+      "aliases": [
+        "Cesta k části"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/hierarchy.mjs#descendantIds",
+      "label": "Nested parts",
+      "description": "Collects all descendants of a part without duplicates.",
+      "section": "Navigation",
+      "aliases": [
+        "Vnořené části"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/hierarchy.mjs#scopeGraph",
+      "label": "Detail map",
+      "description": "Projects source relationships onto direct children and outside context.",
+      "section": "Grouping",
+      "aliases": [
+        "Mapa detailu"
+      ],
+      "sectionId": "grouping"
+    },
+    {
+      "target": "symbol:public/hierarchy.mjs#scopeGraph.project",
+      "label": "Place endpoint",
+      "description": "Maps a source endpoint to a card in the open detail.",
+      "section": "Grouping",
+      "aliases": [
+        "Zařazení konce vazby"
+      ],
+      "sectionId": "grouping"
+    },
+    {
+      "target": "symbol:public/visualizer.js#backScope",
+      "label": "Previous level",
+      "description": "Saves the view and returns to the previous open part.",
+      "section": "Navigation",
+      "aliases": [
+        "Návrat o úroveň"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#copyView",
+      "label": "Copy view",
+      "description": "Copies positions, zoom and selection without sharing changes.",
+      "section": "Navigation",
+      "aliases": [
+        "Kopie pohledu"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#createNavigationState",
+      "label": "Navigation state",
+      "description": "Prepares the open-part history and saved views.",
+      "section": "Navigation",
+      "aliases": [
+        "Paměť procházení"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#decorateScope",
+      "label": "Card data",
+      "description": "Adds source details, signals and search names to visible parts.",
+      "section": "Display",
+      "aliases": [
+        "Údaje pro karty"
+      ],
+      "sectionId": "display"
+    },
+    {
+      "target": "symbol:public/visualizer.js#displayGraph",
+      "label": "Display mode",
+      "description": "Prepares blocks or files for the selected view.",
+      "section": "Display",
+      "aliases": [
+        "Volba zobrazení"
+      ],
+      "sectionId": "display"
+    },
+    {
+      "target": "symbol:public/visualizer.js#edgePresentation",
+      "label": "Relationship emphasis",
+      "description": "Sets connector emphasis and labels from the layer and selection.",
+      "section": "Relationships",
+      "aliases": [
+        "Důraz vazby"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#element",
+      "label": "Page element",
+      "description": "Creates a page element with a class and text content.",
+      "section": "Helpers",
+      "aliases": [
+        "Prvek rozhraní"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#findNodes.normalized",
+      "label": "Search normalization",
+      "description": "Normalizes accents, case and separators for search.",
+      "section": "Display",
+      "aliases": [
+        "Sjednocení hledání"
+      ],
+      "sectionId": "display"
+    },
+    {
+      "target": "symbol:public/visualizer.js#fitCamera",
+      "label": "Fit all cards",
+      "description": "Calculates a view containing every positioned card.",
+      "section": "Layout",
+      "aliases": [
+        "Přehled všech karet"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#fitScopeCamera",
+      "label": "Fit detail",
+      "description": "Fits the open detail into the available canvas space.",
+      "section": "Layout",
+      "aliases": [
+        "Přehled detailu"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#gridRoute",
+      "label": "Fallback route",
+      "description": "Searches a free grid path around the cards.",
+      "section": "Relationships",
+      "aliases": [
+        "Náhradní trasa"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#gridRoute.heuristic",
+      "label": "Distance estimate",
+      "description": "Estimates the remaining path to the nearest endpoint.",
+      "section": "Relationships",
+      "aliases": [
+        "Odhad vzdálenosti"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#gridRoute.key",
+      "label": "Grid point key",
+      "description": "Identifies a grid point and its incoming direction.",
+      "section": "Relationships",
+      "aliases": [
+        "Klíč bodu"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#groupFor",
+      "label": "File group",
+      "description": "Groups a file by its role and folder.",
+      "section": "Layout",
+      "aliases": [
+        "Skupina souboru"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#layerMembership",
+      "label": "Layer contents",
+      "description": "Finds the parts and relationships in the selected layer.",
+      "section": "Display",
+      "aliases": [
+        "Obsah vrstvy"
+      ],
+      "sectionId": "display"
+    },
+    {
+      "target": "symbol:public/visualizer.js#layoutGraph",
+      "label": "File layout",
+      "description": "Arranges files in columns and preserves manual moves.",
+      "section": "Layout",
+      "aliases": [
+        "Pozice souborů"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#layoutOverview.priority",
+      "label": "Block order",
+      "description": "Places core parts before supporting blocks.",
+      "section": "Layout",
+      "aliases": [
+        "Pořadí bloků"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#layoutScope",
+      "label": "Detail layout",
+      "description": "Arranges the open parts and separates their surroundings.",
+      "section": "Layout",
+      "aliases": [
+        "Pozice detailu"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#navigateScope",
+      "label": "Open part",
+      "description": "Saves the current view and moves into the chosen part.",
+      "section": "Navigation",
+      "aliases": [
+        "Otevření části"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#nodeSize",
+      "label": "Card size",
+      "description": "Chooses card dimensions for its type.",
+      "section": "Layout",
+      "aliases": [
+        "Rozměr karty"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#overviewCamera",
+      "label": "Starting view",
+      "description": "Chooses a readable initial zoom and map position.",
+      "section": "Layout",
+      "aliases": [
+        "Úvodní pohled"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#reconcileNavigation",
+      "label": "Restore path",
+      "description": "Finds the nearest available part after source changes.",
+      "section": "Navigation",
+      "aliases": [
+        "Obnova cesty"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#reconcileNavigation.survives",
+      "label": "Part availability",
+      "description": "Checks whether a saved part can still be opened.",
+      "section": "Navigation",
+      "aliases": [
+        "Dostupnost části"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#relationFocus",
+      "label": "Visible relationships",
+      "description": "Chooses relationships for the current selection and focus.",
+      "section": "Relationships",
+      "aliases": [
+        "Viditelné vazby"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#routeEdge.ports",
+      "label": "Connection points",
+      "description": "Chooses connector attachment points on card edges.",
+      "section": "Relationships",
+      "aliases": [
+        "Přípojné body"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#sectionGroups",
+      "label": "Part groups",
+      "description": "Groups cards by responsibility and separates outside context.",
+      "section": "Layout",
+      "aliases": [
+        "Skupiny částí"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/visualizer.js#segmentCrossesRect",
+      "label": "Card crossing",
+      "description": "Checks whether a connector segment crosses a card interior.",
+      "section": "Relationships",
+      "aliases": [
+        "Průchod přes kartu"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#selectedDisplayId",
+      "label": "Visible selection",
+      "description": "Finds the visible card for the current selection.",
+      "section": "Display",
+      "aliases": [
+        "Viditelný výběr"
+      ],
+      "sectionId": "display"
+    },
+    {
+      "target": "symbol:public/visualizer.js#sharedSegmentLength",
+      "label": "Connector overlap",
+      "description": "Measures the shared length of nearby connector segments.",
+      "section": "Relationships",
+      "aliases": [
+        "Překrytí spojnic"
+      ],
+      "sectionId": "relationships"
+    },
+    {
+      "target": "symbol:public/visualizer.js#shortHash",
+      "label": "Short fingerprint",
+      "description": "Shortens a revision fingerprint for display.",
+      "section": "Helpers",
+      "aliases": [
+        "Krátký otisk"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#shouldAcceptRuntime",
+      "label": "Update order",
+      "description": "Rejects an older update from the same server instance.",
+      "section": "Live data",
+      "aliases": [
+        "Pořadí aktualizací"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.$",
+      "label": "Find page element",
+      "description": "Finds a page element by its identifier.",
+      "section": "Helpers",
+      "aliases": [
+        "Prvek podle ID"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.accept",
+      "label": "Accept map",
+      "description": "Checks update order and applies the received state.",
+      "section": "Live data",
+      "aliases": [
+        "Přijetí mapy"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.button",
+      "label": "Panel button",
+      "description": "Creates a button with its description and action.",
+      "section": "Helpers",
+      "aliases": [
+        "Tlačítko v panelu"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.changeMode",
+      "label": "Blocks or files",
+      "description": "Switches display mode while preserving each saved view.",
+      "section": "Navigation",
+      "aliases": [
+        "Bloky nebo soubory"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.closePanel",
+      "label": "Close panel",
+      "description": "Hides the panel and restores focus to the previous element.",
+      "section": "Details",
+      "aliases": [
+        "Zavření panelu"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.displaySource",
+      "label": "Source lines",
+      "description": "Shows a code excerpt with the selected line and paging controls.",
+      "section": "Source",
+      "aliases": [
+        "Zobrazení řádků"
+      ],
+      "sectionId": "source"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.drawGroups",
+      "label": "Group headings",
+      "description": "Places group names above the relevant cards.",
+      "section": "Rendering",
+      "aliases": [
+        "Nadpisy skupin"
+      ],
+      "sectionId": "rendering"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.endDrag",
+      "label": "Finish drag",
+      "description": "Ends dragging and distinguishes a click from a card move.",
+      "section": "Controls",
+      "aliases": [
+        "Konec posunu"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.enterScope",
+      "label": "Expand part",
+      "description": "Moves into the smaller parts of the chosen block.",
+      "section": "Navigation",
+      "aliases": [
+        "Otevření detailu",
+        "Rozbalení části"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.fact",
+      "label": "Summary value",
+      "description": "Displays a value with a short explanation.",
+      "section": "Helpers",
+      "aliases": [
+        "Číselný údaj"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.failure",
+      "label": "Loading error",
+      "description": "Records the error and updates the status messages.",
+      "section": "Live data",
+      "aliases": [
+        "Chyba načtení"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.fit",
+      "label": "Frame view",
+      "description": "Chooses an overview for the current display mode.",
+      "section": "Controls",
+      "aliases": [
+        "Usazení pohledu"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.goBack",
+      "label": "Back in map",
+      "description": "Restores the previous open part and its view.",
+      "section": "Navigation",
+      "aliases": [
+        "Zpět v mapě"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.layoutOptions",
+      "label": "Column count",
+      "description": "Adapts the number of columns to the canvas width.",
+      "section": "Rendering",
+      "aliases": [
+        "Počet sloupců"
+      ],
+      "sectionId": "rendering"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.membership",
+      "label": "Current layer",
+      "description": "Returns the parts and relationships highlighted by the current layer.",
+      "section": "Controls",
+      "aliases": [
+        "Aktuální vrstva"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.note",
+      "label": "Panel message",
+      "description": "Adds a status message or explanation.",
+      "section": "Helpers",
+      "aliases": [
+        "Sdělení v panelu"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.openPanel",
+      "label": "Open panel",
+      "description": "Shows the side panel and remembers the previous focus.",
+      "section": "Details",
+      "aliases": [
+        "Otevření panelu"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.pathButton",
+      "label": "Source link",
+      "description": "Opens the matching file and requested line.",
+      "section": "Helpers",
+      "aliases": [
+        "Odkaz na zdroj"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.placeCard",
+      "label": "Place card",
+      "description": "Moves a card and its detail button to the saved position.",
+      "section": "Rendering",
+      "aliases": [
+        "Umístění karty"
+      ],
+      "sectionId": "rendering"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderActivity",
+      "label": "Recent changes",
+      "description": "Shows added, changed and removed source files.",
+      "section": "Details",
+      "aliases": [
+        "Poslední změny"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderBreadcrumbs",
+      "label": "Project path",
+      "description": "Shows the hierarchy path and back control.",
+      "section": "Navigation",
+      "aliases": [
+        "Cesta v projektu"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderEdge",
+      "label": "Relationship evidence",
+      "description": "Shows connector endpoints and supporting source lines.",
+      "section": "Details",
+      "aliases": [
+        "Důkaz vazby"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderFileList",
+      "label": "Source list",
+      "description": "Lists files and modules matching the current search.",
+      "section": "Details",
+      "aliases": [
+        "Seznam zdrojů"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderProject",
+      "label": "Project overview",
+      "description": "Shows index status, counts, limitations and available files.",
+      "section": "Details",
+      "aliases": [
+        "Přehled projektu"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderRelations",
+      "label": "Relationship list",
+      "description": "Lists related sources with links to their evidence.",
+      "section": "Details",
+      "aliases": [
+        "Seznam vazeb"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderSelection",
+      "label": "Selection details",
+      "description": "Shows the selected source, signals and related parts.",
+      "section": "Details",
+      "aliases": [
+        "Detail výběru"
+      ],
+      "sectionId": "details"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.restoreScope",
+      "label": "Restore level",
+      "description": "Restores the saved view and redraws the open level.",
+      "section": "Navigation",
+      "aliases": [
+        "Obnova detailu",
+        "Obnova úrovně"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.revealNode",
+      "label": "Reveal selection",
+      "description": "Moves the view to keep the selected card visible.",
+      "section": "Controls",
+      "aliases": [
+        "Zobrazení výběru"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.section",
+      "label": "Panel heading",
+      "description": "Adds a heading to the next panel section.",
+      "section": "Helpers",
+      "aliases": [
+        "Nadpis v panelu"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.selectEdge",
+      "label": "Select relationship",
+      "description": "Selects a connector and opens its source evidence.",
+      "section": "Controls",
+      "aliases": [
+        "Výběr vazby"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.setCamera",
+      "label": "View position",
+      "description": "Sets pan, zoom and the aligned canvas background.",
+      "section": "Controls",
+      "aliases": [
+        "Poloha pohledu"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.setMessage",
+      "label": "Canvas message",
+      "description": "Shows a status message or error over the map.",
+      "section": "Live data",
+      "aliases": [
+        "Zpráva na plátně"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.showSourceLine",
+      "label": "Go to line",
+      "description": "Loads a newly selected line in the open source file.",
+      "section": "Source",
+      "aliases": [
+        "Přechod na řádek"
+      ],
+      "sectionId": "source"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.status",
+      "label": "Connection status",
+      "description": "Shows server availability and index freshness.",
+      "section": "Live data",
+      "aliases": [
+        "Stav spojení"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.validGraph",
+      "label": "Response validation",
+      "description": "Checks the shape of the received parts and relationships.",
+      "section": "Live data",
+      "aliases": [
+        "Kontrola odpovědi"
+      ],
+      "sectionId": "live-data"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.viewSnapshot",
+      "label": "Save view",
+      "description": "Returns the current positions, zoom and selection.",
+      "section": "Navigation",
+      "aliases": [
+        "Uložení pohledu"
+      ],
+      "sectionId": "navigation"
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.zoom",
+      "label": "Map zoom",
+      "description": "Changes the scale around a chosen canvas point.",
+      "section": "Controls",
+      "aliases": [
+        "Přiblížení"
+      ],
+      "sectionId": "controls"
+    },
+    {
+      "target": "symbol:public/visualizer.js#svgElement",
+      "label": "Vector element",
+      "description": "Creates a vector element with the requested attributes.",
+      "section": "Helpers",
+      "aliases": [
+        "Prvek spojnice"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:public/visualizer.js#timeLabel",
+      "label": "Readable time",
+      "description": "Formats an event time for display.",
+      "section": "Helpers",
+      "aliases": [
+        "Čitelný čas"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:server.mjs#createVisualizer.json",
+      "label": "Data response",
+      "description": "Sends the request status and data in a consistent format.",
+      "section": "Responses",
+      "aliases": [
+        "Odpověď s daty"
+      ],
+      "sectionId": "responses"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph",
+      "label": "Functions and calls",
+      "description": "Builds nested parts and supported local call references.",
+      "section": "Code structure",
+      "aliases": [
+        "Funkce a volání"
+      ],
+      "sectionId": "code-structure"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph.bind",
+      "label": "Store binding",
+      "description": "Connects a declared name to a part and local scope.",
+      "section": "Code structure",
+      "aliases": [
+        "Uložení jména"
+      ],
+      "sectionId": "code-structure"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph.evidence",
+      "label": "Call evidence",
+      "description": "Adds a path, line and short excerpt for a call site.",
+      "section": "Link validation",
+      "aliases": [
+        "Důkaz volání"
+      ],
+      "sectionId": "link-validation"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph.lookup",
+      "label": "Find binding",
+      "description": "Finds the nearest declaration through enclosing scopes.",
+      "section": "Link validation",
+      "aliases": [
+        "Hledání jména"
+      ],
+      "sectionId": "link-validation"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph.scope",
+      "label": "New local scope",
+      "description": "Creates a scope linked to its enclosing names.",
+      "section": "Code structure",
+      "aliases": [
+        "Nové místní prostředí"
+      ],
+      "sectionId": "code-structure"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph.symbol",
+      "label": "New code part",
+      "description": "Adds a named part with its parent, lines and source fingerprint.",
+      "section": "Code structure",
+      "aliases": [
+        "Nová část kódu"
+      ],
+      "sectionId": "code-structure"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#analyzeSymbolGraph.visit",
+      "label": "Code traversal",
+      "description": "Walks declarations while preserving their actual nesting.",
+      "section": "Code structure",
+      "aliases": [
+        "Průchod kódem"
+      ],
+      "sectionId": "code-structure"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#children",
+      "label": "Syntax children",
+      "description": "Returns directly nested syntax tree elements.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Děti syntaxe"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#digest",
+      "label": "Content fingerprint",
+      "description": "Creates a stable fingerprint for source or relationship identity.",
+      "section": "Helpers",
+      "aliases": [
+        "Otisk obsahu"
+      ],
+      "sectionId": "helpers"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#hasLexicalThisWrite",
+      "label": "Initializer writes",
+      "description": "Detects instance or class writes inside unsupported bodies.",
+      "section": "Link validation",
+      "aliases": [
+        "Změny v inicializaci"
+      ],
+      "sectionId": "link-validation"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#isClass",
+      "label": "Class check",
+      "description": "Recognizes a class declaration or expression.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Rozpoznání třídy"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#isFunction",
+      "label": "Function check",
+      "description": "Recognizes ordinary and arrow functions.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Rozpoznání funkce"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#methodName",
+      "label": "Method name",
+      "description": "Reads a fixed method name, including private methods.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Jméno metody"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#names",
+      "label": "Variable names",
+      "description": "Extracts declared names, including destructuring patterns.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Jména proměnných"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "symbol:symbol-index.mjs#writable",
+      "label": "Write targets",
+      "description": "Finds assigned names and properties in a write pattern.",
+      "section": "Syntax reading",
+      "aliases": [
+        "Cíle změny"
+      ],
+      "sectionId": "syntax-reading"
+    },
+    {
+      "target": "file:test/visualizer-ui.test.mjs",
+      "label": "Map tests",
+      "description": "Check display, navigation, layout and connector routes.",
+      "aliases": [
+        "Testy mapy"
+      ],
+      "section": "Testing",
+      "sectionId": "testing"
+    },
+    {
+      "target": "file:test/hierarchy.test.mjs",
+      "label": "Hierarchy tests",
+      "description": "Check nesting, context and open-part boundaries.",
+      "aliases": [
+        "Testy hierarchie"
+      ],
+      "section": "Testing",
+      "sectionId": "testing"
+    },
+    {
+      "target": "file:test/visualizer-server.test.mjs",
+      "label": "Server tests",
+      "description": "Check index updates, read-only endpoints and source excerpts.",
+      "aliases": [
+        "Testy serveru"
+      ],
+      "section": "Testing",
+      "sectionId": "testing"
+    },
+    {
+      "target": "file:test/code-index.test.mjs",
+      "label": "Index tests",
+      "description": "Check source references, bounded reading and HTTP contracts.",
+      "aliases": [
+        "Testy indexu"
+      ],
+      "section": "Testing",
+      "sectionId": "testing"
+    },
+    {
+      "target": "file:test/project-map.test.mjs",
+      "label": "Vocabulary tests",
+      "description": "Check names, aliases, file membership and grouped relationships.",
+      "aliases": [
+        "Testy názvosloví"
+      ],
+      "section": "Testing",
+      "sectionId": "testing"
+    },
+    {
+      "target": "file:test/symbol-index.test.mjs",
+      "label": "Symbol tests",
+      "description": "Check named parts, local calls and uncertain bindings.",
+      "aliases": [
+        "Testy symbolů"
+      ],
+      "section": "Testing",
+      "sectionId": "testing"
+    },
+    {
+      "target": "symbol:test/code-index.test.mjs#edge",
+      "label": "Find relationship",
+      "description": "Finds a relationship by source, target and kind.",
+      "section": "Result checks",
+      "aliases": [
+        "Výběr vazby"
+      ],
+      "sectionId": "result-checks"
+    },
+    {
+      "target": "symbol:test/code-index.test.mjs#file",
+      "label": "Find file",
+      "description": "Finds a file in the test index result.",
+      "section": "Result checks",
+      "aliases": [
+        "Výběr souboru"
+      ],
+      "sectionId": "result-checks"
+    },
+    {
+      "target": "symbol:test/code-index.test.mjs#fixture",
+      "label": "Project fixture",
+      "description": "Creates temporary source files and arranges cleanup after the test.",
+      "section": "Test setup",
+      "aliases": [
+        "Příprava projektu"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/code-index.test.mjs#handler",
+      "label": "Handler sample",
+      "description": "Builds test handler source with the chosen method and body.",
+      "section": "Test setup",
+      "aliases": [
+        "Ukázková obsluha"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/code-index.test.mjs#transportEdges",
+      "label": "Request relationships",
+      "description": "Selects HTTP and event stream relationships from the test graph.",
+      "section": "Result checks",
+      "aliases": [
+        "Vazby požadavků"
+      ],
+      "sectionId": "result-checks"
+    },
+    {
+      "target": "symbol:test/code-index.test.mjs#write",
+      "label": "Write sample",
+      "description": "Creates the folder and writes the given test file contents.",
+      "section": "Test setup",
+      "aliases": [
+        "Zápis ukázky"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/hierarchy.test.mjs#fixture",
+      "label": "Hierarchy fixture",
+      "description": "Creates a temporary project with nested functions and naming metadata.",
+      "section": "Test setup",
+      "aliases": [
+        "Příprava hierarchie"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/project-map.test.mjs#definition",
+      "label": "Block sample",
+      "description": "Prepares a main block definition and its source membership.",
+      "section": "Test setup",
+      "aliases": [
+        "Ukázkový blok"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/project-map.test.mjs#edge",
+      "label": "Relationship sample",
+      "description": "Prepares a source relationship with evidence for a grouping test.",
+      "section": "Test setup",
+      "aliases": [
+        "Ukázková vazba"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/project-map.test.mjs#file",
+      "label": "File sample",
+      "description": "Prepares a file record for a grouping test.",
+      "section": "Test setup",
+      "aliases": [
+        "Ukázkový soubor"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/symbol-index.test.mjs#analyze",
+      "label": "Analyze sample",
+      "description": "Passes the sample text to named-part and call analysis.",
+      "section": "Test setup",
+      "aliases": [
+        "Rozbor ukázky"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/symbol-index.test.mjs#call",
+      "label": "Find call",
+      "description": "Finds a supported call between two named parts.",
+      "section": "Result checks",
+      "aliases": [
+        "Výběr volání"
+      ],
+      "sectionId": "result-checks"
+    },
+    {
+      "target": "symbol:test/symbol-index.test.mjs#get",
+      "label": "Find part",
+      "description": "Finds a part by its fully qualified source name in the sample.",
+      "section": "Result checks",
+      "aliases": [
+        "Výběr části"
+      ],
+      "sectionId": "result-checks"
+    },
+    {
+      "target": "symbol:test/visualizer-server.test.mjs#fixture",
+      "label": "Source fixture",
+      "description": "Creates a temporary project with data excluded from the index.",
+      "section": "Test setup",
+      "aliases": [
+        "Příprava zdrojů"
+      ],
+      "sectionId": "test-setup"
+    },
+    {
+      "target": "symbol:test/visualizer-server.test.mjs#indexer",
+      "label": "Changing index",
+      "description": "Simulates stable or changing revisions for reconciliation tests.",
+      "section": "Test doubles",
+      "aliases": [
+        "Proměnlivý index"
+      ],
+      "sectionId": "test-doubles"
+    },
+    {
+      "target": "symbol:test/visualizer-ui.test.mjs#totalShared",
+      "label": "Total overlap",
+      "description": "Adds shared connector segments across the tested routes.",
+      "section": "Result checks",
+      "aliases": [
+        "Součet překrytí"
+      ],
+      "sectionId": "result-checks"
+    },
+    {
+      "target": "file:package-lock.json",
+      "label": "Dependency versions",
+      "description": "Locks exact versions and fingerprints of the required packages.",
+      "section": "Dependencies",
+      "aliases": [
+        "Verze závislostí"
+      ],
+      "sectionId": "dependencies"
+    },
+    {
+      "target": "file:package.json",
+      "label": "Project startup",
+      "description": "Defines commands, required runtime and direct dependencies.",
+      "section": "Startup",
+      "aliases": [
+        "Spuštění projektu"
+      ],
+      "sectionId": "startup"
+    },
+    {
+      "target": "file:project-map.json",
+      "label": "Map vocabulary",
+      "description": "Shares names, aliases, membership and named-part areas.",
+      "section": "Naming",
+      "aliases": [
+        "Slovník mapy"
+      ],
+      "sectionId": "naming"
+    },
+    {
+      "target": "file:AGENTS.md",
+      "label": "Agent rules",
+      "description": "Defines agent work, source authority and change verification.",
+      "section": "Rules",
+      "aliases": [
+        "Pravidla agenta"
+      ],
+      "sectionId": "rules"
+    },
+    {
+      "target": "file:README.md",
+      "label": "Project guide",
+      "description": "Describes startup, map usage and the limits of source evidence.",
+      "section": "Usage",
+      "aliases": [
+        "Průvodce projektem"
+      ],
+      "sectionId": "usage"
+    },
+    {
+      "target": "file:public/assets/README.md",
+      "label": "Artwork origins",
+      "description": "Records how the background and wordmark were created, including prompts.",
+      "section": "Artwork",
+      "aliases": [
+        "Původ grafiky"
+      ],
+      "sectionId": "artwork"
+    },
+    {
+      "target": "symbol:public/visualizer.js#sectionGroups.rank",
+      "label": "Section order",
+      "description": "Places the main detail areas before other groups.",
+      "section": "Layout",
+      "aliases": [
+        "Pořadí oblastí"
+      ],
+      "sectionId": "layout"
+    },
+    {
+      "target": "symbol:public/hierarchy.mjs#projectAreas",
+      "label": "Area overview",
+      "description": "Groups sibling parts into expandable areas while retaining directed relationships and source evidence.",
+      "section": "Grouping",
+      "sectionId": "grouping",
+      "aliases": []
+    },
+    {
+      "target": "symbol:test/hierarchy.test.mjs#areaFixture",
+      "label": "Area fixture",
+      "description": "Prepares sibling areas, outside context and directed relationships for projection tests.",
+      "section": "Test setup",
+      "sectionId": "test-setup",
+      "aliases": []
+    },
+    {
+      "target": "symbol:test/hierarchy.test.mjs#areaFixture.part",
+      "label": "Part sample",
+      "description": "Prepares a source-backed part with a stable area identity.",
+      "section": "Test setup",
+      "sectionId": "test-setup",
+      "aliases": []
+    },
+    {
+      "target": "symbol:test/hierarchy.test.mjs#areaFixture.edge",
+      "label": "Relationship sample",
+      "description": "Prepares a directed test relationship with type, layers and source evidence.",
+      "section": "Test setup",
+      "sectionId": "test-setup",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#layoutAreas",
+      "label": "Area layout",
+      "description": "Arranges collapsed areas and expanded cards while preserving manual positions.",
+      "section": "Layout",
+      "sectionId": "layout",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#layoutAreas.place",
+      "label": "Place area card",
+      "description": "Places a card without overlapping retained or newly placed cards.",
+      "section": "Layout",
+      "sectionId": "layout",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#areaSearch",
+      "label": "Area search",
+      "description": "Finds matching parts and highlights their visible cards or collapsed areas.",
+      "section": "Display",
+      "sectionId": "display",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#expandForPart",
+      "label": "Reveal part area",
+      "description": "Marks the area containing the requested part for expansion.",
+      "section": "Navigation",
+      "sectionId": "navigation",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.toggleArea",
+      "label": "Area expansion",
+      "description": "Expands or collapses an area and redraws the map around it.",
+      "section": "Controls",
+      "sectionId": "controls",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#startVisualizer.renderArea",
+      "label": "Area details",
+      "description": "Shows an area's member parts and internal relationships with their source links.",
+      "section": "Details",
+      "sectionId": "details",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/hierarchy.mjs#sourceRelations",
+      "label": "Source pairs",
+      "description": "Resolves the concrete source parts and evidence behind a grouped link.",
+      "section": "Relationships",
+      "sectionId": "relationships",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#areaDirections",
+      "label": "Area directions",
+      "description": "Classifies incoming, outgoing and internal relationships for the selected area.",
+      "section": "Relationships",
+      "sectionId": "relationships",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#connectorLabel",
+      "label": "Connection label",
+      "description": "Names the two endpoints and source reference count of a connector.",
+      "section": "Relationships",
+      "sectionId": "relationships",
+      "aliases": []
+    },
+    {
+      "target": "symbol:public/visualizer.js#areaDirections.belongs",
+      "label": "Area membership",
+      "description": "Checks whether a visible endpoint belongs to the selected area.",
+      "section": "Relationships",
+      "sectionId": "relationships",
+      "aliases": []
+    }
+  ]
+}
