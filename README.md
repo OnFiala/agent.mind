@@ -22,20 +22,20 @@ an installation, or a contribution to agent.mind.
 
 ## Install into a project
 
-The current release is **1.0.2**. Existing targets keep their pinned version; use
+The current release is **1.0.3**. Existing targets keep their pinned version; use
 the explicit update steps below to change it.
 
 Requires Node.js 22 or newer on macOS or Linux. Download
-[v1.0.2 from GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.2):
+[v1.0.3 from GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.3):
 
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.0.2.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.2/agent-mind-1.0.2.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.2/SHA256SUMS
+curl --fail --location --output agent-mind-1.0.3.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.3/agent-mind-1.0.3.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.3/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.0.2.tar.gz
-node agent-mind-1.0.2/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.2" --attach
+tar -xzf agent-mind-1.0.3.tar.gz
+node agent-mind-1.0.3/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.3" --attach
 ```
 
 Stop if checksum verification fails. Checksums check the downloaded bytes, so
@@ -86,7 +86,7 @@ A fresh clone needs a local installation. Download the same pinned release,
 then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.0.2/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.2 --adopt --attach
+node /path/to/agent-mind-1.0.3/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.3 --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -281,8 +281,8 @@ data**, including your map and recovery copies, stop external writers, inspect
 the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.0.2/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.0.2/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.0.3/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.0.3/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
 Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
@@ -307,13 +307,13 @@ release archive for recovery. There is no automatic updater.
 3. Move the preserved `agent.mind/` directory to a separate backup location.
    Keep it and the original release download for recovery. Do not overwrite an
    existing backup or use purge as part of this update.
-4. Follow the installation steps above for 1.0.2, then restore your saved map to
+4. Follow the installation steps above for 1.0.3, then restore your saved map to
    the new `agent.mind/project-map.json`.
 5. Run `status` and `context` through the new CLI. Reload the project instructions
    in your coding agent before using the new installation.
 
 Each release has its own runtime digest and generated integration files. Installing
-1.0.2 over 1.0.1, or adopting a 1.0.1 clone with the 1.0.2 release, is rejected.
+1.0.3 over 1.0.2, or adopting a 1.0.2 clone with the 1.0.3 release, is rejected.
 To return to an older version, use the same steps with that version's original
 release and your saved map. Existing installations do not change when a new
 release is published.

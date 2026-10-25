@@ -1,6 +1,6 @@
 {
   "name": "agent-mind",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A live map of your code, with security and test references",
   "directories": {
     "test": "test"
