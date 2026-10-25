@@ -441,9 +441,16 @@ export function purgeInstallation(installDir, expectedDigest) {
   if (!HASH.test(expectedDigest ?? '')) throw new Error('Purge requires the digest from the exact purge-plan you reviewed.');
   const plan = purgePlan(installDir);
   if (plan.digest !== expectedDigest) throw new Error('Purge inventory or root identity changed. Run purge-plan again and review it before deleting files.');
+  const controls = new Set(['project.json', '.local/install.json']);
+  const controlBytes = new Map(plan.entries.filter(entry => controls.has(entry.path)).map(entry => {
+    const bytes = read(plan.installDir, entry.path);
+    if (sha(bytes) !== entry.hash) throw new Error('Purge control record changed. Run purge-plan again.');
+    return [entry.path, bytes];
+  }));
   const root = plan.installDir, workspaceRelative = `.purge-${randomUUID()}`, workspace = checked(root, workspaceRelative, true);
   fs.mkdirSync(workspace, { mode: 0o700 });
-  const removed = [], conflicts = [], stagedControls = [], controls = new Set(['project.json', '.local/install.json']);
+  let workspaceIdentity = fs.lstatSync(workspace);
+  const removed = [], conflicts = [], stagedControls = [];
   const assertRoot = () => {
     const stat = fs.lstatSync(root);
     if (stat.isSymbolicLink() || stat.dev !== plan.rootIdentity.dev || stat.ino !== plan.rootIdentity.ino || fs.realpathSync(root) !== root) throw new Error('Install directory identity changed; cleanup stopped.');
@@ -457,13 +464,13 @@ export function purgeInstallation(installDir, expectedDigest) {
       const current = fileFingerprint(root, entry.path);
       if (JSON.stringify(current) !== JSON.stringify({ kind: entry.kind, hash: entry.hash, bytes: entry.bytes, dev: entry.dev, ino: entry.ino })) throw new Error('File identity or content changed.');
       fs.renameSync(checked(root, entry.path), checked(root, destination, true));
+      if (retainControl) stagedControls.push({ path: entry.path, destination });
       const displaced = fileFingerprint(root, destination);
       if (displaced.hash !== entry.hash || displaced.dev !== entry.dev || displaced.ino !== entry.ino || displaced.bytes !== entry.bytes) {
         try { fs.linkSync(checked(root, destination), checked(root, entry.path, true)); } catch {}
         throw new Error(`The file changed during purge. Its replacement is saved at ${destination}.`);
       }
-      if (retainControl) stagedControls.push({ path: entry.path, destination });
-      else { fs.unlinkSync(checked(root, destination)); removed.push(entry.path); }
+      if (!retainControl) { fs.unlinkSync(checked(root, destination)); removed.push(entry.path); }
     } catch (error) { conflicts.push({ path: entry.path, error: error.message }); }
   };
   for (const entry of plan.entries.filter(item => item.kind === 'file' && !controls.has(item.path))) removeFile(entry);
@@ -480,11 +487,6 @@ export function purgeInstallation(installDir, expectedDigest) {
     if (stagedControls.length) {
       const expected = new Set([...plan.entries.filter(item => item.kind === 'directory').map(item => item.path + '/'), ...stagedControls.map(item => item.destination)]);
       for (const relative of listRemaining(root)) if (!expected.has(relative)) conflicts.push({ path: relative, error: 'Unexpected file remains. Local installation records kept for another purge-plan.' });
-      if (conflicts.length) {
-        for (const control of stagedControls) try { fs.linkSync(checked(root, control.destination), checked(root, control.path, true)); } catch {}
-      } else {
-        for (const control of stagedControls) { fs.unlinkSync(checked(root, control.destination)); removed.push(control.path); }
-      }
     }
   } catch (error) { conflicts.push({ path: '.', error: error.message }); }
   // Only directories from the reviewed inventory and our own staging directory
@@ -498,10 +500,51 @@ export function purgeInstallation(installDir, expectedDigest) {
   }
   let remainder;
   try {
-    assertRoot(); try { fs.rmdirSync(workspace); } catch {}
+    assertRoot();
+    if (!conflicts.length) {
+      const expected = new Set(stagedControls.map(control => control.destination));
+      if (listRemaining(root).some(relative => !expected.has(relative))) throw new Error('Unexpected files remain; local installation records kept.');
+      for (const control of stagedControls) {
+        const original = plan.entries.find(entry => entry.path === control.path), current = fileFingerprint(root, control.destination);
+        if (current.hash !== original.hash || current.dev !== original.dev || current.ino !== original.ino) throw new Error('Purge control record changed; cleanup stopped.');
+      }
+      for (const control of stagedControls) { fs.unlinkSync(checked(root, control.destination)); removed.push(control.path); }
+      fs.rmdirSync(workspace);
+    }
     remainder = listRemaining(root);
     if (!remainder.length) { try { fs.rmdirSync(root); } catch (error) { conflicts.push({ path: '.', error: error.message }); remainder = listRemaining(root); } }
   } catch (error) { conflicts.push({ path: '.', error: error.message }); remainder = ['The installation directory changed or is unavailable. Check it before further cleanup.']; }
+  // Directory removal can still fail after the last control link was removed.
+  // Recover caught failures in the same root, never overwrite a recreated path.
+  // The snapshots are process-local: this is not a crash/power-loss transaction.
+  if (exists(root)) {
+    let restoredLocal = false;
+    for (const [relative, bytes] of controlBytes) try {
+      assertRoot();
+      const target = checked(root, relative, true);
+      const recreated = exists(target);
+      if (recreated && !removed.includes(relative)) continue;
+      let backup = stagedControls.find(control => control.path === relative)?.destination;
+      if (!backup || !exists(checked(root, backup, true))) {
+        if (!exists(workspace)) { fs.mkdirSync(checked(root, workspaceRelative, true), { mode: 0o700 }); workspaceIdentity = fs.lstatSync(workspace); }
+        const stat = fs.lstatSync(checked(root, workspaceRelative));
+        if (!stat.isDirectory() || stat.dev !== workspaceIdentity.dev || stat.ino !== workspaceIdentity.ino) throw new Error('Purge recovery directory changed.');
+        backup = `${workspaceRelative}/${randomUUID()}`;
+        fs.writeFileSync(checked(root, backup, true), bytes, { flag: 'wx', mode: 0o600 });
+      }
+      if (recreated) throw new Error(`The path was recreated; original record retained at ${backup}.`);
+      if (relative.startsWith('.local/')) {
+        const local = checked(root, '.local', true), original = plan.entries.find(entry => entry.path === '.local');
+        if (!exists(local)) { fs.mkdirSync(local, { mode: 0o700 }); restoredLocal = true; }
+        const stat = fs.lstatSync(local);
+        if (!stat.isDirectory() || !restoredLocal && (stat.dev !== original.dev || stat.ino !== original.ino)) throw new Error(`Local directory changed; control record retained at ${backup}.`);
+      }
+      fs.linkSync(checked(root, backup), checked(root, relative, true));
+      const index = removed.indexOf(relative); if (index !== -1) removed.splice(index, 1);
+      if (restoredLocal) { const index = removed.indexOf('.local/'); if (index !== -1) removed.splice(index, 1); }
+    } catch (error) { conflicts.push({ path: relative, error: `Could not restore purge record without overwriting: ${error.message}` }); }
+    try { assertRoot(); remainder = listRemaining(root); } catch {}
+  }
   return { state: exists(root) ? 'purge-incomplete' : 'purged', digest: plan.digest, removed, conflicts, remainder };
 }
 function pruneEmpty(root, ownedPaths) {

@@ -238,3 +238,87 @@ test('purge CLI emits exact incomplete result and exits nonzero when an owner fi
   const script = `import fs from 'node:fs'; const {runCLI}=await import(${JSON.stringify(path.join(source, 'installation.mjs'))}); const original=fs.renameSync; let injected=false; fs.renameSync=(from,to)=>{if(from===${JSON.stringify(map)}&&!injected){injected=true;fs.appendFileSync(from,'owner update');}return original(from,to);}; await runCLI(${JSON.stringify(['purge', '--install-dir', f.install, '--digest', plan.digest])});`;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' }); assert.equal(result.status, 1, result.stderr); const report = JSON.parse(result.stdout); assert.equal(report.state, 'purge-incomplete'); assert.ok(report.remainder.includes('project.json')); assert.ok(report.remainder.includes('.local/install.json')); assert.equal(statusInstallation(f.install).state, 'uninstalled');
 });
+
+for (const stage of ['nested', 'local', 'staging', 'root']) test(`purge retains a usable retry record after ${stage} directory removal fails`, t => {
+  const f = fixture(t); install(f); uninstallInstallation(f.install);
+  fs.mkdirSync(path.join(f.install, 'locked/child'), { recursive: true });
+  const originalSource = fs.readFileSync(path.join(f.project, 'main.mjs'));
+  const controls = ['project.json', '.local/install.json'].map(relative => [relative, fs.readFileSync(path.join(f.install, relative))]);
+  const plan = purgePlan(f.install), rmdir = fs.rmdirSync;
+  let injected = false;
+  fs.rmdirSync = (filename, ...args) => {
+    const target = stage === 'nested' ? path.join(f.install, 'locked/child') : stage === 'local' ? path.join(f.install, '.local') : stage === 'root' ? f.install : null;
+    if (!injected && (filename === target || stage === 'staging' && path.dirname(filename) === f.install && path.basename(filename).startsWith('.purge-'))) {
+      injected = true; throw Object.assign(new Error(`Injected ${stage} removal failure`), { code: 'EACCES' });
+    }
+    return rmdir(filename, ...args);
+  };
+  let result;
+  try { result = purgeInstallation(f.install, plan.digest); } finally { fs.rmdirSync = rmdir; }
+  assert.equal(injected, true);
+  assert.equal(result.state, 'purge-incomplete');
+  assert.ok(result.conflicts.length);
+  for (const [relative, bytes] of controls) assert.deepEqual(fs.readFileSync(path.join(f.install, relative)), bytes);
+  assert.equal(statusInstallation(f.install).state, 'uninstalled');
+  const next = purgePlan(f.install);
+  assert.ok(next.entries.some(entry => entry.path === 'project.json'));
+  assert.ok(next.entries.some(entry => entry.path === '.local/install.json'));
+  assert.throws(() => purgeInstallation(f.install, plan.digest), /inventory or root identity changed/);
+  assert.equal(purgeInstallation(f.install, next.digest).state, 'purged');
+  assert.deepEqual(fs.readFileSync(path.join(f.project, 'main.mjs')), originalSource);
+});
+
+for (const failedControl of ['project.json', '.local/install.json']) test(`purge recovers when final unlink of ${failedControl} fails`, t => {
+  const f = fixture(t); install(f); uninstallInstallation(f.install);
+  const controls = ['project.json', '.local/install.json'].map(relative => [relative, fs.readFileSync(path.join(f.install, relative))]);
+  const bytes = controls.find(([relative]) => relative === failedControl)[1], plan = purgePlan(f.install), unlink = fs.unlinkSync;
+  let injected = false;
+  fs.unlinkSync = filename => {
+    if (!injected && path.dirname(path.dirname(filename)) === f.install && path.basename(path.dirname(filename)).startsWith('.purge-') && fs.readFileSync(filename).equals(bytes)) {
+      injected = true; throw Object.assign(new Error('Injected final unlink failure'), { code: 'EACCES' });
+    }
+    return unlink(filename);
+  };
+  let result; try { result = purgeInstallation(f.install, plan.digest); } finally { fs.unlinkSync = unlink; }
+  assert.equal(injected, true); assert.equal(result.state, 'purge-incomplete');
+  for (const [relative, original] of controls) assert.deepEqual(fs.readFileSync(path.join(f.install, relative)), original);
+  assert.equal(statusInstallation(f.install).state, 'uninstalled');
+  assert.equal(purgeInstallation(f.install, purgePlan(f.install).digest).state, 'purged');
+});
+
+test('purge recovery preserves a recreated control path and retains the original record', t => {
+  const f = fixture(t); install(f); uninstallInstallation(f.install);
+  const plan = purgePlan(f.install), original = fs.readFileSync(path.join(f.install, 'project.json')), rmdir = fs.rmdirSync;
+  let injected = false;
+  fs.rmdirSync = filename => {
+    if (filename === f.install && !injected) {
+      injected = true; fs.writeFileSync(path.join(f.install, 'project.json'), 'Owner recreated this path');
+      throw Object.assign(new Error('Injected root conflict'), { code: 'ENOTEMPTY' });
+    }
+    return rmdir(filename);
+  };
+  let result; try { result = purgeInstallation(f.install, plan.digest); } finally { fs.rmdirSync = rmdir; }
+  assert.equal(injected, true); assert.equal(result.state, 'purge-incomplete');
+  assert.equal(fs.readFileSync(path.join(f.install, 'project.json'), 'utf8'), 'Owner recreated this path');
+  assert.ok(result.conflicts.some(item => /original record retained at/.test(item.error)));
+  assert.ok(result.remainder.some(relative => relative.startsWith('.purge-') && !relative.endsWith('/') && fs.readFileSync(path.join(f.install, relative)).equals(original)));
+});
+
+test('purge never restores controls through a replaced root symlink', t => {
+  const f = fixture(t); install(f); uninstallInstallation(f.install);
+  const plan = purgePlan(f.install), rmdir = fs.rmdirSync, moved = path.join(f.project, 'displaced-install'), outside = path.join(f.dir, 'outside');
+  fs.mkdirSync(outside); fs.writeFileSync(path.join(outside, 'owner'), 'untouched');
+  let injected = false;
+  fs.rmdirSync = filename => {
+    if (filename === f.install && !injected) {
+      injected = true; fs.renameSync(f.install, moved); fs.symlinkSync(outside, f.install);
+      throw Object.assign(new Error('Injected root replacement'), { code: 'EACCES' });
+    }
+    return rmdir(filename);
+  };
+  let result; try { result = purgeInstallation(f.install, plan.digest); } finally { fs.rmdirSync = rmdir; }
+  assert.equal(injected, true); assert.equal(result.state, 'purge-incomplete');
+  assert.deepEqual(fs.readdirSync(outside), ['owner']);
+  assert.equal(fs.readFileSync(path.join(outside, 'owner'), 'utf8'), 'untouched');
+  assert.ok(result.conflicts.some(item => /identity changed/.test(item.error)));
+});

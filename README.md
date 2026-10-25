@@ -280,6 +280,10 @@ Purge is permanent. Changed files, inventory, identity or symlinks invalidate th
 plan. Only listed paths inside that installation can be deleted. Incomplete cleanup
 reports conflicts and remaining paths. Purge cannot prevent unrelated processes
 from writing, so keep external writers stopped.
+Caught cleanup failures retain or restore the local records for a new reviewed
+purge plan. Restoration never overwrites a recreated path; conflicts identify any
+retained recovery copies. This requires the original directory and restore access
+to remain available. It is not a crash- or power-loss-safe transaction.
 
 After a crash, `status` may report a leftover view lease. Use
 `release-view --token <recorded-token>` to release it. The command refuses while
