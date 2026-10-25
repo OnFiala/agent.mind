@@ -106,7 +106,7 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
     if (!node || ++visited > SYMBOL_LIMITS.astNodes || depth > SYMBOL_LIMITS.depth) { truncated = true; return; }
     let current = context;
     if (isClass(node)) {
-      const own = supplied ?? (node.id ? symbol(node, node.id.name, 'class', context.owner) : null);
+      const own = context.mutationOnly ? null : supplied ?? (node.id ? symbol(node, node.id.name, 'class', context.owner) : null);
       if (node.type === 'ClassDeclaration' && node.id) bind(context.scope, node.id.name, own);
       if (!own && node.id && truncated) return;
       if (node.superClass) visit(node.superClass, context, depth + 1);
@@ -115,8 +115,11 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
       const methods = new Map();
       if (own) classMethods.set(own.id, methods);
       for (const method of node.body.body) {
+        // Unsupported bodies and computed keys still affect outer bindings.
+        // Collect their scopes/writes, but never emit their symbols or calls.
+        if (method.computed) visit(method.key, { ...context, scope: classScope, mutationOnly: true }, depth + 1);
         if (method.type !== 'MethodDefinition') {
-          // Field initializers/static blocks have no supported named callable owner.
+          visit(method.type === 'StaticBlock' ? method : method.value, { ...context, scope: classScope, mutationOnly: true, classBinding: own ? { id: own.id, static: method.type === 'StaticBlock' || Boolean(method.static) } : null }, depth + 1);
           continue;
         }
         const name = methodName(method);
@@ -139,7 +142,7 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
       return;
     }
     if (isFunction(node)) {
-      const own = supplied ?? (node.id ? symbol(node, node.id.name, 'function', context.owner) : null);
+      const own = context.mutationOnly ? null : supplied ?? (node.id ? symbol(node, node.id.name, 'function', context.owner) : null);
       if (node.type === 'FunctionDeclaration' && node.id) bind(context.scope, node.id.name, own);
       if (!own && node.id && truncated) return;
       const functionScope = scope(context.scope, 'function');
@@ -154,8 +157,8 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
       visit(node.body, current, depth + 1);
       return;
     }
-    if (node.type === 'BlockStatement' || node.type === 'CatchClause' || ['ForStatement', 'ForInStatement', 'ForOfStatement', 'SwitchStatement'].includes(node.type)) {
-      current = { ...context, scope: scope(context.scope, 'block') };
+    if (node.type === 'BlockStatement' || node.type === 'StaticBlock' || node.type === 'CatchClause' || ['ForStatement', 'ForInStatement', 'ForOfStatement', 'SwitchStatement'].includes(node.type)) {
+      current = { ...context, scope: scope(context.scope, node.type === 'StaticBlock' ? 'static-block' : 'block') };
       if (node.type === 'CatchClause') names(node.param).forEach(name => bind(current.scope, name));
     }
     if (node.type === 'ImportDeclaration') {
@@ -164,9 +167,9 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
     }
     if (node.type === 'VariableDeclaration') {
       let declarationScope = current.scope;
-      if (node.kind === 'var') while (declarationScope.parent && !['function', 'program'].includes(declarationScope.type)) declarationScope = declarationScope.parent;
+      if (node.kind === 'var') while (declarationScope.parent && !['function', 'program', 'static-block'].includes(declarationScope.type)) declarationScope = declarationScope.parent;
       for (const declaration of node.declarations) {
-        const own = declaration.id.type === 'Identifier' && declaration.init && (isFunction(declaration.init) || isClass(declaration.init)) ? symbol(declaration.init, declaration.id.name, isClass(declaration.init) ? 'class' : 'function', current.owner) : null;
+        const own = !current.mutationOnly && declaration.id.type === 'Identifier' && declaration.init && (isFunction(declaration.init) || isClass(declaration.init)) ? symbol(declaration.init, declaration.id.name, isClass(declaration.init) ? 'class' : 'function', current.owner) : null;
         names(declaration.id).forEach(name => bind(declarationScope, name, own));
         visit(declaration.id, current, depth + 1);
         if (declaration.init && !(truncated && !own && declaration.id.type === 'Identifier' && (isFunction(declaration.init) || isClass(declaration.init)))) visit(declaration.init, current, depth + 1, own);
@@ -216,7 +219,7 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
   let callSites = 0;
   for (const record of records) {
     const call = record.node;
-    if (!['CallExpression', 'NewExpression'].includes(call.type) || record.owner && !valid.has(record.owner.id)) continue;
+    if (record.mutationOnly || !['CallExpression', 'NewExpression'].includes(call.type) || record.owner && !valid.has(record.owner.id)) continue;
     if (++callSites > SYMBOL_LIMITS.callSites) { truncated = true; continue; }
     let target = null;
     if (call.callee.type === 'Identifier') {

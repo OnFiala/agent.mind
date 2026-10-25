@@ -88,6 +88,45 @@ test('reassignment including destructuring and loop writes invalidates calls thr
   }
 });
 
+test('mutations in unsupported class parts invalidate outer targets without adding symbols or calls', () => {
+  for (const body of [
+    'static { target = () => {}; }',
+    'static value = (target = () => {});',
+    'value = (target = () => {});',
+    '[target = () => {}]() {}',
+    '[target = () => {}] = 1;',
+    'static { (() => { target = () => {}; })(); }',
+    'static { class Nested { static { target = () => {}; } } }'
+  ]) {
+    const graph = analyze(`let target = () => {}; class Store { ${body} } target();`);
+    assert.ok(get(graph, 'target'));
+    assert.equal(graph.edges.length, 0, body);
+    assert.match(graph.diagnostics.map(item => item.message).join(' '), /unresolved/, body);
+    assert.equal(graph.nodes.some(node => node.name === 'Nested'), false);
+  }
+  const methods = analyze('class Store { run() { this.save(); } save() {} static { Store.prototype.save = () => {}; } }');
+  assert.equal(methods.edges.length, 0);
+});
+
+test('unsupported class-local shadows preserve outer calls and keep omitted bodies out of the graph', () => {
+  for (const body of [
+    'static { let target; target = 1; }',
+    'static { var target; target = 1; }',
+    'static { function local(target) { target = 1; } }',
+    'static { try {} catch (target) { target = 1; } }',
+    'value = function target() { target = 1; };',
+    'static { class target { static { target = 1; } } }'
+  ]) {
+    const graph = analyze(`function target() {} class Store { ${body} } target();`);
+    assert.equal(graph.edges.length, 1, body);
+    assert.equal(graph.edges[0].to, get(graph, 'target').id);
+    assert.deepEqual(graph.nodes.map(node => node.name).sort(), ['Store', 'target']);
+  }
+  const omitted = analyze('function target() {} class Store { value = target(); static { target(); function local() {} } }');
+  assert.equal(omitted.edges.length, 0);
+  assert.deepEqual(omitted.nodes.map(node => node.name).sort(), ['Store', 'target']);
+});
+
 test('same-scope duplicate declarations and indistinguishable qualified names remain visibly ambiguous', () => {
   const graph = analyze(`
 function owner() {

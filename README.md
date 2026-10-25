@@ -207,6 +207,8 @@ Acorn parses JavaScript without executing it. The index reads static imports,
 reexports, literal dynamic imports and supported local URL/HTML asset references.
 It finds named functions, classes, methods, their lexical nesting and some
 same-file calls. Shadowed, reassigned or ambiguous targets remain unresolved.
+Assignments in class fields, static blocks and computed names also invalidate
+affected targets, without treating those unsupported bodies as call evidence.
 
 Anonymous callbacks can add references to their nearest named symbol, marked
 `nested-closure`; that does not mean the parent calls them directly. Imported
