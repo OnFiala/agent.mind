@@ -11,7 +11,7 @@ Only `.ts`, `.tsx` and `.jsx` receive syntax and bounded named-declaration extra
 Keep existing Acorn JS behavior and identities. No typechecking, module/import
 resolution, call graph, security/HTTP signals or framework routing is claimed for
 the pilot. These files retain an explicit syntax-only partial diagnostic, so strict
-installed preflight remains unchanged. `.mts`, `.cts`, Vue/Svelte and HTML embedded
+installed preflight remains unchanged. `.mts`, `.cts`, ambient `.d.ts`, Vue/Svelte and HTML embedded
 scripts remain outside this pilot. Both directions of cross-language resolution
 remain disabled. Duplicate/merged declarations must be explicit uncertainty, never
 silently selected or merged.
@@ -38,7 +38,7 @@ timeout or sandbox. No worker, asynchronous API or service will be introduced he
   install/build scripts, compiler process, tsconfig loading or target execution.
 - Corpus: fixed synthetic valid/broken and stress fixtures, plus a pinned public
   `preactjs/signals` source snapshot: regular `.ts/.tsx/.jsx` under `packages/**/src/`,
-  excluding test/test fixtures and files above the pilot cap. Sort paths, admit at
+  excluding tests, ambient `.d.ts` files and files above the pilot cap. Sort paths, admit at
   most 100 files/2 MiB, report every omitted boundary and pin the corpus hash.
 - Parse/cache comparison uses three fresh processes per parser on the same ordered
   in-memory source bytes. Cold includes parser module loading and first parse of the
@@ -60,7 +60,24 @@ timeout or sandbox. No worker, asynchronous API or service will be introduced he
 
 ## Candidates and results
 
-Pending exact package metadata, independent primary-source research and measurements.
+Pinned candidates: `@babel/parser@7.29.12` (MIT, maintained v7 release, Node >=6)
+and `typescript@6.0.3` (Apache-2.0, classic portable Compiler API, Node >=14.17).
+This deliberately does not use Babel 8's higher Node floor or TypeScript 7's native
+API. Package metadata and API behavior were independently checked against the
+[publisher registry](https://registry.npmjs.org/@babel%2fparser/7.29.12),
+[TypeScript metadata](https://registry.npmjs.org/typescript/6.0.3),
+[Babel parser docs](https://babeljs.io/docs/babel-parser) and
+[Microsoft's classic-API guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6-0).
+
+Real corpus pin: [preactjs/signals at `30a797e962c76cc2e623e84f4194a00b9f0c5c8f`](https://github.com/preactjs/signals/tree/30a797e962c76cc2e623e84f4194a00b9f0c5c8f), MIT.
+Archive SHA-256: `c3eb096f7f3c326d38c1dfb9dcf4acf8d1e5ad2b1b1ba798da8c7e3b4c0ddbae`.
+No dependencies or scripts from this project are installed or run.
+
+Measurement implementation: `scripts/compare-parsers.mjs`, three fresh child
+processes per candidate. Child processes isolate benchmark measurements only;
+the product stays synchronous. Both parser ASTs are traversed and counted, not
+retained in the cache. Cache stores reduced result counts/errors and hashes.
+Results pending; no parser selected.
 Compare at least two exact portable packages before choosing. TypeScript's classic
 Compiler API line must be pinned explicitly; a native successor is not interchangeable.
 No dependency is accepted by this initial contract commit.
