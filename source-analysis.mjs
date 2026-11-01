@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { parse } from 'acorn';
 import { analyzeSymbolGraph } from './symbol-index.mjs';
+import { analyzeTypedSource, isTypedSource } from './typed-analysis.mjs';
 
 // Pure synchronous source analysis. No filesystem, project resolver or cache.
 const SECURITY_MODULES = new Set(['fs', 'fs/promises', 'http', 'https', 'http2', 'net', 'tls', 'crypto', 'child_process', 'dgram', 'dns', 'worker_threads', 'vm', 'module']);
@@ -357,7 +358,8 @@ function analyzeHTML(relative, source) {
  * Analyze already checked UTF-8 source; hash identifies the original file bytes.
  * The caller owns safe reads, test-file classification, caching and resolution.
  * Returns references (unresolved specifiers), symbols, security and diagnostics;
- * JavaScript also returns contracts and symbolGraph. Other types keep them absent.
+ * JavaScript also returns contracts; JS and the typed pilot return symbolGraph.
+ * Other types keep those fields absent; the typed pilot adds parser provenance.
  * Locations use 1-based lines/columns; columns count UTF-16 code units, not bytes.
  * Acorn offsets are 0-based UTF-16 units; they stay internal. No newline rewriting.
  * HTML only extracts script src/link href; embedded code remains unanalyzed.
@@ -365,6 +367,7 @@ function analyzeHTML(relative, source) {
 export function analyzeSource(relative, source, hash, testFile = false) {
   const extension = path.extname(relative);
   if (extension === '.js' || extension === '.mjs') return analyzeJavaScript(relative, source, hash, testFile);
+  if (isTypedSource(relative)) return analyzeTypedSource(relative, source, hash);
   if (extension === '.html') return analyzeHTML(relative, source);
   const result = { references: [], symbols: [], security: [], diagnostics: [] };
   if (extension === '.json') try { JSON.parse(source); } catch (error) {

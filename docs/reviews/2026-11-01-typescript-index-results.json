@@ -1,0 +1,95 @@
+{
+  "host": {
+    "node": "v22.23.4",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "os": "25.6.0"
+  },
+  "runs": [
+    {
+      "real": {
+        "files": 51,
+        "bytes": 299794,
+        "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+        "omitted": []
+      },
+      "loadedMs": 23.631542000000003,
+      "coldMs": 114.48750000000001,
+      "unchangedMs": 8.148291999999998,
+      "updateMs": 12.131666999999993,
+      "liveUnchangedMs": [
+        16.11304199999998,
+        16.263749999999987,
+        15.360707999999988
+      ],
+      "liveUpdateMs": [
+        18.628500000000003,
+        17.445875,
+        19.580916000000002
+      ],
+      "baselineRSS": 55181312,
+      "peakRSS": 116359168,
+      "increaseRSS": 61177856,
+      "symbols": 489,
+      "diagnostics": 104,
+      "ambiguityDiagnostics": 7
+    },
+    {
+      "real": {
+        "files": 51,
+        "bytes": 299794,
+        "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+        "omitted": []
+      },
+      "loadedMs": 23.551458,
+      "coldMs": 100.76849999999999,
+      "unchangedMs": 9.017542000000006,
+      "updateMs": 12.37383299999999,
+      "liveUnchangedMs": [
+        16.068000000000012,
+        16.478125000000006,
+        15.86066599999998
+      ],
+      "liveUpdateMs": [
+        19.70245799999998,
+        18.441082999999992,
+        20.647457999999972
+      ],
+      "baselineRSS": 55345152,
+      "peakRSS": 117604352,
+      "increaseRSS": 62259200,
+      "symbols": 489,
+      "diagnostics": 104,
+      "ambiguityDiagnostics": 7
+    },
+    {
+      "real": {
+        "files": 51,
+        "bytes": 299794,
+        "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+        "omitted": []
+      },
+      "loadedMs": 23.755000000000003,
+      "coldMs": 104.58795799999999,
+      "unchangedMs": 8.190292,
+      "updateMs": 11.632499999999993,
+      "liveUnchangedMs": [
+        16.543874999999986,
+        16.421959000000015,
+        15.300207999999998
+      ],
+      "liveUpdateMs": [
+        19.266750000000002,
+        18.558583000000027,
+        19.832249999999988
+      ],
+      "baselineRSS": 55115776,
+      "peakRSS": 117096448,
+      "increaseRSS": 61980672,
+      "symbols": 489,
+      "diagnostics": 104,
+      "ambiguityDiagnostics": 7
+    }
+  ]
+}

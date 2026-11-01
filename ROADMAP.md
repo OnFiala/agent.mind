@@ -48,8 +48,8 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L0 | **Merged:** [PR #1](https://github.com/OnFiala/agent.mind/pull/1), baseline audit, sequence and contribution workflow | Independent review of the public diff; no private data or runtime payload changes. Revert only the documentation commits. |
 | L1 | **Merged:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
-| L3 | **In review:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
-| L4 | **Proposed:** one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
+| L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
+| L4 | **Candidate:** one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
 
@@ -79,7 +79,20 @@ on identical inputs (only generation time and parse duration normalized), includ
 cold/warm/update scans. Package and 7 actual-bundle smoke checks passed. Candidate
 runtime is 1,970,806 bytes (+2,099 from L2), with the same one dependency. The new
 module is included in the explicit artifact allowlist and test runtime fixtures.
-PR #4 owns final review/CI and merge status; L3 is not released, and L4 remains proposed.
+PR #4 was owner-approved and merged on 2026-11-01 as `129c43b`; L3 is not released.
+
+The L4 candidate implements the syntax-only TS/TSX/JSX pilot. The
+[comparison and fixed acceptance contract](docs/reviews/2026-11-01-typescript-parser-comparison.md)
+records Babel 7.29.12 versus TypeScript 6.0.3 before dependency selection. Babel
+uses a pure synchronous analyzer, 64 KiB pre-parse cap, source-hashed UTF-16 ranges,
+native kinds and parser provenance. Every typed file stays partial: import/type/call,
+security/HTTP and framework analysis are outside this pilot; strict preflight is
+unchanged. Full local suite: 165 tests. Existing JS behavior matched 24 complete
+baseline/candidate graph comparisons (only generation time/parse duration normalized).
+Actual artifact and bounded real-corpus index/live measurements pass the fixed budgets.
+Independent exact-diff review and CI are pending; this is not production acceptance
+or a published release. Revert the focused L4 commits before any future release;
+existing target installations are untouched.
 
 The present JS tool remains usable while later stages are unfinished. No stage may
 expand the product's support claim before its acceptance evidence exists.

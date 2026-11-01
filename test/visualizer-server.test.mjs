@@ -172,7 +172,7 @@ test('unsupported text reconciles add/edit/delete without changing unchanged liv
 
 test('HTTP and context expose inventory and hash-bound unsupported text without semantic claims', async t => {
   const root = fixture(t);
-  fs.writeFileSync(path.join(root, 'helper.ts'), 'export const value: number = 1;');
+  fs.writeFileSync(path.join(root, 'helper.mts'), 'export const value: number = 1;');
   fs.writeFileSync(path.join(root, 'image.bin'), Buffer.from([0, 255]));
   for (const name of ['id_rsa', 'id_ed25519_sk', 'production.env', 'AuthKey_EXAMPLE.p8', 'deploy.ppk']) fs.writeFileSync(path.join(root, name), 'synthetic-sensitive-marker');
   const app = createVisualizer({ root, intervalMs: 60000 });
@@ -180,16 +180,16 @@ test('HTTP and context expose inventory and hash-bound unsupported text without 
   await once(app.server, 'listening');
   t.after(() => app.close());
   const base = `http://127.0.0.1:${app.server.address().port}`;
-  const context = await (await fetch(`${base}/api/context?path=helper.ts`)).json();
+  const context = await (await fetch(`${base}/api/context?path=helper.mts`)).json();
   assert.equal(context.status, 'partial');
   assert.equal(context.inventory.status, 'complete');
   assert.deepEqual(context.selection.capabilities, ['text']);
   assert.equal(context.runtime.inventoryFreshness, 'current');
-  const source = await (await fetch(`${base}/api/source?path=helper.ts`)).json();
+  const source = await (await fetch(`${base}/api/source?path=helper.mts`)).json();
   assert.equal(source.lines[0].text, 'export const value: number = 1;');
   assert.equal(source.hash, context.selection.hash);
   assert.equal((await fetch(`${base}/api/source?path=image.bin`)).status, 409);
   for (const name of ['id_rsa', 'id_ed25519_sk', 'production.env', 'AuthKey_EXAMPLE.p8', 'deploy.ppk']) assert.equal((await fetch(`${base}/api/source?path=${name}`)).status, 409);
-  fs.writeFileSync(path.join(root, 'helper.ts'), 'export const value: number = 2;');
-  assert.equal((await fetch(`${base}/api/source?path=helper.ts`)).status, 409);
+  fs.writeFileSync(path.join(root, 'helper.mts'), 'export const value: number = 2;');
+  assert.equal((await fetch(`${base}/api/source?path=helper.mts`)).status, 409);
 });

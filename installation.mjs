@@ -6,11 +6,13 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const HASH = /^[a-f0-9]{64}$/;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
+const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
 const PUBLIC = new Set(['public/hierarchy.mjs', 'public/visualizer.js', 'public/visualizer.css', 'public/visualizer.html', 'public/assets/canvas-paper.webp', 'public/assets/agent-mind-wordmark.webp', 'public/assets/README.md']);
 const ACORN = new Set(['LICENSE', 'bin/acorn', 'CHANGELOG.md', 'dist/bin.js', 'dist/acorn.mjs', 'dist/acorn.d.ts', 'dist/acorn.js', 'dist/acorn.d.mts', 'README.md', 'package.json'].map(p => `node_modules/acorn/${p}`));
-export const ARTIFACT_FILES = Object.freeze([...TOP, ...PUBLIC, ...ACORN].sort());
-const allowedArtifact = relative => TOP.has(relative) || PUBLIC.has(relative) || ACORN.has(relative);
+// Babel's parser JS is self-contained; its npm type dependencies are not runtime inputs.
+const BABEL = new Set(['package.json', 'LICENSE', 'lib/index.js'].map(p => `node_modules/@babel/parser/${p}`));
+export const ARTIFACT_FILES = Object.freeze([...TOP, ...PUBLIC, ...ACORN, ...BABEL].sort());
+const allowedArtifact = relative => TOP.has(relative) || PUBLIC.has(relative) || ACORN.has(relative) || BABEL.has(relative);
 const json = value => `${JSON.stringify(value, null, 2)}\n`;
 const exists = p => { try { fs.lstatSync(p); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } };
 function safeRelative(relative) {
@@ -73,14 +75,18 @@ export function verifyArtifact(directory, expectedDigest) {
   if (manifest.schemaVersion !== 1 || typeof manifest.version !== 'string' || !manifest.version || !manifest.files || Array.isArray(manifest.files) || !HASH.test(manifest.digest)) throw new Error('Invalid artifact manifest.');
   const entries = Object.entries(manifest.files);
   if (!entries.length || entries.length > 100 || entries.some(([p, hash]) => !allowedArtifact(safeRelative(p)) || !HASH.test(hash))) throw new Error('Artifact contains an unapproved path or hash.');
-  for (const required of [...TOP, ...PUBLIC, ...ACORN]) if (!Object.hasOwn(manifest.files, required)) throw new Error(`Artifact missing required file: ${required}`);
+  for (const required of ARTIFACT_FILES) if (!Object.hasOwn(manifest.files, required)) throw new Error(`Artifact missing required file: ${required}`);
   if (artifactDigest(manifest.files) !== manifest.digest || (expectedDigest && manifest.digest !== expectedDigest)) throw new Error('Artifact digest mismatch.');
   const directories = new Set();
   for (const [relative] of entries) { let parent = path.posix.dirname(relative); while (parent !== '.') { directories.add(parent); parent = path.posix.dirname(parent); } }
   if (JSON.stringify(filesBelow(root, '', directories)) !== JSON.stringify([...Object.keys(manifest.files), 'artifact.json'].sort())) throw new Error('Artifact contains missing or unknown files.');
   for (const [relative, hash] of entries) if (sha(read(root, relative)) !== hash) throw new Error(`Artifact hash mismatch: ${relative}`);
-  const pkg = readJSON(root, 'package.json'), acorn = readJSON(root, 'node_modules/acorn/package.json'), lockfile = readJSON(root, 'package-lock.json');
-  if (pkg.version !== manifest.version || pkg.dependencies?.acorn !== acorn.version || lockfile.packages?.['node_modules/acorn']?.version !== acorn.version) throw new Error('Runtime package, lockfile and Acorn versions do not match.');
+  const pkg = readJSON(root, 'package.json'), lockfile = readJSON(root, 'package-lock.json');
+  if (pkg.version !== manifest.version) throw new Error('Runtime package and manifest versions do not match.');
+  for (const name of ['acorn', '@babel/parser']) {
+    const dependency = readJSON(root, `node_modules/${name}/package.json`);
+    if (pkg.dependencies?.[name] !== dependency.version || lockfile.packages?.[`node_modules/${name}`]?.version !== dependency.version) throw new Error(`Runtime package, lockfile and ${name} versions do not match.`);
+  }
   return { root, ...manifest };
 }
 function load(installDir) {

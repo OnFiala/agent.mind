@@ -5,7 +5,9 @@ follow the connections between them. Saved source changes update the map.
 The same names work in the canvas and in context for your coding agent.
 
 agent.mind reads source files without running your project. It currently analyzes
-JavaScript (`.js`, `.mjs`); TypeScript/TSX and framework routing are not supported.
+JavaScript (`.js`, `.mjs`). The unreleased L4 source candidate adds a bounded
+TypeScript/TSX/JSX syntax pilot; published v1.0.3 does not contain it. Framework
+routing remains unsupported.
 It runs locally, with no global install, account, API key or model required.
 
 **Start with a small project you know.** Try ordinary JavaScript with around
@@ -217,8 +219,7 @@ affected targets, without treating those unsupported bodies as call evidence.
 
 Anonymous callbacks can add references to their nearest named symbol, marked
 `nested-closure`; that does not mean the parent calls them directly. Imported
-function calls, arbitrary object dispatch, TypeScript and runtime behavior are
-unsupported. **Entry** and **File body** show statements at the current source
+function calls, arbitrary object dispatch and runtime behavior are unsupported. **Entry** and **File body** show statements at the current source
 level. File imports are not treated as function calls. CSS, JSON, Markdown and
 Python files are listed without internal call analysis. Other bounded UTF-8 text
 files can also be listed and read, including unsupported source languages; this
@@ -453,9 +454,9 @@ verified edit. Preflight does not lock files or control your other tools.
 
 After edits, run the target project's relevant checks and obtain fresh context.
 Static test links do not prove tests passed or measure coverage. Security labels
-identify source to review; they are not vulnerability findings. Unsupported
-TypeScript/TSX, framework routing and dynamic calls remain unsupported even when
-the visible map looks plausible. Never execute a scanned project to discover its
+identify source to review; they are not vulnerability findings. The unreleased
+syntax pilot does not resolve typed imports or calls; framework routing and
+dynamic calls remain unsupported even when the visible map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
 
 ### View and hand back the result
@@ -532,9 +533,44 @@ that require a second cache identity.
 Current source locations use 1-based lines and columns; columns count UTF-16 code
 units, not UTF-8 bytes. Acorn's 0-based UTF-16 offsets stay internal. CRLF is retained
 in the hashed/read source and counts as one line break. Symbols retain their existing
-kinds and start/end-line fields; no new range or language-support claim is introduced.
+kinds and start/end-line fields. The separate typed pilot adds explicit ranges
+without changing existing JavaScript identities or locations.
 HTML still skips embedded script bodies. A new parser must preserve these contracts
 or explicitly convert its own positions before joining the graph.
+
+### Unreleased TypeScript/TSX/JSX syntax pilot
+
+The L4 source candidate uses pinned `@babel/parser` 7.29.12 (MIT) for `.ts`, `.tsx`
+and `.jsx`, with at most 64 KiB per file before parsing. It extracts named functions,
+classes, methods, interfaces, type aliases, enums and namespaces; overload/ambient
+signatures have their own `signature` kind, not an implementation claim. Each symbol
+carries its native AST kind, parser/version, original content hash, 1-based locations
+and a 0-based, end-exclusive range in UTF-16 code units. File capabilities report
+available syntax operations, not typechecking or successful analysis.
+
+Every pilot file retains a syntax-only **partial** diagnostic. Imports, type
+relationships, calls, JSX-component calls, security and HTTP/framework analysis are
+not implemented; existing source-reference resolution cannot target pilot files.
+Strict installed preflight therefore continues to reject a project containing them.
+This is an inspection pilot, not production acceptance for typed editing workflows.
+Ambient `.d.ts`, `.mts`/`.cts`, decorators and embedded scripts remain outside scope.
+Anonymous function/class bodies, object methods, class fields/static blocks and
+computed/string-named methods are omitted with explicit diagnostics. Ordinary
+variables/properties are not named declarations in this pilot.
+
+Invalid syntax produces no recovery symbols. Duplicate/merged names and overloads
+withhold every conflicting symbol and its descendants. Traversal is capped at
+2,000 symbols, 100,000 AST nodes and depth 256; crossing a traversal cap withholds
+all symbols in that file. Text over the parser cap remains readable under the
+existing inventory limits. These bounds are not parser timeouts or a sandbox.
+
+The normal developer dependency closure contains Babel's four npm packages;
+the runtime ships only its self-contained parser JS, package metadata and MIT
+license, alongside Acorn. No project config, compiler, scripts or dependencies
+are loaded. [Comparison and acceptance evidence](docs/reviews/2026-11-01-typescript-parser-comparison.md)
+records the exact candidates, fixed budgets and measured corpus; these are bounded
+measurements, not guarantees for arbitrary projects. This does not upgrade existing
+installations or change the published v1.0.3 release.
 
 ### Local APIs
 
@@ -694,6 +730,6 @@ the full audit matrix is not bundled as a supported public stress runner.
 
 ## License and artwork
 
-The source is ISC-licensed. Bundled Acorn keeps its MIT license. The artwork was
+The source is ISC-licensed. Bundled Acorn and the unreleased Babel parser keep their MIT licenses. The artwork was
 generated for this project; [public/assets/README.md](public/assets/README.md) records its
 origin and prompts.

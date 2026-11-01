@@ -126,3 +126,68 @@ This does not rank their overall language correctness or type-system capabilitie
 Babel remains on its maintained 7.29.12 line to preserve Node >=22 compatibility.
 The implementation still needs source-range/declaration/uncertainty regressions,
 full index/live timing, actual bundled execution and independent review.
+
+## Integrated candidate evidence
+
+The candidate keeps Acorn and the synchronous index contract; `typed-analysis.mjs`
+only receives checked text. Interfaces/types/enums/namespaces retain native kinds;
+method/ambient signatures are distinct from implementations. Overloads and merged
+or duplicate names withhold conflicting nodes and descendants. Unsupported bodies
+remain explicit. Every pilot source remains partial, and installed strict preflight
+continues to reject it. No typed import, call, type or cross-language relation is
+published. The current release remains v1.0.3 without this candidate.
+
+The local suite passed **165/165** tests, including nine typed contract tests and
+packaging regressions. Initial runs found three existing `.ts` fixtures that asserted
+the pre-L4 unsupported-language behavior; those fixtures now use still-unsupported
+`.mts` with their original assertions retained. The new depth-limit probe initially
+hit Babel's own recursion limit; it now uses a left-deep expression to reach the
+analyzer traversal limit. Deep parser failure remains separately tested. A smoke
+helper initially read `context.nodes` instead of the existing `symbolGraph.nodes`
+field and was corrected without changing the product. Existing JS behavior passed
+24 whole-graph comparisons including hierarchy, cold/warm/update, UTF-16/CRLF,
+security and HTTP evidence, invalid syntax and unsupported inventory; only
+`generatedAt` and `stats.parseMs` were normalized.
+
+[Integrated measurement samples](2026-11-01-typescript-index-results.json) use the
+same 51-file/299,794-byte real corpus and digest as the parser comparison. The
+`--index` mode of `scripts/compare-parsers.mjs` copies admitted text into disposable
+fixtures, loads the candidate runtime and measures real filesystem scans and complete
+`LiveIndex.refresh` calls (two agreeing scans plus hierarchy). No source from the
+corpus is executed. Three fresh processes, same Apple M5/Node 22.23.4:
+
+| Measure | Maximum |
+|---|---:|
+| Runtime module load + first index | 114.49 ms |
+| Unchanged index | 9.02 ms |
+| One-file index update | 12.38 ms |
+| Unchanged live refresh | 16.55 ms |
+| One-file live refresh | 20.65 ms |
+| Process peak RSS / increase | 117,604,352 / 62,259,200 B |
+
+The resulting graph contains 489 named declarations, 104 diagnostics including
+7 ambiguity diagnostics, and no invented relations. These counts are observation,
+not completeness or semantic-correctness proof. The update changes the first sorted
+real file, not a worst-case file. All measured budgets passed; parser execution on
+arbitrary input still has no hard deadline.
+
+Reproduce from the pinned corpus checkout and a built runtime directory:
+
+```sh
+node scripts/compare-parsers.mjs --index /absolute/runtime /absolute/pinned-signals
+```
+
+The actual candidate archive has 34 payload files; raw bytes including manifest
+are 2,505,504, versus 1,970,806 for L3. Actual tar.gz bytes are 1,405,705 versus
+1,298,209. Delta: **534,698 raw / 107,496 gzip bytes**, below fixed 3 MiB/1 MiB.
+The three shipped Babel files are 521,259 bytes. Artifact smoke checks run the
+installed parser with no ancestor Babel/types/helper packages, then verify typed
+symbols and rejection of partial preflight. Temporary install/server are disposed.
+Final immutable artifact identity and independent review are recorded in the PR;
+artifact digest `bb733c35eb62b80e3cf897abf6a1250e5bd558090ba0b759ab779e883d1219dc`,
+archive SHA-256 `28c54193ed9e3b21324e50186a85cbb916a8efe2da9cfa586a667aa868b75404`.
+All nine actual-bundle smoke checks passed. Refresh this identity if payload changes.
+
+Independent review/CI and browser acceptance are pending. CORTEX was unavailable;
+this is a technical candidate with partial governance evidence, no merge/release
+or target upgrade authority.

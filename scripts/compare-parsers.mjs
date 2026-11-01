@@ -6,7 +6,7 @@ import os from 'node:os';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { gzipSync } from 'node:zlib';
@@ -124,8 +124,60 @@ function worker(kind, packages, root) {
   const peakRSS = process.resourceUsage().maxRSS * 1024;
   return { kind, version: parser.metadata.version, real: { files: real.files.length, bytes: real.bytes, digest: real.digest, omitted: real.omitted }, fixtures: fixtures.length, loadedMs,coldMs,unchangedMs,updateMs,cachedFiles,updateCached,baselineRSS,peakRSS,increaseRSS:peakRSS-baselineRSS,samples };
 }
+// Final filesystem/index/live path over the identical admitted real corpus.
+async function indexWorker(runtime, root) {
+  const real = corpus(root);
+  const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-typed-measure-')));
+  let live;
+  try {
+    for (const file of real.files) {
+      const target = path.join(temporary, file.path);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, file.source);
+    }
+    const baselineRSS = process.memoryUsage().rss;
+    const coldStart = performance.now();
+    const { indexProject } = await import(pathToFileURL(path.join(runtime, 'code-index.mjs')));
+    const { LiveIndex } = await import(pathToFileURL(path.join(runtime, 'live-index.mjs')));
+    const loadedMs = performance.now() - coldStart;
+    const cold = indexProject(temporary), coldMs = performance.now() - coldStart;
+    const start = performance.now(), warm = indexProject(temporary, { previous: cold }), unchangedMs = performance.now() - start;
+    assert.equal(warm.stats.cachedFiles, real.files.length);
+    const first = real.files[0];
+    fs.writeFileSync(path.join(temporary, first.path), '// index edit\n' + first.source);
+    const updateStart = performance.now(), updated = indexProject(temporary, { previous: warm }), updateMs = performance.now() - updateStart;
+    assert.equal(updated.stats.cachedFiles, real.files.length - 1);
+    live = new LiveIndex(temporary, { intervalMs: 60000 });
+    const liveUnchangedMs = [], liveUpdateMs = [];
+    for (let i = 0; i < 3; i++) {
+      let before = performance.now(); live.refresh(); liveUnchangedMs.push(performance.now() - before);
+      fs.writeFileSync(path.join(temporary, first.path), `// live edit ${i}\n` + first.source);
+      before = performance.now(); live.refresh(); liveUpdateMs.push(performance.now() - before);
+    }
+    assert.equal(cold.status, 'partial');
+    assert.equal(cold.edges.length, 0); assert.equal(cold.symbolGraph.edges.length, 0);
+    assert(!cold.diagnostics.some(d => /parse error/i.test(d.message)));
+    const peakRSS = process.resourceUsage().maxRSS * 1024;
+    const result = { real: { files: real.files.length, bytes: real.bytes, digest: real.digest, omitted: real.omitted }, loadedMs, coldMs, unchangedMs, updateMs, liveUnchangedMs, liveUpdateMs, baselineRSS, peakRSS, increaseRSS: peakRSS - baselineRSS, symbols: cold.symbolGraph.nodes.length, diagnostics: cold.diagnostics.length, ambiguityDiagnostics: cold.diagnostics.filter(d => /Ambiguous declaration/.test(d.message)).length };
+    assert(coldMs <= 1500 && unchangedMs <= 100 && updateMs <= 250);
+    assert(Math.max(...liveUnchangedMs, ...liveUpdateMs) <= 500);
+    assert(peakRSS <= 256 * 1024 * 1024 && result.increaseRSS <= 128 * 1024 * 1024);
+    return result;
+  } finally { live?.close(); fs.rmSync(temporary, { recursive: true, force: true }); }
+}
 const args=process.argv.slice(2);
-if (args[0]==='--worker') console.log(JSON.stringify(worker(args[1],path.resolve(args[2]),path.resolve(args[3]))));
+if (args[0] === '--index-worker') console.log(JSON.stringify(await indexWorker(path.resolve(args[1]), path.resolve(args[2]))));
+else if (args[0] === '--index') {
+  if (args.length !== 3) throw new Error('Usage: --index /absolute/runtime /absolute/signals-root');
+  const runs = [];
+  for (let i = 0; i < 3; i++) {
+    const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--index-worker', ...args.slice(1)], { encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
+    if (result.status !== 0) throw new Error(result.error?.message || result.stderr);
+    runs.push(JSON.parse(result.stdout));
+  }
+  console.log(JSON.stringify({ host: { node: process.version, platform: process.platform, arch: process.arch, cpu: os.cpus()[0].model, os: os.release() }, runs }, null, 2));
+}
+else if (args[0]==='--worker') console.log(JSON.stringify(worker(args[1],path.resolve(args[2]),path.resolve(args[3]))));
 else {
   if (args.length!==2) throw new Error('Usage: node scripts/compare-parsers.mjs /absolute/candidate-package-root /absolute/signals-root');
   const runs={};

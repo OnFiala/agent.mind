@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { isUtf8 } from 'node:buffer';
 import { analyzeSource, securityModule } from './source-analysis.mjs';
+import { isTypedSource } from './typed-analysis.mjs';
 
 // This index is descriptive. It never imports, evaluates, or runs scanned files.
 export const INDEX_LIMITS = Object.freeze({ files: 1000, fileBytes: 512 * 1024, totalBytes: 16 * 1024 * 1024, entries: 10000, depth: 20 });
@@ -17,20 +18,21 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const fileId = relative => `file:${relative}`;
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${path.sep}`);
 const posix = name => name.split(path.sep).join('/');
-const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py)$/.test(name);
+const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py|ts|tsx|jsx)$/.test(name);
 const sensitive = name => /(?:^|\.)env(?:[.-]|$)/i.test(name)
   || /^id_(?:rsa|dsa|ecdsa|ed25519)(?:[._-]|$)/i.test(name)
   || /(?:^|[._-])(?:secrets?|credentials?)(?:[._-]|$)/i.test(name)
   || /\.(?:pem|key|p8|ppk|p12|pfx)(?:[._-]|$)/i.test(name);
 
 function kindFor(relative) {
-  if (!EXTENSIONS.has(path.extname(relative))) return 'file';
+  if (!EXTENSIONS.has(path.extname(relative)) && !isTypedSource(relative)) return 'file';
   if (isTest(relative)) return 'test';
   const extension = path.extname(relative);
   return extension === '.md' ? 'document' : extension === '.json' ? 'config' : ['.html', '.css'].includes(extension) ? 'asset' : 'source';
 }
 
 function languageFor(relative) {
+  if (isTypedSource(relative)) return relative.endsWith('.jsx') ? 'jsx' : relative.endsWith('.tsx') ? 'tsx' : 'typescript';
   return ({ '.mjs': 'javascript', '.js': 'javascript', '.json': 'json', '.html': 'html', '.css': 'css', '.md': 'markdown', '.py': 'python' })[path.extname(relative)];
 }
 
@@ -40,6 +42,7 @@ const isText = bytes => isUtf8(bytes) && !bytes.some(byte => byte === 127 || byt
 function capabilitiesFor(relative) {
   const extension = path.extname(relative);
   if (extension === '.js' || extension === '.mjs') return ['text', 'javascript-syntax', 'static-references', 'named-symbols', 'local-calls', 'security-signals'];
+  if (isTypedSource(relative)) return ['text', ...(extension === '.jsx' ? [] : ['typescript-syntax']), ...(extension === '.ts' ? [] : ['jsx-syntax']), 'named-symbols'];
   if (extension === '.html') return ['text', 'html-assets'];
   if (extension === '.json') return ['text', 'json-validation'];
   return ['text'];
@@ -184,7 +187,7 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
         if (entry.isDirectory()) visit(name, depth + 1);
         else if (entry.isFile()) {
           files.push(name);
-          if (UNSUPPORTED_SOURCE.test(entry.name)) unsupported.add(name);
+          if (UNSUPPORTED_SOURCE.test(entry.name) && !isTypedSource(name)) unsupported.add(name);
         } else records.push({ path: name, state: 'excluded', reason: 'special-file' });
       }
     } catch (error) {
@@ -250,16 +253,16 @@ export function indexProject(directory, options = {}) {
       const text = isText(bytes);
       inventoryEntries.push({ path: relative, state: text ? 'text' : 'binary', bytes: bytes.length, hash });
       if (!text) {
-        if (EXTENSIONS.has(path.extname(relative))) diagnostics.push({ path: relative, message: 'Non-text or unsupported encoding; source analysis skipped.', severity: 'warning' });
+        if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) diagnostics.push({ path: relative, message: 'Non-text or unsupported encoding; source analysis skipped.', severity: 'warning' });
         continue;
       }
       const cached = priorCache?.get(relative);
       const analysis = cached?.hash === hash ? (cachedFiles++, cached.analysis) : analyzeSource(relative, bytes.toString('utf8'), hash, isTest(relative));
       nextCache.set(relative, { hash, analysis });
-      if (EXTENSIONS.has(path.extname(relative))) analyses.set(relative, analysis);
+      if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) analyses.set(relative, analysis);
       const layers = ['project', ...(isTest(relative) ? ['testing'] : []), ...(analysis.security.length ? ['security'] : [])];
       // Clones prevent a consumer modifying its serialized result from poisoning the cache.
-      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, capabilities: capabilitiesFor(relative), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone(analysis.diagnostics) });
+      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone(analysis.diagnostics) });
       diagnostics.push(...structuredClone(analysis.diagnostics));
     } catch (error) {
       inventoryComplete = false;
@@ -352,6 +355,7 @@ export function indexProject(directory, options = {}) {
       'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, Python dependencies and Markdown links.',
       'Inventory includes bounded regular files independently of language support. UTF-8 text without binary controls can be read by indexed hash. Binary, unreadable, oversized and unscanned entries have explicit states; excluded directories are not traversed. Hidden/sensitive paths, symlinks and configured exclusions remain excluded.',
       'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
+      ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides syntax and bounded named declarations only (64 KiB per file); no import/type/call/security/HTTP analysis. Both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse errors and ambiguity withhold affected symbols; traversal limits withhold all symbols from the file. Parser and traversal limits are not timeouts or a sandbox.'] : []),
       `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
     ]

@@ -71,6 +71,7 @@
       "files": [
         "code-index.mjs",
         "source-analysis.mjs",
+        "typed-analysis.mjs",
         "project-map.mjs",
         "symbol-index.mjs"
       ],
