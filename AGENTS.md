@@ -23,6 +23,15 @@ the disposition of any foreground view.
 
 ## Contributing to this source repository
 
+Follow [ROADMAP.md](ROADMAP.md) for staged expansion and its linked baseline review.
+Keep contributions on focused branches with small commits and a PR containing the
+actual checks, limitations and rollback. Another agent must independently review
+the exact diff and validate the evidence before it is marked ready; record the
+reviewed commit and disposition. Review material follow-up changes as deltas.
+If independent validation or required checks are unavailable, keep the PR pending
+and state the gap. A passing review does not authorize merge, release or target
+installation. Keep private workspaces, evidence and discovery notes out of commits.
+
 The active product is a read-only view of the real source project. Builder is retired
 under `legacy/builder`; do not reactivate its SDK/native handoff, Store, preview,
 approval or workspace-writing paths as part of ordinary visualizer work.
