@@ -156,6 +156,15 @@ test('preflight requires a complete well-formed exact context receipt and reject
   const partialRun = contextRun(); assert.equal(partialRun.status, 0, partialRun.stderr); const partial = JSON.parse(partialRun.stdout); assert.equal(partial.status, 'partial');
   const partialResult = preflight(['main.mjs', '--revision', partial.revision, '--binding-id', partial.binding.id, '--generation', String(partial.binding.generation)]);
   assert.equal(partialResult.status, 1); assert.match(partialResult.stderr, /requires current context/); assert.equal(partialResult.stdout, '');
+  fs.unlinkSync(path.join(f.project, 'broken.mjs'));
+  fs.writeFileSync(path.join(f.project, 'helper.ts'), 'export const typed: number = 1;');
+  const mixed = JSON.parse(contextRun().stdout);
+  assert.equal(mixed.inventory.status, 'complete');
+  assert.equal(mixed.status, 'partial');
+  assert.deepEqual(mixed.nodes.find(node => node.path === 'helper.ts')?.capabilities, undefined, 'selected context remains scoped');
+  const mixedResult = preflight(['main.mjs', '--revision', mixed.revision, '--binding-id', mixed.binding.id, '--generation', String(mixed.binding.generation)]);
+  assert.equal(mixedResult.status, 1);
+  assert.match(mixedResult.stderr, /requires current context/);
   const managed = fs.readFileSync(path.join(f.project, 'AGENTS.md'), 'utf8'); assert.match(managed, /--binding-id <returned binding.id> --generation <returned binding.generation>/);
 });
 test('AGENTS custody keeps concurrent owner bytes and never overwrites a recreated path', t => {

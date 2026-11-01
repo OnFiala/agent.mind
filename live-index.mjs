@@ -33,8 +33,11 @@ export class LiveIndex extends EventEmitter {
       const changed = !old || old.revision !== verified.revision || old.status !== verified.status;
       const recovered = this.runtime?.status === 'error';
       if (changed) {
-        const before = new Map((old?.nodes ?? []).filter(n => n.path).map(n => [n.path, n.hash]));
-        const after = new Map(verified.nodes.filter(n => n.path).map(n => [n.path, n.hash]));
+        const fileVersions = graph => graph?.inventory
+          ? new Map(graph.inventory.entries.filter(entry => !['excluded', 'unscanned'].includes(entry.state)).map(entry => [entry.path, JSON.stringify(entry)]))
+          : new Map((graph?.nodes ?? []).filter(node => node.path).map(node => [node.path, node.hash]));
+        const before = fileVersions(old);
+        const after = fileVersions(verified);
         const at = new Date().toISOString();
         if (old) this.changes = [
           ...[...after].filter(([p, hash]) => before.get(p) !== hash).map(([path]) => ({ path, kind: before.has(path) ? 'changed' : 'added', at })),
@@ -44,10 +47,10 @@ export class LiveIndex extends EventEmitter {
         this.sequence++;
       }
       this.graph = verified;
-      this.runtime = { instanceId: this.instanceId, status: 'current', lastCheckedAt: new Date().toISOString(), error: null, sequence: this.sequence, changes: this.changes };
+      this.runtime = { instanceId: this.instanceId, status: 'current', inventoryFreshness: 'current', lastCheckedAt: new Date().toISOString(), error: null, sequence: this.sequence, changes: this.changes };
       if (changed || recovered) this.emit('state', this.snapshot());
     } catch (error) {
-      this.runtime = { instanceId: this.instanceId, status: 'error', lastCheckedAt: new Date().toISOString(), error: error.message, sequence: this.sequence, changes: this.changes };
+      this.runtime = { instanceId: this.instanceId, status: 'error', inventoryFreshness: 'stale', lastCheckedAt: new Date().toISOString(), error: error.message, sequence: this.sequence, changes: this.changes };
       if (old) this.emit('state', this.snapshot());
       else throw error;
     }

@@ -220,8 +220,10 @@ Anonymous callbacks can add references to their nearest named symbol, marked
 function calls, arbitrary object dispatch, TypeScript and runtime behavior are
 unsupported. **Entry** and **File body** show statements at the current source
 level. File imports are not treated as function calls. CSS, JSON, Markdown and
-Python files are listed without internal call analysis. Binary assets are not
-read as source text.
+Python files are listed without internal call analysis. Other bounded UTF-8 text
+files can also be listed and read, including unsupported source languages; this
+does not add symbols, dependency resolution or security analysis for those types.
+Binary or non-UTF-8 content is inventoried but never returned as source text.
 
 HTTP/SSE connections match global `fetch`/`EventSource` calls with fixed local
 `/api/` paths to one matching handler in a verified `node:http` server callback.
@@ -240,9 +242,11 @@ references stay visible.
 ### Scope and updates
 
 Installed projects exclude their exact agent.mind integration directory,
-node_modules, hidden/sensitive files and symlinks. Development also excludes this
+node_modules, hidden/sensitive files and symlinks. Sensitive-name exclusions include
+standard SSH private-key basenames, dotenv names and private-key extensions
+(including .p8/.ppk and backup suffixes); this is not content-based secret detection. Development also excludes this
 repository's legacy/, backups/, evidence/ and workspace/ directories. The index
-limits are 1000 files, 512 KiB per file, 16 MiB text, 10000 directory entries and
+limits are 1000 regular files, 512 KiB per file, 16 MiB total bytes read, 10000 directory entries and
 depth 20. Scope and limitations are available in the UI and context JSON. Large
 projects may hit these limits or pause during synchronous indexing.
 
@@ -252,6 +256,34 @@ Persistent changes mark the previous snapshot as an error. Files can change agai
 after a scan; opening source checks its indexed hash separately. A parse failure
 removes that file's derived connections and marks the index as partial. SSE sends
 new revisions without reloading the page.
+
+Inventory is independent of parsing. `inventory.entries` records observed paths
+as `text`, `binary`, `too-large`, `budget-exceeded`, `unreadable`, `excluded` or
+`unscanned`, with a hash only when all bytes were safely read. Text classification
+requires valid UTF-8 without binary control bytes; it does not identify every file
+format. Binary bytes within the limits are fingerprinted and consume the same byte
+budget. Oversized/unreadable contents have no hash and no content-freshness claim.
+Excluded directories are not traversed; `unscanned` names a known omitted boundary,
+not a complete list of unseen files. Existing `scope.excluded` also lists policy
+exclusions. Adding more file types can exhaust the same budgets sooner.
+
+`inventory.status` is `complete` or `partial` for the scan's permitted scope.
+`runtime.inventoryFreshness` is `current` after two agreeing scans or `stale` when
+refresh fails; a freshly scanned inventory can still be partial. Context and HTTP
+responses carry these additive fields. The Project panel shows completeness,
+reported freshness and non-readable entries. A file's `capabilities` names available
+operations, not successful results: `text` alone means no semantic analysis;
+JavaScript, HTML and JSON retain their existing bounded operations. Parse failures
+and unresolved work remain in diagnostics. Known unsupported source extensions
+still make the overall context partial; strict installed preflight still rejects
+partial context. A complete inventory never grants preflight or complete analysis.
+
+Inventory-only files do not expand the existing source-reference resolver.
+Add/edit/delete of safely read unsupported text changes the revision and live
+change events, while unchanged contents stay stable. Source reads still require
+safe paths, a current content hash and valid text. These scans never execute the
+project or install its dependencies.
+
 
 ## Detach and uninstall
 

@@ -3,7 +3,7 @@
 Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Current shipped runtime: 1.0.3.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
 owns dated findings and their evidence. No new language or platform support is
-claimed by this plan or the L1 correction.
+claimed by this plan or the L1/L2 changes; L2 adds inventory and text reads only.
 
 ## Product and installation constraints
 
@@ -45,8 +45,8 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | ID | Scope / status | Acceptance and rollback |
 |---|---|---|
 | L0 | **Merged:** [PR #1](https://github.com/OnFiala/agent.mind/pull/1), baseline audit, sequence and contribution workflow | Independent review of the public diff; no private data or runtime payload changes. Revert only the documentation commits. |
-| L1 | **Validated and owner-approved:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
-| L2 | **Proposed:** safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
+| L1 | **Merged:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
+| L2 | **In review:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Proposed:** smallest parser seam needed for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
 | L4 | **Proposed:** one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
@@ -58,6 +58,15 @@ Chrome fixture verified full line coverage and stable card/view state after a sy
 move. Candidate runtime is 1,961,184 bytes (+177), with no new dependency.
 PR #2 records independent review, CI and the current merge status.
 The owner approved L1 on 2026-11-01; runtime release and target upgrades remain separate.
+
+The L2 candidate in PR #3 passed 153 local tests, package build,
+7 smoke scenarios and a disposable browser check of inventory states and live
+unsupported-text updates. Candidate runtime is 1,968,707 bytes (+7,523 from L1),
+with the same dependency count. All regular files share the existing budgets;
+previously ignored oversized assets can now make inventory/context partial.
+Independent review found and prompted a bounded correction for conventional
+private-key and dotenv filenames, with synthetic no-open/source-refusal regressions.
+PR #3 owns final review/CI and merge status. L2 is not released; L3 remains proposed.
 
 The present JS tool remains usable while later stages are unfinished. No stage may
 expand the product's support claim before its acceptance evidence exists.

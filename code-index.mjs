@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
+import { isUtf8 } from 'node:buffer';
 import { parse } from 'acorn';
 import { analyzeSymbolGraph } from './symbol-index.mjs';
 
 // This index is descriptive. It never imports, evaluates, or runs scanned files.
 export const INDEX_LIMITS = Object.freeze({ files: 1000, fileBytes: 512 * 1024, totalBytes: 16 * 1024 * 1024, entries: 10000, depth: 20 });
+// Existing analysis/resolver scope; inventory and safe text reads are independent.
 const EXTENSIONS = new Set(['.mjs', '.js', '.json', '.html', '.css', '.md', '.py']);
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'backups', 'evidence', 'workspace', 'legacy', 'coverage']);
 const GENERIC_EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
@@ -18,7 +20,10 @@ const fileId = relative => `file:${relative}`;
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${path.sep}`);
 const posix = name => name.split(path.sep).join('/');
 const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py)$/.test(name);
-const sensitive = name => /^\.env(?:[.-]|$)/i.test(name) || /(?:^|[._-])(?:secrets?|credentials?)(?:[._-]|$)/i.test(name) || /\.(pem|key|p12|pfx)$/i.test(name);
+const sensitive = name => /(?:^|\.)env(?:[.-]|$)/i.test(name)
+  || /^id_(?:rsa|dsa|ecdsa|ed25519)(?:[._-]|$)/i.test(name)
+  || /(?:^|[._-])(?:secrets?|credentials?)(?:[._-]|$)/i.test(name)
+  || /\.(?:pem|key|p8|ppk|p12|pfx)(?:[._-]|$)/i.test(name);
 const securityModule = specifier => SECURITY_MODULES.has(specifier.replace(/^node:/, ''));
 const location = (relative, lines, node) => {
   const line = node.loc?.start.line ?? 1;
@@ -26,6 +31,7 @@ const location = (relative, lines, node) => {
 };
 
 function kindFor(relative) {
+  if (!EXTENSIONS.has(path.extname(relative))) return 'file';
   if (isTest(relative)) return 'test';
   const extension = path.extname(relative);
   return extension === '.md' ? 'document' : extension === '.json' ? 'config' : ['.html', '.css'].includes(extension) ? 'asset' : 'source';
@@ -33,6 +39,17 @@ function kindFor(relative) {
 
 function languageFor(relative) {
   return ({ '.mjs': 'javascript', '.js': 'javascript', '.json': 'json', '.html': 'html', '.css': 'css', '.md': 'markdown', '.py': 'python' })[path.extname(relative)];
+}
+
+// This is an encoding check, not a file-format parser or secret detector.
+const isText = bytes => isUtf8(bytes) && !bytes.some(byte => byte === 127 || byte < 32 && byte !== 9 && byte !== 10 && byte !== 12 && byte !== 13);
+
+function capabilitiesFor(relative) {
+  const extension = path.extname(relative);
+  if (extension === '.js' || extension === '.mjs') return ['text', 'javascript-syntax', 'static-references', 'named-symbols', 'local-calls', 'security-signals'];
+  if (extension === '.html') return ['text', 'html-assets'];
+  if (extension === '.json') return ['text', 'json-validation'];
+  return ['text'];
 }
 
 /** Check every component again before opening. O_NOFOLLOW protects the final file. */
@@ -55,7 +72,7 @@ function readBounded(root, relative, available) {
     const stat = fs.fstatSync(descriptor);
     const current = fs.lstatSync(checkedPath(root, relative));
     if (!stat.isFile() || stat.dev !== current.dev || stat.ino !== current.ino) throw new Error('File changed during boundary check');
-    if (stat.size > INDEX_LIMITS.fileBytes || stat.size > available) throw new Error('Read budget exceeded');
+    if (stat.size > INDEX_LIMITS.fileBytes || stat.size > available) throw Object.assign(new Error('Read budget exceeded'), { inventoryState: stat.size > INDEX_LIMITS.fileBytes ? 'too-large' : 'budget-exceeded', bytes: stat.size });
     // Read at most the original size + one byte, even if another process grows it.
     const bytes = Buffer.alloc(stat.size + 1);
     let length = 0;
@@ -110,22 +127,24 @@ function namingMetadata(root, policy, diagnostics, explicitlySelected) {
 export function readIndexedSource(directory, node, indexOptions = {}) {
   const policy = indexingPolicy(indexOptions);
   const relative = node?.path;
-  if (!relativePath(relative) || excludedByPolicy(relative, policy) || !EXTENSIONS.has(path.posix.extname(relative)) || node.id !== fileId(relative) || !/^[a-f\d]{64}$/.test(node.hash ?? '')) throw new Error('Source is not an eligible indexed file');
+  if (!relativePath(relative) || excludedByPolicy(relative, policy) || !node.capabilities?.includes('text') || node.id !== fileId(relative) || !/^[a-f\d]{64}$/.test(node.hash ?? '')) throw new Error('Source is not an eligible indexed file');
   const requestedRoot = path.resolve(directory);
   if (fs.lstatSync(requestedRoot).isSymbolicLink()) throw new Error('Index root must not be a symbolic link');
   const root = fs.realpathSync(requestedRoot);
   const bytes = readBounded(root, relative, INDEX_LIMITS.fileBytes);
   if (sha(bytes) !== node.hash) throw new Error('Indexed source changed; refresh the graph before reading');
+  if (!isText(bytes)) throw new Error('Indexed file is not supported UTF-8 text');
   return bytes.toString('utf8');
 }
 
-function inventory(root, diagnostics, excluded, policy, unsupported) {
+function inventory(root, diagnostics, excluded, policy, unsupported, records) {
   const files = [];
   let entries = 0;
   let exhausted = false;
   function visit(relative, depth) {
     if (entries > INDEX_LIMITS.entries) return;
     if (depth > INDEX_LIMITS.depth) {
+      records.push({ path: relative + '/', state: 'unscanned', reason: 'depth-limit' });
       diagnostics.push({ path: relative, message: 'Directory depth budget exceeded', severity: 'warning' });
       return;
     }
@@ -137,7 +156,10 @@ function inventory(root, diagnostics, excluded, policy, unsupported) {
         let entry;
         while ((entry = handle.readSync())) {
           if (++entries > INDEX_LIMITS.entries) {
-            if (!exhausted) diagnostics.push({ path: relative || '.', message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+            if (!exhausted) {
+              records.push({ path: relative || '.', state: 'unscanned', reason: 'entry-limit' });
+              diagnostics.push({ path: relative || '.', message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+            }
             exhausted = true;
             break;
           }
@@ -149,23 +171,31 @@ function inventory(root, diagnostics, excluded, policy, unsupported) {
       for (const entry of directoryEntries.sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
         const name = posix(path.join(relative, entry.name));
         if (files.length >= INDEX_LIMITS.files) {
-          if (!exhausted) diagnostics.push({ path: name, message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+          if (!exhausted) {
+            records.push({ path: relative || '.', state: 'unscanned', reason: 'file-limit' });
+            diagnostics.push({ path: name, message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+          }
           exhausted = true;
           return;
         }
         if (entry.isSymbolicLink()) {
           excluded.add(`${name} (symlink)`);
+          records.push({ path: name, state: 'excluded', reason: 'symlink' });
           continue;
         }
         if (entry.name === '.DS_Store' || sensitive(entry.name) || entry.name.startsWith('.') || excludedByPolicy(name, policy)) {
           excluded.add(`${name}${entry.isDirectory() ? '/' : ''}`);
+          records.push({ path: name + (entry.isDirectory() ? '/' : ''), state: 'excluded', reason: sensitive(entry.name) ? 'sensitive-name' : entry.name.startsWith('.') ? 'hidden' : 'policy' });
           continue;
         }
         if (entry.isDirectory()) visit(name, depth + 1);
-        else if (entry.isFile() && EXTENSIONS.has(path.extname(entry.name))) files.push(name);
-        else if (entry.isFile() && UNSUPPORTED_SOURCE.test(entry.name)) unsupported.add(name);
+        else if (entry.isFile()) {
+          files.push(name);
+          if (UNSUPPORTED_SOURCE.test(entry.name)) unsupported.add(name);
+        } else records.push({ path: name, state: 'excluded', reason: 'special-file' });
       }
     } catch (error) {
+      records.push({ path: relative || '.', state: 'unreadable', reason: error.message });
       diagnostics.push({ path: relative || '.', message: `Cannot list directory: ${error.message}`, severity: 'warning' });
     }
   }
@@ -562,7 +592,9 @@ export function indexProject(directory, options = {}) {
   const diagnostics = [];
   const excluded = new Set([...policy.excludedDirs].map(name => `${name}/`).concat(policy.excludePaths.map(name => `${name}/`)));
   const unsupported = new Set();
-  const files = inventory(root, diagnostics, excluded, policy, unsupported);
+  const inventoryEntries = [];
+  const files = inventory(root, diagnostics, excluded, policy, unsupported, inventoryEntries);
+  let inventoryComplete = diagnostics.length === 0;
   for (const name of unsupported) diagnostics.push({ path: name, message: 'Unsupported source language; file is outside source analysis.', severity: 'warning' });
   const metadata = namingMetadata(root, policy, diagnostics, Object.hasOwn(options, 'metadataPath'));
   const priorCache = previous?.project?.root === root ? CACHE.get(previous) : null;
@@ -576,23 +608,33 @@ export function indexProject(directory, options = {}) {
       const bytes = readBounded(root, relative, INDEX_LIMITS.totalBytes - totalBytes);
       totalBytes += bytes.length;
       const hash = sha(bytes);
+      const text = isText(bytes);
+      inventoryEntries.push({ path: relative, state: text ? 'text' : 'binary', bytes: bytes.length, hash });
+      if (!text) {
+        if (EXTENSIONS.has(path.extname(relative))) diagnostics.push({ path: relative, message: 'Non-text or unsupported encoding; source analysis skipped.', severity: 'warning' });
+        continue;
+      }
       const cached = priorCache?.get(relative);
       const analysis = cached?.hash === hash ? (cachedFiles++, cached.analysis) : analyze(relative, bytes.toString('utf8'), hash);
       nextCache.set(relative, { hash, analysis });
-      analyses.set(relative, analysis);
+      if (EXTENSIONS.has(path.extname(relative))) analyses.set(relative, analysis);
       const layers = ['project', ...(isTest(relative) ? ['testing'] : []), ...(analysis.security.length ? ['security'] : [])];
       // Clones prevent a consumer modifying its serialized result from poisoning the cache.
-      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone(analysis.diagnostics) });
+      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, capabilities: capabilitiesFor(relative), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone(analysis.diagnostics) });
       diagnostics.push(...structuredClone(analysis.diagnostics));
     } catch (error) {
+      inventoryComplete = false;
+      inventoryEntries.push({ path: relative, state: error.inventoryState || 'unreadable', ...(error.bytes === undefined ? {} : { bytes: error.bytes }), reason: error.message });
       diagnostics.push({ path: relative, message: `Cannot index file: ${error.message}`, severity: 'warning' });
     }
   }
   const available = new Map(nodes.map(node => [node.path, node]));
+  // Inventory-only text cannot turn a previously unresolved reference into an edge.
+  const resolvable = new Map([...available].filter(([relative]) => EXTENSIONS.has(path.extname(relative))));
   const externalNodes = new Map();
   const groupedEdges = new Map();
   for (const [relative, analysis] of analyses) for (const reference of analysis.references) {
-    const resolved = resolveReference(relative, reference, available);
+    const resolved = resolveReference(relative, reference, resolvable);
     if (resolved.ignored) continue;
     if (resolved.error) {
       const diagnostic = { path: relative, line: reference.evidence.line, message: resolved.error, severity: 'warning' };
@@ -669,18 +711,20 @@ export function indexProject(directory, options = {}) {
       'HTTP/SSE links match code on both sides of a request; they do not show requests that ran. A nonshadowed fetch/EventSource call must use a fixed same-origin /api path; query strings may be dynamic. It must match one inline handler passed to an imported http.createServer, with one unmodified new URL(request.url, base) binding and an exact pathname check. SSE also requires code that sets an event-stream response. Frameworks, indirect handlers, computed paths and multiple possible providers are unsupported. Each match states what is known about its HTTP method.',
       'Functions and classes are nested as they appear in source. Call links cover direct same-file references and known this.method calls within a class. They do not show runtime execution, callback scheduling, dynamic dispatch, coverage or control flow. Imported, aliased and computed calls, class fields and static-block bodies are omitted. Ambiguous or directly reassigned bindings and methods are excluded. Anonymous closures use the nearest named owner and carry a nested-closure marker. Per-file limits apply to symbols, calls, AST nodes and nesting depth.',
       'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, Python dependencies and Markdown links.',
-      'The map lists .mjs, .js, .json, .html, .css, .md and .py files. It skips hidden paths, secrets/env files, symlinks and configured exclusions. Other source languages are reported as unsupported.',
+      'Inventory includes bounded regular files independently of language support. UTF-8 text without binary controls can be read by indexed hash. Binary, unreadable, oversized and unscanned entries have explicit states; excluded directories are not traversed. Hidden/sensitive paths, symlinks and configured exclusions remain excluded.',
+      'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
       `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
     ]
   };
+  const inventorySnapshot = { status: inventoryComplete ? 'complete' : 'partial', entries: inventoryEntries.sort((a, b) => a.path.localeCompare(b.path, 'en') || a.state.localeCompare(b.state, 'en')) };
   const result = {
     schemaVersion: 1,
     project: { name: path.basename(root), root },
-    revision: sha(JSON.stringify({ nodes, edges, symbolGraph, diagnostics, excluded: scope.excluded, generic: policy.generic, metadata: { path: metadata.path, hash: metadata.hash, status: metadata.status } })),
+    revision: sha(JSON.stringify({ inventory: inventorySnapshot, nodes, edges, symbolGraph, diagnostics, excluded: scope.excluded, generic: policy.generic, metadata: { path: metadata.path, hash: metadata.hash, status: metadata.status } })),
     generatedAt: new Date().toISOString(),
     status: diagnostics.some(item => item.severity === 'warning' || item.severity === 'error') ? 'partial' : 'current',
-    nodes, edges, symbolGraph, diagnostics, metadata,
+    nodes, edges, symbolGraph, diagnostics, metadata, inventory: inventorySnapshot,
     stats: { files: available.size, edges: edges.length, tests: [...available.values()].filter(node => node.kind === 'test').length, security: [...available.values()].filter(node => node.security.length).length, parseMs: Math.round((performance.now() - started) * 100) / 100, cachedFiles },
     scope
   };
