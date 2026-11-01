@@ -174,6 +174,7 @@ test('HTTP and context expose inventory and hash-bound unsupported text without 
   const root = fixture(t);
   fs.writeFileSync(path.join(root, 'helper.ts'), 'export const value: number = 1;');
   fs.writeFileSync(path.join(root, 'image.bin'), Buffer.from([0, 255]));
+  for (const name of ['id_rsa', 'id_ed25519_sk', 'production.env', 'AuthKey_EXAMPLE.p8', 'deploy.ppk']) fs.writeFileSync(path.join(root, name), 'synthetic-sensitive-marker');
   const app = createVisualizer({ root, intervalMs: 60000 });
   app.server.listen(0, '127.0.0.1');
   await once(app.server, 'listening');
@@ -188,6 +189,7 @@ test('HTTP and context expose inventory and hash-bound unsupported text without 
   assert.equal(source.lines[0].text, 'export const value: number = 1;');
   assert.equal(source.hash, context.selection.hash);
   assert.equal((await fetch(`${base}/api/source?path=image.bin`)).status, 409);
+  for (const name of ['id_rsa', 'id_ed25519_sk', 'production.env', 'AuthKey_EXAMPLE.p8', 'deploy.ppk']) assert.equal((await fetch(`${base}/api/source?path=${name}`)).status, 409);
   fs.writeFileSync(path.join(root, 'helper.ts'), 'export const value: number = 2;');
   assert.equal((await fetch(`${base}/api/source?path=helper.ts`)).status, 409);
 });

@@ -59,11 +59,13 @@ move. Candidate runtime is 1,961,184 bytes (+177), with no new dependency.
 PR #2 records independent review, CI and the current merge status.
 The owner approved L1 on 2026-11-01; runtime release and target upgrades remain separate.
 
-L2 implementation [`80ddce1`](https://github.com/OnFiala/agent.mind/commit/80ddce190b3e94d7697a5e57021e93f450a6fc16) passed 151 local tests, package build,
+The L2 candidate in PR #3 passed 153 local tests, package build,
 7 smoke scenarios and a disposable browser check of inventory states and live
-unsupported-text updates. Candidate runtime is 1,968,423 bytes (+7,239 from L1),
+unsupported-text updates. Candidate runtime is 1,968,707 bytes (+7,523 from L1),
 with the same dependency count. All regular files share the existing budgets;
 previously ignored oversized assets can now make inventory/context partial.
+Independent review found and prompted a bounded correction for conventional
+private-key and dotenv filenames, with synthetic no-open/source-refusal regressions.
 PR #3 owns final review/CI and merge status. L2 is not released; L3 remains proposed.
 
 The present JS tool remains usable while later stages are unfinished. No stage may

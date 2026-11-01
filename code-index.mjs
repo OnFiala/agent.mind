@@ -20,7 +20,10 @@ const fileId = relative => `file:${relative}`;
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${path.sep}`);
 const posix = name => name.split(path.sep).join('/');
 const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py)$/.test(name);
-const sensitive = name => /^\.env(?:[.-]|$)/i.test(name) || /(?:^|[._-])(?:secrets?|credentials?)(?:[._-]|$)/i.test(name) || /\.(pem|key|p12|pfx)$/i.test(name);
+const sensitive = name => /(?:^|\.)env(?:[.-]|$)/i.test(name)
+  || /^id_(?:rsa|dsa|ecdsa|ed25519)(?:[._-]|$)/i.test(name)
+  || /(?:^|[._-])(?:secrets?|credentials?)(?:[._-]|$)/i.test(name)
+  || /\.(?:pem|key|p8|ppk|p12|pfx)(?:[._-]|$)/i.test(name);
 const securityModule = specifier => SECURITY_MODULES.has(specifier.replace(/^node:/, ''));
 const location = (relative, lines, node) => {
   const line = node.loc?.start.line ?? 1;

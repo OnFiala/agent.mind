@@ -242,7 +242,9 @@ references stay visible.
 ### Scope and updates
 
 Installed projects exclude their exact agent.mind integration directory,
-node_modules, hidden/sensitive files and symlinks. Development also excludes this
+node_modules, hidden/sensitive files and symlinks. Sensitive-name exclusions include
+standard SSH private-key basenames, dotenv names and private-key extensions
+(including .p8/.ppk and backup suffixes); this is not content-based secret detection. Development also excludes this
 repository's legacy/, backups/, evidence/ and workspace/ directories. The index
 limits are 1000 regular files, 512 KiB per file, 16 MiB total bytes read, 10000 directory entries and
 depth 20. Scope and limitations are available in the UI and context JSON. Large

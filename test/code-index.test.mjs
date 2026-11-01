@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { INDEX_LIMITS, indexProject, readIndexedSource } from '../code-index.mjs';
 
 function fixture(t, contents) {
@@ -665,4 +666,23 @@ test('inventory records unreadable files and known depth boundaries without clai
   assert.ok(graph.inventory.entries.some(entry => entry.path === deep && entry.state === 'unscanned' && entry.reason === 'depth-limit'));
   assert.ok(!graph.inventory.entries.some(entry => entry.path.endsWith('unseen.txt')));
   assert.ok(!JSON.stringify(graph).includes('unseen-content-marker'));
+});
+
+for (const generic of [false, true]) test(`inventory and source reads exclude conventional key/env names before opening bytes (generic=${generic})`, t => {
+  const names = ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519', 'id_ecdsa_sk', 'id_ed25519_sk', 'id_rsa.bak', 'id_rsa_backup', 'config.env', 'production.env.local', 'AuthKey_EXAMPLE.p8', 'deploy.ppk', 'private.key.bak'];
+  const marker = 'synthetic-sensitive-marker';
+  const root = fixture(t, Object.fromEntries([['main.mjs', 'export const value = 1;'], ...names.map(name => [name, marker])]));
+  const opened = [];
+  const open = fs.openSync;
+  fs.openSync = (name, ...args) => { opened.push(name); return open(name, ...args); };
+  try {
+    const graph = indexProject(root, { generic });
+    for (const name of names) {
+      assert.equal(graph.inventory.entries.find(entry => entry.path === name)?.state, 'excluded', name);
+      assert.ok(!file(graph, name));
+      assert.throws(() => readIndexedSource(root, { id: `file:${name}`, path: name, hash: createHash('sha256').update(marker).digest('hex'), capabilities: ['text'] }, { generic }), /eligible/);
+      assert.ok(!opened.includes(path.join(root, name)), 'excluded content must never be opened');
+    }
+    assert.ok(!JSON.stringify(graph).includes(marker));
+  } finally { fs.openSync = open; }
 });
