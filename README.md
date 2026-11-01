@@ -1,8 +1,8 @@
 # agent.mind
 
-A live map of your code. See the main blocks, open their files and functions, and
-follow the connections between them. Saved source changes update the map.
-The same names work in the canvas and in context for your coding agent.
+A local, read-only map of source code for people and coding agents. Browse files
+and named declarations, inspect supported static relationships, and use the same
+project names in the canvas and agent context. Saved source changes refresh the map.
 
 agent.mind reads source files without running your project. It currently analyzes
 JavaScript (`.js`, `.mjs`). Version 1.1.0 adds bounded text inventory and a
@@ -22,13 +22,31 @@ that repeated hierarchy lookup; other parsing and rendering costs remain. See
 the project you want it to inspect, and state whether you want an explanation,
 an installation, or a contribution to agent.mind.
 
+## Support at a glance
+
+| Source | Available in 1.1.0 | Boundary |
+|---|---|---|
+| JavaScript `.js`, `.mjs` | Named symbols, static file references, conservative same-file calls, selected security/HTTP signals | No imported-call resolution, arbitrary runtime dispatch or framework routing |
+| TypeScript `.ts`, TSX `.tsx`, JSX `.jsx` | Named declarations, source locations and parser provenance | Syntax-only inspection; every pilot file is `partial` and strict preflight rejects it |
+| HTML / JSON | Static HTML asset references / JSON syntax validation | Embedded scripts are not analyzed |
+| Python `.py`, CSS, Markdown and other eligible UTF-8 text | Inventory and hash-bound source reads | No language symbols or internal dependency/call analysis |
+| Binary, oversized or excluded input | Explicit inventory/scope state where observable | No readable source claim for unread contents |
+
+Capabilities are per file; a visible file or a current context is not proof that
+its language semantics were analyzed. Security and Testing are source-reference
+views, not vulnerability scans, test execution or coverage. See
+[What it can read](#what-it-can-read) and the [typed pilot](#typescripttsxjsx-inspection-pilot-110)
+for the exact limits. Python analysis and additional host environments remain planned.
+
 ## Install into a project
 
-This source tree prepares **1.1.0**. A version in source is not proof of publication:
-use only a version listed in [GitHub Releases](https://github.com/OnFiala/agent.mind/releases).
-The commands below target 1.1.0 **after it is published**. Until then, the published
-1.0.3 download remains available but does not contain the new inventory/syntax pilot.
-Existing targets keep their pinned version; upgrades are explicit.
+These instructions describe **1.1.0**. Download the archive and checksum from the
+[1.1.0 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.1.0).
+A version in source alone is not proof of publication: if those assets are not
+available, use an existing published version or build a local candidate as described
+under [Development](#development). Existing targets keep their pinned version;
+upgrades are explicit. Version 1.0.3 remains available for rollback and does not
+contain the inventory/typed-syntax additions.
 
 Requires Node.js 22 or newer on macOS or Linux. Select the published version before
 downloading; source candidates can be built locally using [Development](#development):
@@ -49,7 +67,7 @@ runtime manifest and rejects unknown files and symlinks. It will not overwrite
 an existing unowned `agent.mind/` directory.
 
 The 1.1.0 runtime includes Acorn and the bounded Babel parser, with dependencies
-kept inside `agent.mind/`. No project compiler or configuration is loaded.
+kept inside `agent.mind/`. No target compiler or build configuration is executed.
 It leaves your project's package.json, lockfile and node_modules alone. `--attach`
 adds one marked block to the project's `AGENTS.md`, preserving existing instructions.
 This is the only integration outside `agent.mind/`.
@@ -181,7 +199,7 @@ or stable ID. The agent still needs to read the implementation and tests.
 Immediately before an authorized edit, recheck the context:
 
 ```sh
-node agent.mind/cli.mjs preflight block:module-c --revision <graph-revision> --binding-id <binding-id> --generation <generation>
+node agent.mind/cli.mjs preflight block:module-c --revision "RETURNED_REVISION" --binding-id "RETURNED_BINDING_ID" --generation "RETURNED_GENERATION"
 ```
 
 Replace the placeholders with values from that context. If anything changes,
@@ -342,9 +360,10 @@ release archive for recovery. There is no automatic updater.
    the view and save `agent.mind/project-map.json` outside the project, together with
    any user-authored notes/settings inside the integration that you need afterward.
 2. Run `node agent.mind/cli.mjs uninstall` using the existing installation.
-   Read the JSON: require `state: "uninstalled"` and no conflicts. Exit zero alone
-   is not enough. If it reports a conflict, preserve the directory and resolve it
-   before continuing. Edited managed instruction blocks must not be overwritten.
+   Require a successful command and read the returned JSON: `state` must be
+   `"uninstalled"`. A conflict can fail the command instead of returning that result;
+   preserve the directory and resolve it before continuing. Edited managed
+   instruction blocks must not be overwritten.
 3. Move the preserved `agent.mind/` directory to a unique backup location outside
    the project (otherwise generic inventory can scan the backup as project source).
    Keep it and the original release download for recovery. Do not overwrite an
@@ -477,7 +496,7 @@ verified edit. Preflight does not lock files or control your other tools.
 
 After edits, run the target project's relevant checks and obtain fresh context.
 Static test links do not prove tests passed or measure coverage. Security labels
-identify source to review; they are not vulnerability findings. The unreleased
+identify source to review; they are not vulnerability findings. The 1.1.0
 syntax pilot does not resolve typed imports or calls; framework routing and
 dynamic calls remain unsupported even when the visible map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
@@ -504,6 +523,10 @@ if applicable. State any unsupported scope or exact blocker. Do not upload sourc
 context output or logs to another service merely because this guide asks for a report.
 
 ## Development
+
+Use a source checkout for these commands. The release archive is a runtime payload;
+it omits repository tests, build scripts, roadmap and review documents. It is not
+a development checkout.
 
 ```sh
 npm ci --ignore-scripts
@@ -590,7 +613,7 @@ existing inventory limits. These bounds are not parser timeouts or a sandbox.
 The normal developer dependency closure contains Babel's four npm packages;
 the runtime ships only its self-contained parser JS, package metadata and MIT
 license, alongside Acorn. No project config, compiler, scripts or dependencies
-are loaded. [Comparison and acceptance evidence](docs/reviews/2026-11-01-typescript-parser-comparison.md)
+are loaded. [Comparison and acceptance evidence](https://github.com/OnFiala/agent.mind/blob/b1cac5792e0427369d3e15defc5e590e93edf7db/docs/reviews/2026-11-01-typescript-parser-comparison.md)
 records the exact candidates, fixed budgets and measured corpus; these are bounded
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
 installations. Version 1.0.3 remains the prior release for explicit rollback.
@@ -611,6 +634,16 @@ and one-shot loopback servers, with no model or production services. If a sandbo
 blocks listening, run them with permission to use local ports.
 
 ## Validation and known limits
+
+For 1.1.0, [release notes and validation](https://github.com/OnFiala/agent.mind/blob/v1.1.0/docs/releases/1.1.0.md)
+record the installed TS workflow, artifact checks and upgrade/rollback from 1.0.3.
+The release page carries the final downloadable bytes and checksum; `artifact.json`
+inside the verified archive identifies its runtime. Source commits and CI alone do
+not establish which version a target has installed: inspect that target's `status`.
+
+The following 1.0.1/1.0.2 measurements are retained as **historical evidence**.
+They are not a new benchmark of 1.1.0. The hierarchy issue described below was
+repaired in 1.0.2; remaining synchronous parser and workload limits still apply.
 
 This is an engineering validation record, not a formal compliance certification or
 a guarantee that every project is safe or responsive. The reviewed version is
@@ -666,7 +699,7 @@ Two deeply nested parser fixtures returned explicit parse diagnostics. These gua
 do not bound all Acorn parsing, helper loops, graph size, CPU time or memory use.
 Syntax failure and repair removed stale call edges and restored a current index.
 
-### Measured performance and open issue
+### Historical measured performance and the 1.0.1 issue
 
 Single samples on this test machine, not a benchmark distribution or service-level
 guarantee. The scale fixture had five named functions and four local call edges per
@@ -746,8 +779,7 @@ To repeat the existing security/lifecycle checks from a source checkout:
 node --test test/visualizer-server.test.mjs test/installation.test.mjs
 ```
 
-These two test files cover 28 tests; they do not reproduce the separate stress
-matrix. The audit's generated helpers and raw measurements are retained with its
+These test files do not reproduce the separate historical stress matrix. The audit's generated helpers and raw measurements are retained with its
 local report. The focused hierarchy regression is now in the source test suite;
 the full audit matrix is not bundled as a supported public stress runner.
 

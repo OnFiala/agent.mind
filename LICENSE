@@ -14,4 +14,4 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
-Bundled Acorn is licensed separately under its included MIT license.
+Bundled Acorn and @babel/parser are licensed separately under their included MIT licenses.

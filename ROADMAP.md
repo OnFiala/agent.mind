@@ -1,6 +1,8 @@
 # Lightweight expansion plan
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Current published runtime: 1.0.3; source candidate: 1.1.0.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.1.0**.
+[GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
+versions and downloads; source version numbers alone do not establish publication.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
 owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
@@ -49,7 +51,7 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L1 | **Merged:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
-| L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5); release preparation in [PR #6](https://github.com/OnFiala/agent.mind/pull/6) | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
+| L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5); release preparation merged in [PR #6](https://github.com/OnFiala/agent.mind/pull/6) | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
 
@@ -67,7 +69,7 @@ with the same dependency count. All regular files share the existing budgets;
 previously ignored oversized assets can now make inventory/context partial.
 Independent review found and prompted a bounded correction for conventional
 private-key and dotenv filenames, with synthetic no-open/source-refusal regressions.
-PR #3 was owner-approved and merged on 2026-11-01; L2 is not released.
+PR #3 was owner-approved and merged on 2026-11-01; L2 is included in the 1.1.0 release line.
 
 The L3 candidate in PR #4 moves existing JS/HTML/JSON analysis into one pure
 synchronous module. Inventory, safe reads, cache, reference resolution and graph
@@ -79,7 +81,7 @@ on identical inputs (only generation time and parse duration normalized), includ
 cold/warm/update scans. Package and 7 actual-bundle smoke checks passed. Candidate
 runtime is 1,970,806 bytes (+2,099 from L2), with the same one dependency. The new
 module is included in the explicit artifact allowlist and test runtime fixtures.
-PR #4 was owner-approved and merged on 2026-11-01 as `129c43b`; L3 is not released.
+PR #4 was owner-approved and merged on 2026-11-01 as `129c43b`; L3 is included in the 1.1.0 release line.
 
 PR #5 was owner-approved and merged as `d934557` on 2026-11-01.
 The L4 implementation provides the syntax-only TS/TSX/JSX pilot. The
@@ -97,7 +99,9 @@ checks and Node 22/24 CI passed. Scope review accepted `ed63223`; PR #5 records
 independent exact-diff review and its final disposition. This is syntax inspection, not full TypeScript editing acceptance.
 The separate [1.1.0 preparation PR #6](https://github.com/OnFiala/agent.mind/pull/6) verifies the documented upgrade/rollback
 from published 1.0.3 and installed inspection of a real TS project; publication
-remains an owner action. See [1.1.0 release notes](docs/releases/1.1.0.md).
+remains an owner action. [PR #7](https://github.com/OnFiala/agent.mind/pull/7) records
+the final documentation audit and release verification. See
+[1.1.0 release notes](docs/releases/1.1.0.md).
 If the owner chooses to withdraw L4 before publication, revert the focused L4
 implementation commits. Reverting only PR #6 withdraws release preparation.
 Existing target installations are untouched.
@@ -142,8 +146,9 @@ security sandboxes. Do not bundle the worker migration into an unrelated fix.
 
 Baseline uncompressed runtime is 1,961,007 bytes including manifest, with one
 production dependency. This is a measurement, not an all-project memory budget.
-The L1 through L3 candidates add no runtime dependencies. Documentation and
-review records stay outside the runtime artifact allowlist.
+The L1 through L3 candidates add no runtime dependencies. The roadmap and
+review records stay outside the runtime artifact allowlist; the usage README and
+artwork provenance README are included.
 
 Before selecting the L4 parser, commit a small comparison with exact versions,
 licenses, compressed/unpacked bytes, runtime dependency count, cold/unchanged/update
@@ -152,9 +157,9 @@ budgets before declaring a winner; a smaller download cannot excuse incorrect
 ranges or missing diagnostics. Tree-sitter/WASM is one candidate, not a prerequisite.
 Use maintained parser packages rather than growing a regex-based language parser.
 
-Prefer fewer moving parts over micro-optimizations. Artwork accounts for about 54%
-of today's payload, so visual-preserving asset optimization is a separate optional
-size task. It does not justify a global shared cache or language pack manager.
+Prefer fewer moving parts over micro-optimizations. Artwork accounted for about 54%
+of the 1.0.3 baseline payload; the 1.1.0 parser changes that proportion.
+Visual-preserving asset optimization remains a separate optional size task. It does not justify a global shared cache or language pack manager.
 A registry, language marketplace, database, automatic LSP/indexer execution, compiler
 orchestration and remote transport remain out of the early implementation scope.
 
