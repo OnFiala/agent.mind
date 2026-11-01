@@ -53,6 +53,7 @@ test('unstable snapshot is never published as current and later recovers', t => 
   const failed = live.refresh();
   assert.equal(failed.revision, '0');
   assert.equal(failed.runtime.status, 'error');
+  assert.equal(failed.runtime.inventoryFreshness, 'stale');
   unstable = false;
   assert.equal(live.refresh().runtime.status, 'current');
 });
@@ -140,4 +141,53 @@ test('installed HTTP uses explicit scope and rejects invalidated project binding
   assert.equal(context.revision, graph.revision);
   active = false;
   for (const route of ['/api/graph', '/api/context', '/api/source?path=main.mjs', '/api/events']) assert.equal((await fetch(base + route)).status, 409);
+});
+
+test('unsupported text reconciles add/edit/delete without changing unchanged live sequence', t => {
+  const root = fixture(t);
+  const live = new LiveIndex(root, { intervalMs: 60000 });
+  t.after(() => live.close());
+  const events = [];
+  live.on('state', state => events.push(state));
+  let previous = live.snapshot();
+  assert.equal(previous.runtime.inventoryFreshness, 'current');
+  for (const [kind, source] of [['added', 'export const value: number = 1;'], ['changed', 'export const value: number = 2;'], ['deleted', null]]) {
+    if (source === null) fs.unlinkSync(path.join(root, 'helper.ts'));
+    else fs.writeFileSync(path.join(root, 'helper.ts'), source);
+    const next = live.refresh();
+    assert.notEqual(next.revision, previous.revision);
+    assert.equal(next.runtime.sequence, previous.runtime.sequence + 1);
+    assert.equal(events.at(-1).revision, next.revision);
+    assert.equal(next.inventory.status, 'complete');
+    assert.equal(next.runtime.inventoryFreshness, 'current');
+    assert.deepEqual(next.runtime.changes[0].path, 'helper.ts');
+    assert.equal(next.runtime.changes[0].kind, kind);
+    const unchanged = live.refresh();
+    assert.equal(unchanged.revision, next.revision);
+    assert.equal(unchanged.runtime.sequence, next.runtime.sequence);
+    previous = next;
+  }
+  assert.equal(events.length, 3);
+});
+
+test('HTTP and context expose inventory and hash-bound unsupported text without semantic claims', async t => {
+  const root = fixture(t);
+  fs.writeFileSync(path.join(root, 'helper.ts'), 'export const value: number = 1;');
+  fs.writeFileSync(path.join(root, 'image.bin'), Buffer.from([0, 255]));
+  const app = createVisualizer({ root, intervalMs: 60000 });
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  t.after(() => app.close());
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  const context = await (await fetch(`${base}/api/context?path=helper.ts`)).json();
+  assert.equal(context.status, 'partial');
+  assert.equal(context.inventory.status, 'complete');
+  assert.deepEqual(context.selection.capabilities, ['text']);
+  assert.equal(context.runtime.inventoryFreshness, 'current');
+  const source = await (await fetch(`${base}/api/source?path=helper.ts`)).json();
+  assert.equal(source.lines[0].text, 'export const value: number = 1;');
+  assert.equal(source.hash, context.selection.hash);
+  assert.equal((await fetch(`${base}/api/source?path=image.bin`)).status, 409);
+  fs.writeFileSync(path.join(root, 'helper.ts'), 'export const value: number = 2;');
+  assert.equal((await fetch(`${base}/api/source?path=helper.ts`)).status, 409);
 });

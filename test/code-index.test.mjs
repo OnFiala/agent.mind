@@ -554,3 +554,115 @@ test('unsupported source languages remain visible and cached source content is r
   assert.equal(second.stats.cachedFiles, 0);
   assert.notEqual(file(graph, 'a.mjs').hash, file(second, 'a.mjs').hash);
 });
+
+test('bounded inventory fingerprints unsupported text without extending source analysis or resolution', t => {
+  const root = fixture(t, { 'main.mjs': 'import "./value.mjs"; import "./helper.ts";', 'value.mjs': 'export const value = 1;' });
+  const original = indexProject(root);
+  write(root, 'helper.ts', 'export const typed: number = 1; // Žluťoučký\r\n');
+  write(root, 'notes.txt', 'Plain text, not source analysis.');
+  const graph = indexProject(root, { previous: original });
+  assert.equal(graph.inventory.status, 'complete');
+  assert.equal(graph.status, 'partial');
+  assert.notEqual(graph.revision, original.revision);
+  assert.deepEqual(graph.edges, original.edges, 'inventory must not resolve the formerly unsupported import');
+  for (const name of ['main.mjs', 'value.mjs']) assert.deepEqual(file(graph, name), file(original, name));
+  const typed = file(graph, 'helper.ts');
+  assert.equal(typed.kind, 'file');
+  assert.deepEqual(typed.capabilities, ['text']);
+  assert.deepEqual(typed.symbols, []);
+  assert.ok(!graph.symbolGraph.nodes.some(node => node.path === 'helper.ts'));
+  assert.equal(readIndexedSource(root, typed), 'export const typed: number = 1; // Žluťoučký\r\n');
+  assert.equal(graph.inventory.entries.find(entry => entry.path === 'helper.ts').hash, typed.hash);
+  assert.equal(indexProject(root, { previous: graph }).revision, graph.revision);
+  write(root, 'helper.ts', 'export const typed: number = 2;\n');
+  assert.throws(() => readIndexedSource(root, typed), /changed/);
+  const changed = indexProject(root, { previous: graph });
+  assert.notEqual(changed.revision, graph.revision);
+  fs.unlinkSync(path.join(root, 'helper.ts'));
+  const removed = indexProject(root, { previous: changed });
+  assert.notEqual(removed.revision, changed.revision);
+  assert.ok(!removed.inventory.entries.some(entry => entry.path === 'helper.ts'));
+  assert.ok(!file(removed, 'helper.ts'));
+});
+
+test('inventory separates binary, non-UTF8, oversized and excluded entries from readable text', t => {
+  const root = fixture(t, {
+    'main.mjs': 'export const value = 1;',
+    'image.bin': Buffer.from([0, 1, 255]),
+    'invalid.txt': Buffer.from([0xc3, 0x28]),
+    'large.ts': 'x'.repeat(INDEX_LIMITS.fileBytes + 1),
+    'empty.txt': '',
+    'credentials.txt': 'excluded-content-marker',
+    'workspace/private.ts': 'excluded-content-marker',
+    'hidden-code.ts': 'export const value: number = 1;'
+  });
+  fs.symlinkSync(path.join(root, 'credentials.txt'), path.join(root, 'linked.txt'));
+  const graph = indexProject(root);
+  const entry = name => graph.inventory.entries.find(item => item.path === name);
+  assert.equal(graph.inventory.status, 'partial');
+  assert.equal(graph.status, 'partial');
+  for (const name of ['image.bin', 'invalid.txt']) {
+    assert.equal(entry(name).state, 'binary');
+    assert.match(entry(name).hash, /^[a-f0-9]{64}$/);
+    assert.ok(!file(graph, name));
+    assert.throws(() => readIndexedSource(root, { id: `file:${name}`, path: name, hash: entry(name).hash, capabilities: ['text'] }), /text/);
+  }
+  assert.equal(entry('large.ts').state, 'too-large');
+  assert.equal(entry('large.ts').hash, undefined);
+  assert.equal(entry('credentials.txt').state, 'excluded');
+  assert.equal(entry('workspace/').state, 'excluded');
+  assert.equal(entry('linked.txt').reason, 'symlink');
+  assert.ok(!graph.inventory.entries.some(item => item.path === 'workspace/private.ts'));
+  assert.equal(readIndexedSource(root, file(graph, 'empty.txt')), '');
+  assert.ok(!JSON.stringify(graph).includes('excluded-content-marker'));
+  const typed = file(graph, 'hidden-code.ts');
+  fs.unlinkSync(path.join(root, 'hidden-code.ts'));
+  fs.symlinkSync(path.join(root, 'credentials.txt'), path.join(root, 'hidden-code.ts'));
+  assert.throws(() => readIndexedSource(root, typed), /Symbolic links/);
+});
+
+test('unsupported inventory consumes the existing file and total-byte budgets', t => {
+  const root = fixture(t, {});
+  for (let number = 0; number <= INDEX_LIMITS.files; number++) write(root, `${String(number).padStart(4, '0')}.txt`, 'text');
+  const counted = indexProject(root);
+  assert.equal(counted.inventory.entries.filter(item => item.state === 'text').length, INDEX_LIMITS.files);
+  assert.equal(counted.inventory.status, 'partial');
+  assert.ok(counted.inventory.entries.some(item => item.state === 'unscanned' && item.reason === 'file-limit'));
+  const bytesRoot = fixture(t, {});
+  const value = 'x'.repeat(INDEX_LIMITS.fileBytes);
+  for (let number = 0; number <= INDEX_LIMITS.totalBytes / INDEX_LIMITS.fileBytes; number++) write(bytesRoot, `${String(number).padStart(3, '0')}.txt`, value);
+  const sized = indexProject(bytesRoot);
+  assert.equal(sized.inventory.status, 'partial');
+  assert.equal(sized.inventory.entries.reduce((sum, item) => sum + (item.hash ? item.bytes : 0), 0), INDEX_LIMITS.totalBytes);
+  assert.equal(sized.inventory.entries.at(-1).state, 'budget-exceeded');
+});
+
+test('capabilities describe available operations while analysis errors remain explicit', t => {
+  const root = fixture(t, { 'broken.mjs': 'export const = ;', 'page.html': '<h1>Text</h1>', 'data.json': '{}', 'notes.md': 'Text', 'other.py': 'print("not executed")' });
+  const graph = indexProject(root);
+  assert.equal(graph.inventory.status, 'complete');
+  assert.equal(graph.status, 'partial');
+  assert.ok(file(graph, 'broken.mjs').capabilities.includes('named-symbols'));
+  assert.ok(file(graph, 'broken.mjs').diagnostics.some(item => /parse error/.test(item.message)));
+  assert.deepEqual(file(graph, 'page.html').capabilities, ['text', 'html-assets']);
+  assert.deepEqual(file(graph, 'data.json').capabilities, ['text', 'json-validation']);
+  assert.deepEqual(file(graph, 'other.py').capabilities, ['text']);
+  assert.deepEqual(file(graph, 'notes.md').capabilities, ['text']);
+});
+
+test('inventory records unreadable files and known depth boundaries without claiming unseen contents', t => {
+  const deep = 'nested/'.repeat(INDEX_LIMITS.depth + 1);
+  const root = fixture(t, { 'blocked.txt': 'not returned', [deep + 'unseen.txt']: 'unseen-content-marker' });
+  const open = fs.openSync;
+  fs.openSync = (name, ...args) => {
+    if (name === path.join(root, 'blocked.txt')) throw Object.assign(new Error('test read denied'), { code: 'EACCES' });
+    return open(name, ...args);
+  };
+  let graph;
+  try { graph = indexProject(root); } finally { fs.openSync = open; }
+  assert.equal(graph.inventory.status, 'partial');
+  assert.equal(graph.inventory.entries.find(entry => entry.path === 'blocked.txt').state, 'unreadable');
+  assert.ok(graph.inventory.entries.some(entry => entry.path === deep && entry.state === 'unscanned' && entry.reason === 'depth-limit'));
+  assert.ok(!graph.inventory.entries.some(entry => entry.path.endsWith('unseen.txt')));
+  assert.ok(!JSON.stringify(graph).includes('unseen-content-marker'));
+});

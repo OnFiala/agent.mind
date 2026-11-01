@@ -1053,7 +1053,19 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (state.indexError || state.runtime?.status === 'error') note(`Could not update the map: ${state.indexError || state.runtime.error || 'unknown error'}. Showing the last map we could read.`, false, body);
     else if (!state.connected) note('Connection lost. Reconnecting; the map may be out of date.', false, body);
     else if (state.runtime?.status === 'indexing') note('Reading changes. Showing the previous map until they are ready.', true, body);
-    if (graph.status === 'partial') note('Some files or links couldn\'t be read. See the notes below.', false, body);
+    if (graph.status === 'partial') note('Analysis is partial: some files, syntax or links are unsupported or could not be read. See the notes below.', false, body);
+    if (graph.inventory) {
+      section('Inventory and analysis', body);
+      body.append(element('p', 'hint', `Inventory: ${graph.inventory.status} · last reported scan: ${state.runtime?.inventoryFreshness || 'unknown'}. File capabilities describe available analysis, not successful results.`));
+      const omitted = graph.inventory.entries.filter(entry => !['text', 'excluded'].includes(entry.state));
+      if (omitted.length) {
+        const details = element('details');
+        details.append(element('summary', '', `Files not readable as text and scan limits (${omitted.length})`));
+        const list = element('ul', 'plain-list');
+        for (const entry of omitted) list.append(element('li', '', `${entry.path}: ${entry.state}${entry.reason ? ` · ${entry.reason}` : ''}`));
+        details.append(list); body.append(details);
+      }
+    }
     const facts = element('div', 'fact-grid');
     fact(graph.stats?.files ?? graph.nodes.filter(node => node.kind !== 'external').length, 'indexed files', facts);
     fact(graph.edges.length, 'links in code', facts);
@@ -1147,6 +1159,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (node.kind === 'external') {
       note('This import points to an external module. The map doesn\'t read or run its code.', true, body);
     } else {
+      if (node.capabilities) body.append(element('p', 'hint', node.capabilities.length === 1 ? 'Text only: no symbols, dependencies or security analysis for this file.' : `Available analysis: ${node.capabilities.filter(value => value !== 'text').map(value => value.replaceAll('-', ' ')).join(', ')}. Check file notes for failures or unresolved references.`));
       section('Source', body);
       const target = element('div'); target.id = 'source-excerpt'; body.append(target);
       if (state.source?.path === node.path && state.source.hash === node.hash) displaySource(state.source, target, state.selection.line);
@@ -1161,7 +1174,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       for (const symbol of node.symbols) button(symbol.name, () => showSourceLine(node, symbol.line || 1), `${symbol.kind} · line ${symbol.line || '?'}`, body);
     }
     section('Security', body);
-    if (!node.security?.length) body.append(element('p', 'hint', 'No recognized security patterns in this file. The map only checks for specific patterns.'));
+    if (!node.security?.length) body.append(element('p', 'hint', node.capabilities && !node.capabilities.includes('security-signals') ? 'Security analysis is not available for this file type.' : 'No recognized security patterns in this file. The map only checks for specific patterns.'));
     for (const evidence of node.security || []) {
       const item = element('div', 'evidence-item');
       const detail = evidence.evidence;

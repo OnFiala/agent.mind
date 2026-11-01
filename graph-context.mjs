@@ -24,7 +24,7 @@ export function projectContext(graph, selector) {
   return {
     ...(graph.binding ? { binding: graph.binding } : {}),
     project: graph.project, revision: graph.revision, generatedAt: graph.generatedAt,
-    status: graph.status, runtime: graph.runtime, target: selector ?? null,
+    status: graph.status, inventory: graph.inventory, runtime: graph.runtime, target: selector ?? null,
     selection: selected ? { ...selected, blockId: owner.id, blockLabel: owner.label } : null,
     ancestry: ancestry.map(({ id, label, qualifiedLabel }) => ({ id, label, qualifiedLabel })),
     canvas: { scopeId: canvas.scopeId, breadcrumbs: canvas.breadcrumbs, nodes: canvas.nodes, edges: canvas.edges, areas: canvas.areas, areaMode: canvas.areaMode, omittedExternalEdges: canvas.omittedExternalEdges ?? 0 },
