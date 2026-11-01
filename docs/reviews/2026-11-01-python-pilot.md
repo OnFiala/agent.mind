@@ -99,7 +99,7 @@ any separately approved future release; published 1.1.0 stays available.
 
 ## Local acceptance results
 
-Measured on Node 22.23.4, macOS arm64, Apple M4 Max. Three fresh-process runs of
+Measured on Node 22.23.4, macOS arm64, Apple M5. Three fresh-process runs of
 **the actual bundle**, each with identical corpus hashes, produced these maxima:
 
 | Measurement | Observed maximum | Fixed ceiling |
@@ -154,5 +154,6 @@ suite. Raw CRLF range fixtures also found a Lezer end between CR/LF, corrected b
 the documented one-code-unit extension. The parser's malformed-string tolerance is
 retained as a limitation with a regression, not hidden as validated Python.
 
-Independent review, final PR and CI disposition will be recorded here and in the PR.
+[PR #8](https://github.com/OnFiala/agent.mind/pull/8) records independent review,
+final-head CI and disposition; it remains draft pending those checks.
 CORTEX reads worked, but governance writes returned HTTP 503 during this work.
