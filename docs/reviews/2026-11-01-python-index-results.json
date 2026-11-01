@@ -1,0 +1,323 @@
+{
+  "host": {
+    "node": "v22.23.4",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "os": "25.6.0"
+  },
+  "runs": [
+    {
+      "corpus": {
+        "repository": "https://github.com/pallets/flask",
+        "commit": "2c1b30d0503cfb064f1cb252e6614a06915a362a",
+        "files": 24,
+        "bytes": 337376,
+        "digest": "826b1199cc84516da02d76c8b994076edc23c6b095c00c2ddd8fa1d893573267",
+        "omitted": []
+      },
+      "loadedMs": 27.484,
+      "coldMs": 58.496708999999996,
+      "unchangedMs": 4.311416999999992,
+      "updateMs": 5.263790999999998,
+      "liveUpdateMs": [
+        10.193832999999984,
+        9.649166000000008,
+        9.158041999999995
+      ],
+      "baselineRSS": 51445760,
+      "peakRSS": 93224960,
+      "increaseRSS": 41779200,
+      "symbols": 389,
+      "diagnostics": 35,
+      "failures": [],
+      "ambiguities": [
+        {
+          "path": "src/flask/cli.py",
+          "line": 230,
+          "column": 1,
+          "severity": "warning",
+          "message": "Ambiguous declaration locate_app; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/config.py",
+          "line": 30,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration ConfigAttribute.__get__; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/helpers.py",
+          "line": 52,
+          "column": 1,
+          "severity": "warning",
+          "message": "Ambiguous declaration stream_with_context; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/app.py",
+          "line": 550,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration App.debug; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "line": 224,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Scaffold.static_folder; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "line": 249,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Scaffold.static_url_path; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sessions.py",
+          "line": 28,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration SessionMixin.permanent; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/views.py",
+          "line": 106,
+          "column": 13,
+          "severity": "warning",
+          "message": "Ambiguous declaration View.as_view.view; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 60,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_content_length; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 93,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_form_memory_size; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 120,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_form_parts; duplicate syntactic names and their descendants are withheld."
+        }
+      ]
+    },
+    {
+      "corpus": {
+        "repository": "https://github.com/pallets/flask",
+        "commit": "2c1b30d0503cfb064f1cb252e6614a06915a362a",
+        "files": 24,
+        "bytes": 337376,
+        "digest": "826b1199cc84516da02d76c8b994076edc23c6b095c00c2ddd8fa1d893573267",
+        "omitted": []
+      },
+      "loadedMs": 27.038500000000003,
+      "coldMs": 58.157625,
+      "unchangedMs": 4.304083000000006,
+      "updateMs": 4.999334000000005,
+      "liveUpdateMs": [
+        10.44149999999999,
+        9.644875000000013,
+        8.916875000000005
+      ],
+      "baselineRSS": 51412992,
+      "peakRSS": 92962816,
+      "increaseRSS": 41549824,
+      "symbols": 389,
+      "diagnostics": 35,
+      "failures": [],
+      "ambiguities": [
+        {
+          "path": "src/flask/cli.py",
+          "line": 230,
+          "column": 1,
+          "severity": "warning",
+          "message": "Ambiguous declaration locate_app; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/config.py",
+          "line": 30,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration ConfigAttribute.__get__; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/helpers.py",
+          "line": 52,
+          "column": 1,
+          "severity": "warning",
+          "message": "Ambiguous declaration stream_with_context; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/app.py",
+          "line": 550,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration App.debug; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "line": 224,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Scaffold.static_folder; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "line": 249,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Scaffold.static_url_path; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sessions.py",
+          "line": 28,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration SessionMixin.permanent; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/views.py",
+          "line": 106,
+          "column": 13,
+          "severity": "warning",
+          "message": "Ambiguous declaration View.as_view.view; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 60,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_content_length; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 93,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_form_memory_size; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 120,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_form_parts; duplicate syntactic names and their descendants are withheld."
+        }
+      ]
+    },
+    {
+      "corpus": {
+        "repository": "https://github.com/pallets/flask",
+        "commit": "2c1b30d0503cfb064f1cb252e6614a06915a362a",
+        "files": 24,
+        "bytes": 337376,
+        "digest": "826b1199cc84516da02d76c8b994076edc23c6b095c00c2ddd8fa1d893573267",
+        "omitted": []
+      },
+      "loadedMs": 25.892165999999996,
+      "coldMs": 59.248958,
+      "unchangedMs": 4.3175839999999965,
+      "updateMs": 5.027708000000004,
+      "liveUpdateMs": [
+        10.40308300000001,
+        10.847958000000006,
+        9.38470799999999
+      ],
+      "baselineRSS": 51331072,
+      "peakRSS": 92700672,
+      "increaseRSS": 41369600,
+      "symbols": 389,
+      "diagnostics": 35,
+      "failures": [],
+      "ambiguities": [
+        {
+          "path": "src/flask/cli.py",
+          "line": 230,
+          "column": 1,
+          "severity": "warning",
+          "message": "Ambiguous declaration locate_app; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/config.py",
+          "line": 30,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration ConfigAttribute.__get__; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/helpers.py",
+          "line": 52,
+          "column": 1,
+          "severity": "warning",
+          "message": "Ambiguous declaration stream_with_context; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/app.py",
+          "line": 550,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration App.debug; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "line": 224,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Scaffold.static_folder; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sansio/scaffold.py",
+          "line": 249,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Scaffold.static_url_path; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/sessions.py",
+          "line": 28,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration SessionMixin.permanent; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/views.py",
+          "line": 106,
+          "column": 13,
+          "severity": "warning",
+          "message": "Ambiguous declaration View.as_view.view; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 60,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_content_length; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 93,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_form_memory_size; duplicate syntactic names and their descendants are withheld."
+        },
+        {
+          "path": "src/flask/wrappers.py",
+          "line": 120,
+          "column": 5,
+          "severity": "warning",
+          "message": "Ambiguous declaration Request.max_form_parts; duplicate syntactic names and their descendants are withheld."
+        }
+      ]
+    }
+  ]
+}

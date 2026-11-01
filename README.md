@@ -36,7 +36,9 @@ Capabilities are per file; a visible file or a current context is not proof that
 its language semantics were analyzed. Security and Testing are source-reference
 views, not vulnerability scans, test execution or coverage. See
 [What it can read](#what-it-can-read) and the [typed pilot](#typescripttsxjsx-inspection-pilot-110)
-for the exact limits. Python analysis and additional host environments remain planned.
+for the exact limits. The development checkout adds an **unreleased Python syntax
+pilot** described below; published 1.1.0 and existing installations do not include
+it. Additional host environments remain planned.
 
 ## Install into a project
 
@@ -618,6 +620,38 @@ records the exact candidates, fixed budgets and measured corpus; these are bound
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
 installations. Version 1.0.3 remains the prior release for explicit rollback.
 
+### Python inspection pilot (unreleased L5 candidate)
+
+The source candidate uses `@lezer/python` 1.1.19 with `@lezer/common` 1.5.5,
+`@lezer/lr` 1.4.12 and `@lezer/highlight` 1.2.5 (MIT). The runtime bundles their
+ESM entrypoints, metadata and licenses. It requires no Python interpreter and
+never imports or executes the scanned source or its environment.
+
+For `.py`, it exposes named functions, async functions, classes and nested methods
+with native parser kinds, source hashes, parser provenance and raw UTF-16 ranges.
+Ranges exclude decorator wrappers; an end inside CRLF is extended through its LF
+so a source range never splits that newline pair. Ordinary variables, lambdas and import/name,
+call/type/security/framework relationships are not inferred. Existing literal
+references to a `.py` file remain source-file references, not Python resolution.
+
+Every Python file is **partial**, so strict installed preflight rejects it. Lezer
+is an editor grammar, not a CPython validator: a tree without recovery errors does
+not prove valid Python or support for a specific Python version. Some unterminated
+strings are accepted as tokens without a recovery node. Arbitrary decorator
+expressions and type-parameter defaults are examples of unsupported syntax;
+`.pyi` and notebooks remain inventory-only. Decorator effects are not interpreted.
+Recovery/error nodes anywhere withhold all declarations from that file; duplicate
+qualified names and their descendants are withheld instead of selecting a runtime
+binding. Files over 64 KiB and traversals over 2,000 declarations, 100,000 nodes or
+depth 256 produce an explicit limitation and no declarations. These are not hard
+parser deadlines or a security sandbox. Source text remains available within the
+separate inventory limits.
+
+This is a development candidate, not a published support claim. The source
+repository's `docs/reviews/2026-11-01-python-pilot.md` records fixed budgets, parser
+selection and exact validation evidence; that report is not shipped in the runtime.
+No target installation is upgraded by building or reviewing this branch.
+
 ### Local APIs
 
 - `GET /api/graph`: graph, hierarchy and index status.
@@ -785,6 +819,6 @@ the full audit matrix is not bundled as a supported public stress runner.
 
 ## License and artwork
 
-The source is ISC-licensed. Bundled Acorn and Babel parser keep their MIT licenses. The artwork was
+The source is ISC-licensed. Bundled Acorn, Babel parser and Lezer packages keep their MIT licenses. The artwork was
 generated for this project; [public/assets/README.md](public/assets/README.md) records its
 origin and prompts.

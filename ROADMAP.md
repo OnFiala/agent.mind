@@ -52,7 +52,7 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
 | L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5); release preparation merged in [PR #6](https://github.com/OnFiala/agent.mind/pull/6) | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
-| L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
+| L5 | **Candidate in progress:** bounded Python syntax inspection; other languages remain demand-led | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
 
 L1 implementation commit [`9fbcb61`](https://github.com/OnFiala/agent.mind/commit/9fbcb61fb29a15e145c41f2542b8059e52a51f77) adds six production-path regressions.
@@ -105,6 +105,12 @@ the final documentation audit and release verification. See
 If the owner chooses to withdraw L4 before publication, revert the focused L4
 implementation commits. Reverting only PR #6 withdraws release preparation.
 Existing target installations are untouched.
+
+The L5 candidate adds a pure synchronous `.py` declaration adapter using Lezer.
+Its [fixed contract and measurements](docs/reviews/2026-11-01-python-pilot.md)
+separate editor syntax from CPython validity, semantics and runtime behavior.
+Every Python file remains partial; strict preflight does not weaken. No L5 release,
+merge, real-target upgrade or L6 environment expansion is implied by this work.
 
 The present JS tool remains usable while later stages are unfinished. No stage may
 expand the product's support claim before its acceptance evidence exists.
