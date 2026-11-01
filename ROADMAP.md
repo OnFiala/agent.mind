@@ -97,8 +97,10 @@ checks and Node 22/24 CI passed. Scope review accepted `ed63223`; PR #5 records
 independent exact-diff review and its final disposition. This is syntax inspection, not full TypeScript editing acceptance.
 The separate [1.1.0 preparation PR #6](https://github.com/OnFiala/agent.mind/pull/6) verifies the documented upgrade/rollback
 from published 1.0.3 and installed inspection of a real TS project; publication
-remains an owner action. See [1.1.0 release notes](docs/releases/1.1.0.md). Revert the focused L4 commits before any future release;
-existing target installations are untouched.
+remains an owner action. See [1.1.0 release notes](docs/releases/1.1.0.md).
+If the owner chooses to withdraw L4 before publication, revert the focused L4
+implementation commits. Reverting only PR #6 withdraws release preparation.
+Existing target installations are untouched.
 
 The present JS tool remains usable while later stages are unfinished. No stage may
 expand the product's support claim before its acceptance evidence exists.
