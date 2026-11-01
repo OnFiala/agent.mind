@@ -496,6 +496,35 @@ const timeLabel = value => {
 };
 const shortHash = value => value ? String(value).slice(0, 12) : 'neuveden';
 
+export function updateCardContent(card, node, count) {
+  const signature = JSON.stringify([node.label, node.path, node.line, node.kind, node.type, node.hasChildren, node.isArea, node.partCount, node.internalEdgeCount, node.description, node.fileIds?.length, node.symbols?.length, node.security?.length, count]);
+  if (card.dataset.signature !== signature) {
+    card.dataset.signature = signature;
+    const main = element('span', 'node-main');
+    main.append(element('span', 'node-glyph', node.isArea ? '▦' : node.kind === 'block' ? ({ interface: '▣', service: '◉', process: '↳', tests: 'T', config: '⚙', document: '≡', module: '{ }' }[node.type] || '{ }') : GLYPH[node.kind] || '·'));
+    const titles = element('span', 'node-titles');
+    titles.append(element('span', 'node-name', node.label), element('span', 'node-path', node.isArea ? node.group === 'context' ? 'Parts outside this view' : 'Expand to see its parts' : node.kind === 'block' ? node.description : node.path || 'External module'));
+    main.append(titles);
+    const footer = element('span', 'node-footer');
+    footer.append(element('span', '', node.isArea ? 'Area' : node.kind === 'block' ? BLOCK_TYPES[node.type] || 'Module' : node.security?.length ? `${KIND[node.kind]} · security ${node.security.length}` : KIND[node.kind] || node.kind), element('span', 'node-stat', node.isArea ? `${node.partCount} ${node.partCount === 1 ? 'part' : 'parts'} · ${node.internalEdgeCount || 0} internal ${node.internalEdgeCount === 1 ? 'link' : 'links'}` : node.kind === 'block' ? `${node.hierarchyKind === 'boundary' ? 'context' : node.hierarchyKind === 'symbol' ? `line ${node.line || '?'}` : `${node.fileIds.length} ${node.fileIds.length === 1 ? 'file' : 'files'}`} · ${count} ${count === 1 ? 'relation' : 'relations'}${node.hasChildren ? ' · ↳' : ''}` : `${count} ${count === 1 ? 'relation' : 'relations'}${node.symbols?.length ? ` · ${node.symbols.length} ${node.symbols.length === 1 ? 'symbol' : 'symbols'}` : ''}`));
+    card.replaceChildren(main, footer);
+  }
+}
+
+export function sourcePagingControls(source, onLine) {
+  const controls = element('div');
+  const first = source.lines[0]?.number || 1;
+  const last = source.lines.at(-1)?.number || 0;
+  const add = (label, line) => {
+    const control = element('button', 'panel-button', label);
+    control.addEventListener('click', () => onLine(line));
+    controls.append(control);
+  };
+  if (first > 1) add('↑ Previous lines', Math.max(1, first - 30));
+  if (last < source.totalLines) add('↓ Next lines', last + 1);
+  return controls;
+}
+
 export function startVisualizer(projectScope = null, projectAreaScope = null, resolveSourceRelations = null) {
   const $ = id => document.getElementById(id);
   const canvas = $('canvas');
@@ -886,19 +915,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         $('nodes').append(card);
       }
       card.className = `file-node ${node.isArea ? 'area-node ' : ''}${node.hierarchyKind && node.hierarchyKind !== 'block' ? 'part-node ' : ''}${node.hierarchyKind === 'boundary' ? 'boundary-node ' : ''}${node.kind === 'block' ? `block-node block-type-${node.type || 'module'} group-${node.group || 'support'}` : node.kind === 'external' ? 'external' : ''}`;
-      const signature = JSON.stringify([node.label, node.path, node.kind, node.type, node.hasChildren, node.isArea, node.partCount, node.internalEdgeCount, node.description, node.fileIds?.length, node.symbols?.length, node.security?.length, display.edges.filter(edge => edge.from === node.id || edge.to === node.id).length]);
-      if (card.dataset.signature !== signature) {
-        card.dataset.signature = signature;
-        const main = element('span', 'node-main');
-        main.append(element('span', 'node-glyph', node.isArea ? '▦' : node.kind === 'block' ? ({ interface: '▣', service: '◉', process: '↳', tests: 'T', config: '⚙', document: '≡', module: '{ }' }[node.type] || '{ }') : GLYPH[node.kind] || '·'));
-        const titles = element('span', 'node-titles');
-        titles.append(element('span', 'node-name', node.label), element('span', 'node-path', node.isArea ? node.group === 'context' ? 'Parts outside this view' : 'Expand to see its parts' : node.kind === 'block' ? node.description : node.path || 'External module'));
-        main.append(titles);
-        const footer = element('span', 'node-footer');
-        const count = display.edges.filter(edge => edge.from === node.id || edge.to === node.id).length;
-        footer.append(element('span', '', node.isArea ? 'Area' : node.kind === 'block' ? BLOCK_TYPES[node.type] || 'Module' : node.security?.length ? `${KIND[node.kind]} · security ${node.security.length}` : KIND[node.kind] || node.kind), element('span', 'node-stat', node.isArea ? `${node.partCount} ${node.partCount === 1 ? 'part' : 'parts'} · ${node.internalEdgeCount || 0} internal ${node.internalEdgeCount === 1 ? 'link' : 'links'}` : node.kind === 'block' ? `${node.hierarchyKind === 'boundary' ? 'context' : node.hierarchyKind === 'symbol' ? `line ${node.line || '?'}` : `${node.fileIds.length} ${node.fileIds.length === 1 ? 'file' : 'files'}`} · ${count} ${count === 1 ? 'relation' : 'relations'}${node.hasChildren ? ' · ↳' : ''}` : `${count} ${count === 1 ? 'relation' : 'relations'}${node.symbols?.length ? ` · ${node.symbols.length} ${node.symbols.length === 1 ? 'symbol' : 'symbols'}` : ''}`));
-        card.replaceChildren(main, footer);
-      }
+      updateCardContent(card, node, display.edges.filter(edge => edge.from === node.id || edge.to === node.id).length);
       if (node.kind === 'block' && node.hierarchyKind !== 'boundary' && !detailButtons.has(node.id)) {
         const detail = element('button', 'node-detail-button', 'i');
         detail.setAttribute('aria-label', `Detail: ${node.label}`);
@@ -1354,13 +1371,8 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     target.append(view);
     const targetRow = [...view.children].find(row => row.classList.contains('target-line'));
     if (targetRow) view.scrollTop = Math.max(0, targetRow.offsetTop - view.offsetTop - 50);
-    const controls = element('div');
-    const first = source.lines[0]?.number || 1;
-    const last = source.lines.at(-1)?.number || 0;
     const node = state.graph.nodes.find(item => item.path === source.path);
-    if (first > 1) button('↑ Previous lines', () => showSourceLine(node, Math.max(1, first - 30)), null, controls);
-    if (last < source.totalLines) button('↓ Next lines', () => showSourceLine(node, last + 20), null, controls);
-    target.append(controls);
+    target.append(sourcePagingControls(source, line => showSourceLine(node, line)));
   }
 
   function showSourceLine(node, line) {
