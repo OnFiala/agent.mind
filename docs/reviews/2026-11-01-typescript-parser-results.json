@@ -1,0 +1,360 @@
+{
+  "base": "129c43bdd47ba842d010501ebffea08a3e01602a",
+  "budgetCommit": "db78f2a12a1b58e9245097d4fac9adc5050e4d08",
+  "harnessCommit": "73cf860",
+  "corpusCommit": "30a797e962c76cc2e623e84f4194a00b9f0c5c8f",
+  "corpusExtensions": {
+    "ts": 37,
+    "tsx": 14
+  },
+  "host": {
+    "node": "v22.23.4",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "os": "25.6.0"
+  },
+  "footprint": {
+    "babel": {
+      "name": "@babel/parser",
+      "version": "7.29.12",
+      "files": [
+        "LICENSE",
+        "package.json",
+        "lib/index.js"
+      ],
+      "bytes": 521259,
+      "gzipConcatenatedBytes": 102977,
+      "hashes": {
+        "LICENSE": "2e97627cb278aa7556fb9e8817368302301a595b6c7582512b8d74c57b773652",
+        "package.json": "7807730c7d153c5478d89f9463aabfef47357718a174242e939b833e5a21ac9d",
+        "lib/index.js": "86bfb625edc968a1bf7c7bb0caa54a94395cb1b21493ef44845e51546f701730"
+      }
+    },
+    "typescript": {
+      "name": "typescript",
+      "version": "6.0.3",
+      "files": [
+        "LICENSE.txt",
+        "ThirdPartyNoticeText.txt",
+        "package.json",
+        "lib/typescript.js"
+      ],
+      "bytes": 9194764,
+      "gzipConcatenatedBytes": 1664425,
+      "hashes": {
+        "LICENSE.txt": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+        "ThirdPartyNoticeText.txt": "1af3c68039c57e539422da82a4faada506ce6d0ea6f90e0b699d02dbcdb7a90c",
+        "package.json": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+        "lib/typescript.js": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39"
+      }
+    }
+  },
+  "archives": [
+    {
+      "name": "@babel/parser",
+      "version": "7.29.12",
+      "size": 445620,
+      "unpackedSize": 2026387,
+      "integrity": "sha512-WJ7JBp/Q4+z/ImydtI7jS6NVco5++632ExBemSX+Ysb+G1lCwQ5BVo3SY+jGGOcZXI4ZccbZSUSJLNBW6eEpJg=="
+    },
+    {
+      "name": "@babel/types",
+      "version": "7.29.11",
+      "size": 301906,
+      "unpackedSize": 2750921,
+      "integrity": "sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ=="
+    },
+    {
+      "name": "@babel/helper-string-parser",
+      "version": "7.29.11",
+      "size": 8410,
+      "unpackedSize": 31792,
+      "integrity": "sha512-snZbO7MEDOof+hvNa97EjEY7qD7h2kwvQr5AJC3ZhQudKW5dnej6k3kP9NQV88hJwaS8vDqRLFo9rivLEhle2g=="
+    },
+    {
+      "name": "@babel/helper-validator-identifier",
+      "version": "7.29.7",
+      "size": 14245,
+      "unpackedSize": 48813,
+      "integrity": "sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg=="
+    },
+    {
+      "name": "typescript",
+      "version": "6.0.3",
+      "size": 4515854,
+      "unpackedSize": 24346827,
+      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="
+    }
+  ],
+  "runs": {
+    "babel": [
+      {
+        "kind": "babel",
+        "version": "7.29.12",
+        "real": {
+          "files": 51,
+          "bytes": 299794,
+          "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+          "omitted": []
+        },
+        "fixtures": 10,
+        "loadedMs": 5.1925839999999965,
+        "coldMs": 87.587417,
+        "unchangedMs": 0.23275000000001,
+        "updateMs": 4.909334000000001,
+        "cachedFiles": 61,
+        "updateCached": 60,
+        "baselineRSS": 58064896,
+        "peakRSS": 91799552,
+        "increaseRSS": 33734656,
+        "maxSingleFileMs": 22.799875,
+        "errors": [
+          {
+            "path": "broken-1.ts",
+            "bytes": 24,
+            "ms": 0.09937499999999488,
+            "nodes": 0,
+            "error": "Unexpected token (1:21)"
+          },
+          {
+            "path": "broken-2.ts",
+            "bytes": 24,
+            "ms": 0.030750000000011823,
+            "nodes": 0,
+            "error": "Unexpected token (1:21)"
+          },
+          {
+            "path": "stress-depth.ts",
+            "bytes": 20012,
+            "ms": 0.8004580000000061,
+            "nodes": 0,
+            "error": "Maximum call stack size exceeded"
+          }
+        ]
+      },
+      {
+        "kind": "babel",
+        "version": "7.29.12",
+        "real": {
+          "files": 51,
+          "bytes": 299794,
+          "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+          "omitted": []
+        },
+        "fixtures": 10,
+        "loadedMs": 4.344083999999999,
+        "coldMs": 91.421209,
+        "unchangedMs": 0.20412499999999056,
+        "updateMs": 3.2197910000000007,
+        "cachedFiles": 61,
+        "updateCached": 60,
+        "baselineRSS": 58114048,
+        "peakRSS": 93945856,
+        "increaseRSS": 35831808,
+        "maxSingleFileMs": 25.836,
+        "errors": [
+          {
+            "path": "broken-1.ts",
+            "bytes": 24,
+            "ms": 0.07720900000001052,
+            "nodes": 0,
+            "error": "Unexpected token (1:21)"
+          },
+          {
+            "path": "broken-2.ts",
+            "bytes": 24,
+            "ms": 0.031541999999987524,
+            "nodes": 0,
+            "error": "Unexpected token (1:21)"
+          },
+          {
+            "path": "stress-depth.ts",
+            "bytes": 20012,
+            "ms": 0.7592920000000021,
+            "nodes": 0,
+            "error": "Maximum call stack size exceeded"
+          }
+        ]
+      },
+      {
+        "kind": "babel",
+        "version": "7.29.12",
+        "real": {
+          "files": 51,
+          "bytes": 299794,
+          "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+          "omitted": []
+        },
+        "fixtures": 10,
+        "loadedMs": 4.209875,
+        "coldMs": 88.90195899999999,
+        "unchangedMs": 0.2713340000000102,
+        "updateMs": 4.30295799999999,
+        "cachedFiles": 61,
+        "updateCached": 60,
+        "baselineRSS": 57917440,
+        "peakRSS": 94601216,
+        "increaseRSS": 36683776,
+        "maxSingleFileMs": 24.411125,
+        "errors": [
+          {
+            "path": "broken-1.ts",
+            "bytes": 24,
+            "ms": 0.06837499999998897,
+            "nodes": 0,
+            "error": "Unexpected token (1:21)"
+          },
+          {
+            "path": "broken-2.ts",
+            "bytes": 24,
+            "ms": 0.03249999999999886,
+            "nodes": 0,
+            "error": "Unexpected token (1:21)"
+          },
+          {
+            "path": "stress-depth.ts",
+            "bytes": 20012,
+            "ms": 0.7402919999999966,
+            "nodes": 0,
+            "error": "Maximum call stack size exceeded"
+          }
+        ]
+      }
+    ],
+    "typescript": [
+      {
+        "kind": "typescript",
+        "version": "6.0.3",
+        "real": {
+          "files": 51,
+          "bytes": 299794,
+          "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+          "omitted": []
+        },
+        "fixtures": 10,
+        "loadedMs": 70.320708,
+        "coldMs": 125.85629200000001,
+        "unchangedMs": 0.22512499999999136,
+        "updateMs": 2.027082999999976,
+        "cachedFiles": 61,
+        "updateCached": 60,
+        "baselineRSS": 57950208,
+        "peakRSS": 140673024,
+        "increaseRSS": 82722816,
+        "maxSingleFileMs": 13.390499999999989,
+        "errors": [
+          {
+            "path": "broken-1.ts",
+            "bytes": 24,
+            "ms": 0.27183399999998414,
+            "nodes": 0,
+            "error": "Type expected."
+          },
+          {
+            "path": "broken-2.ts",
+            "bytes": 24,
+            "ms": 0.0816250000000025,
+            "nodes": 0,
+            "error": "Type expected."
+          },
+          {
+            "path": "stress-depth.ts",
+            "bytes": 20012,
+            "ms": 0.4835419999999999,
+            "nodes": 0,
+            "error": "Maximum call stack size exceeded"
+          }
+        ]
+      },
+      {
+        "kind": "typescript",
+        "version": "6.0.3",
+        "real": {
+          "files": 51,
+          "bytes": 299794,
+          "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+          "omitted": []
+        },
+        "fixtures": 10,
+        "loadedMs": 63.046707999999995,
+        "coldMs": 118.86541600000001,
+        "unchangedMs": 0.2609170000000063,
+        "updateMs": 2.814582999999999,
+        "cachedFiles": 61,
+        "updateCached": 60,
+        "baselineRSS": 57835520,
+        "peakRSS": 140427264,
+        "increaseRSS": 82591744,
+        "maxSingleFileMs": 13.097542000000004,
+        "errors": [
+          {
+            "path": "broken-1.ts",
+            "bytes": 24,
+            "ms": 0.18083400000000438,
+            "nodes": 0,
+            "error": "Type expected."
+          },
+          {
+            "path": "broken-2.ts",
+            "bytes": 24,
+            "ms": 0.02604099999999221,
+            "nodes": 0,
+            "error": "Type expected."
+          },
+          {
+            "path": "stress-depth.ts",
+            "bytes": 20012,
+            "ms": 0.4994999999999834,
+            "nodes": 0,
+            "error": "Maximum call stack size exceeded"
+          }
+        ]
+      },
+      {
+        "kind": "typescript",
+        "version": "6.0.3",
+        "real": {
+          "files": 51,
+          "bytes": 299794,
+          "digest": "da0a70f7d30eef4c17bbfbd2ef65c44ac16f953432a29c18852a3b883f208743",
+          "omitted": []
+        },
+        "fixtures": 10,
+        "loadedMs": 62.546124999999996,
+        "coldMs": 117.104792,
+        "unchangedMs": 0.23395800000000122,
+        "updateMs": 2.231708999999995,
+        "cachedFiles": 61,
+        "updateCached": 60,
+        "baselineRSS": 57999360,
+        "peakRSS": 140705792,
+        "increaseRSS": 82706432,
+        "maxSingleFileMs": 12.743207999999996,
+        "errors": [
+          {
+            "path": "broken-1.ts",
+            "bytes": 24,
+            "ms": 0.10741600000000062,
+            "nodes": 0,
+            "error": "Type expected."
+          },
+          {
+            "path": "broken-2.ts",
+            "bytes": 24,
+            "ms": 0.017332999999979393,
+            "nodes": 0,
+            "error": "Type expected."
+          },
+          {
+            "path": "stress-depth.ts",
+            "bytes": 20012,
+            "ms": 0.526332999999994,
+            "nodes": 0,
+            "error": "Maximum call stack size exceeded"
+          }
+        ]
+      }
+    ]
+  }
+}
