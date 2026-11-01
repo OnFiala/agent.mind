@@ -1,7 +1,7 @@
 {
   "name": "agent-mind",
   "version": "1.1.0",
-  "description": "A live map of your code, with security and test references",
+  "description": "Local read-only code maps: JavaScript relationships and syntax-only TypeScript/TSX/JSX inspection",
   "directories": {
     "test": "test"
   },
