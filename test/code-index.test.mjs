@@ -647,7 +647,8 @@ test('capabilities describe available operations while analysis errors remain ex
   assert.ok(file(graph, 'broken.mjs').diagnostics.some(item => /parse error/.test(item.message)));
   assert.deepEqual(file(graph, 'page.html').capabilities, ['text', 'html-assets']);
   assert.deepEqual(file(graph, 'data.json').capabilities, ['text', 'json-validation']);
-  assert.deepEqual(file(graph, 'other.py').capabilities, ['text']);
+  assert.deepEqual(file(graph, 'other.py').capabilities, ['text', 'python-syntax', 'named-symbols']);
+  assert(file(graph, 'other.py').diagnostics.some(item => /Syntax-only Python/.test(item.message)));
   assert.deepEqual(file(graph, 'notes.md').capabilities, ['text']);
 });
 

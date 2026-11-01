@@ -7,6 +7,7 @@ import { ARTIFACT_FILES, verifyArtifact } from '../installation.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const lockfile = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
 const args = process.argv.slice(2);
 if (args.length && (args.length !== 2 || args[0] !== '--output')) throw new Error('Usage: node scripts/build-release.mjs [--output /absolute/new-directory]');
 const output = path.resolve(args[1] || path.join(root, 'dist', `agent-mind-${pkg.version}`));
@@ -26,9 +27,9 @@ const copy = relative => {
     fs.writeFileSync(path.join(bundle, relative), bytes, { flag: 'wx' });
   } else throw new Error(`Unsupported release input: ${relative}`);
 };
-for (const name of ['acorn', '@babel/parser']) {
+for (const name of ['acorn', '@babel/parser', '@lezer/python', '@lezer/common', '@lezer/lr', '@lezer/highlight']) {
   const dependency = JSON.parse(fs.readFileSync(path.join(root, `node_modules/${name}/package.json`), 'utf8'));
-  if (dependency.version !== pkg.dependencies[name]) throw new Error(`Installed ${name} does not match the exact package pin; run npm ci --ignore-scripts.`);
+  if ((pkg.dependencies[name] && dependency.version !== pkg.dependencies[name]) || dependency.version !== lockfile.packages?.[`node_modules/${name}`]?.version) throw new Error(`Installed ${name} does not match the exact package pin; run npm ci --ignore-scripts.`);
 }
 fs.mkdirSync(bundle, { recursive: true });
 // Explicit runtime allowlist: never package development history or target workspaces.

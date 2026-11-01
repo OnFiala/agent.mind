@@ -6,13 +6,15 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const HASH = /^[a-f0-9]{64}$/;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
+const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'python-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
 const PUBLIC = new Set(['public/hierarchy.mjs', 'public/visualizer.js', 'public/visualizer.css', 'public/visualizer.html', 'public/assets/canvas-paper.webp', 'public/assets/agent-mind-wordmark.webp', 'public/assets/README.md']);
 const ACORN = new Set(['LICENSE', 'bin/acorn', 'CHANGELOG.md', 'dist/bin.js', 'dist/acorn.mjs', 'dist/acorn.d.ts', 'dist/acorn.js', 'dist/acorn.d.mts', 'README.md', 'package.json'].map(p => `node_modules/acorn/${p}`));
 // Babel's parser JS is self-contained; its npm type dependencies are not runtime inputs.
 const BABEL = new Set(['package.json', 'LICENSE', 'lib/index.js'].map(p => `node_modules/@babel/parser/${p}`));
-export const ARTIFACT_FILES = Object.freeze([...TOP, ...PUBLIC, ...ACORN, ...BABEL].sort());
-const allowedArtifact = relative => TOP.has(relative) || PUBLIC.has(relative) || ACORN.has(relative) || BABEL.has(relative);
+// Only ESM parser entrypoints are used by this runtime; include every license.
+const LEZER = new Set(['python', 'common', 'lr', 'highlight'].flatMap(name => ['package.json', 'LICENSE', 'dist/index.js'].map(file => `node_modules/@lezer/${name}/${file}`)));
+export const ARTIFACT_FILES = Object.freeze([...TOP, ...PUBLIC, ...ACORN, ...BABEL, ...LEZER].sort());
+const allowedArtifact = relative => TOP.has(relative) || PUBLIC.has(relative) || ACORN.has(relative) || BABEL.has(relative) || LEZER.has(relative);
 const json = value => `${JSON.stringify(value, null, 2)}\n`;
 const exists = p => { try { fs.lstatSync(p); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } };
 function safeRelative(relative) {
@@ -83,9 +85,9 @@ export function verifyArtifact(directory, expectedDigest) {
   for (const [relative, hash] of entries) if (sha(read(root, relative)) !== hash) throw new Error(`Artifact hash mismatch: ${relative}`);
   const pkg = readJSON(root, 'package.json'), lockfile = readJSON(root, 'package-lock.json');
   if (pkg.version !== manifest.version) throw new Error('Runtime package and manifest versions do not match.');
-  for (const name of ['acorn', '@babel/parser']) {
+  for (const name of ['acorn', '@babel/parser', '@lezer/python', '@lezer/common', '@lezer/lr', '@lezer/highlight']) {
     const dependency = readJSON(root, `node_modules/${name}/package.json`);
-    if (pkg.dependencies?.[name] !== dependency.version || lockfile.packages?.[`node_modules/${name}`]?.version !== dependency.version) throw new Error(`Runtime package, lockfile and ${name} versions do not match.`);
+    if ((['acorn', '@babel/parser', '@lezer/python'].includes(name) && pkg.dependencies?.[name] !== dependency.version) || lockfile.packages?.[`node_modules/${name}`]?.version !== dependency.version) throw new Error(`Runtime package, lockfile and ${name} versions do not match.`);
   }
   return { root, ...manifest };
 }

@@ -15,7 +15,7 @@ test('released runtime rejects direct context execution while imports and develo
   const target = path.join(fixture, 'target');
   fs.mkdirSync(path.join(runtime, 'public'), { recursive: true });
   fs.mkdirSync(target);
-  for (const relative of ['graph-context.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'symbol-index.mjs', 'project-map.mjs', 'public/hierarchy.mjs']) fs.copyFileSync(path.join(appRoot, relative), path.join(runtime, relative));
+  for (const relative of ['graph-context.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'python-analysis.mjs', 'symbol-index.mjs', 'project-map.mjs', 'public/hierarchy.mjs']) fs.copyFileSync(path.join(appRoot, relative), path.join(runtime, relative));
   fs.symlinkSync(path.join(appRoot, 'node_modules'), path.join(runtime, 'node_modules'), 'dir');
   fs.writeFileSync(path.join(target, 'main.mjs'), 'export const value = 1;');
   const script = path.join(runtime, 'graph-context.mjs');
