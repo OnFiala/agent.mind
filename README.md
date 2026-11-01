@@ -5,9 +5,9 @@ follow the connections between them. Saved source changes update the map.
 The same names work in the canvas and in context for your coding agent.
 
 agent.mind reads source files without running your project. It currently analyzes
-JavaScript (`.js`, `.mjs`). The unreleased L4 source candidate adds a bounded
-TypeScript/TSX/JSX syntax pilot; published v1.0.3 does not contain it. Framework
-routing remains unsupported.
+JavaScript (`.js`, `.mjs`). Version 1.1.0 adds bounded text inventory and a
+TypeScript/TSX/JSX syntax-only inspection pilot. Framework routing remains
+unsupported; typed files remain explicitly partial.
 It runs locally, with no global install, account, API key or model required.
 
 **Start with a small project you know.** Try ordinary JavaScript with around
@@ -24,20 +24,23 @@ an installation, or a contribution to agent.mind.
 
 ## Install into a project
 
-The current release is **1.0.3**. Existing targets keep their pinned version; use
-the explicit update steps below to change it.
+This source tree prepares **1.1.0**. A version in source is not proof of publication:
+use only a version listed in [GitHub Releases](https://github.com/OnFiala/agent.mind/releases).
+The commands below target 1.1.0 **after it is published**. Until then, the published
+1.0.3 download remains available but does not contain the new inventory/syntax pilot.
+Existing targets keep their pinned version; upgrades are explicit.
 
-Requires Node.js 22 or newer on macOS or Linux. Download
-[v1.0.3 from GitHub Releases](https://github.com/OnFiala/agent.mind/releases/tag/v1.0.3):
+Requires Node.js 22 or newer on macOS or Linux. Select the published version before
+downloading; source candidates can be built locally using [Development](#development):
 
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.0.3.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.0.3/agent-mind-1.0.3.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.0.3/SHA256SUMS
+curl --fail --location --output agent-mind-1.1.0.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.1.0/agent-mind-1.1.0.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.1.0/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.0.3.tar.gz
-node agent-mind-1.0.3/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.0.3" --attach
+tar -xzf agent-mind-1.1.0.tar.gz
+node agent-mind-1.1.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.1.0" --attach
 ```
 
 Stop if checksum verification fails. Checksums check the downloaded bytes, so
@@ -45,7 +48,8 @@ choose the source repository deliberately. The installer also checks the full
 runtime manifest and rejects unknown files and symlinks. It will not overwrite
 an existing unowned `agent.mind/` directory.
 
-The release includes Acorn and keeps its dependencies inside `agent.mind/`.
+The 1.1.0 runtime includes Acorn and the bounded Babel parser, with dependencies
+kept inside `agent.mind/`. No project compiler or configuration is loaded.
 It leaves your project's package.json, lockfile and node_modules alone. `--attach`
 adds one marked block to the project's `AGENTS.md`, preserving existing instructions.
 This is the only integration outside `agent.mind/`.
@@ -88,7 +92,7 @@ A fresh clone needs a local installation. Download the same pinned release,
 then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.0.3/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.0.3 --adopt --attach
+node /path/to/agent-mind-1.1.0/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.1.0 --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -314,8 +318,8 @@ data**, including your map and recovery copies, stop external writers, inspect
 the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.0.3/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.0.3/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.1.0/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.1.0/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
 Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
@@ -334,22 +338,41 @@ release archive for recovery. There is no automatic updater.
 
 ### Update from an older version
 
-1. Stop the view and save `agent.mind/project-map.json` outside the installation.
+1. Keep both checksum-verified release downloads before changing anything. Stop
+   the view and save `agent.mind/project-map.json` outside the project, together with
+   any user-authored notes/settings inside the integration that you need afterward.
 2. Run `node agent.mind/cli.mjs uninstall` using the existing installation.
-   If it reports a conflict, resolve it before continuing.
-3. Move the preserved `agent.mind/` directory to a separate backup location.
+   Read the JSON: require `state: "uninstalled"` and no conflicts. Exit zero alone
+   is not enough. If it reports a conflict, preserve the directory and resolve it
+   before continuing. Edited managed instruction blocks must not be overwritten.
+3. Move the preserved `agent.mind/` directory to a unique backup location outside
+   the project (otherwise generic inventory can scan the backup as project source).
    Keep it and the original release download for recovery. Do not overwrite an
    existing backup or use purge as part of this update.
-4. Follow the installation steps above for 1.0.3, then restore your saved map to
+4. Follow the installation steps above for the selected new version, then restore your saved map to
    the new `agent.mind/project-map.json`.
 5. Run `status` and `context` through the new CLI. Reload the project instructions
    in your coding agent before using the new installation.
 
 Each release has its own runtime digest and generated integration files. Installing
-1.0.3 over 1.0.2, or adopting a 1.0.2 clone with the 1.0.3 release, is rejected.
+a new release over an existing different runtime, or adopting a clone with a
+different runtime pin, is rejected. Use each installation's own CLI for lifecycle
+operations; do not use the new CLI to uninstall an older runtime.
 To return to an older version, use the same steps with that version's original
-release and your saved map. Existing installations do not change when a new
-release is published.
+release and your saved map. A preserved directory after uninstall is recovery data,
+not a runnable rollback: reinstall the original release into a fresh `agent.mind/`,
+restore the saved map, and verify its new binding. Old context/preflight receipts
+are invalid after either upgrade or rollback. Do not copy old runtime, receipt,
+`project.json` or generated launcher files into a new installation.
+
+If the new artifact is rejected before installation, retain the backup and reinstall
+the original verified release. If installation/attachment fails after creating an
+integration, inspect it with that release's CLI; resolve conflicts or uninstall
+before moving its remnants aside. Never force another install over partial state.
+The forward, failure/recovery and downgrade paths are exercised by
+`scripts/smoke-upgrade.mjs` using the actual published 1.0.3 artifact and new bundle.
+These are caught-failure checks, not crash/power-loss atomicity guarantees.
+Existing installations do not change when a new release is published.
 
 ## For agents
 
@@ -538,9 +561,9 @@ without changing existing JavaScript identities or locations.
 HTML still skips embedded script bodies. A new parser must preserve these contracts
 or explicitly convert its own positions before joining the graph.
 
-### Unreleased TypeScript/TSX/JSX syntax pilot
+### TypeScript/TSX/JSX inspection pilot (1.1.0)
 
-The L4 source candidate uses pinned `@babel/parser` 7.29.12 (MIT) for `.ts`, `.tsx`
+Version 1.1.0 uses pinned `@babel/parser` 7.29.12 (MIT) for `.ts`, `.tsx`
 and `.jsx`, with at most 64 KiB per file before parsing. It extracts named functions,
 classes, methods, interfaces, type aliases, enums and namespaces; overload/ambient
 signatures have their own `signature` kind, not an implementation claim. Each symbol
@@ -570,7 +593,7 @@ license, alongside Acorn. No project config, compiler, scripts or dependencies
 are loaded. [Comparison and acceptance evidence](docs/reviews/2026-11-01-typescript-parser-comparison.md)
 records the exact candidates, fixed budgets and measured corpus; these are bounded
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
-installations or change the published v1.0.3 release.
+installations. Version 1.0.3 remains the prior release for explicit rollback.
 
 ### Local APIs
 
@@ -730,6 +753,6 @@ the full audit matrix is not bundled as a supported public stress runner.
 
 ## License and artwork
 
-The source is ISC-licensed. Bundled Acorn and the unreleased Babel parser keep their MIT licenses. The artwork was
+The source is ISC-licensed. Bundled Acorn and Babel parser keep their MIT licenses. The artwork was
 generated for this project; [public/assets/README.md](public/assets/README.md) records its
 origin and prompts.

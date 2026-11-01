@@ -1,6 +1,6 @@
 # Lightweight expansion plan
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Current shipped runtime: 1.0.3.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Current published runtime: 1.0.3; source candidate: 1.1.0.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
 owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
@@ -49,7 +49,7 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L1 | **Merged:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
-| L4 | **In review:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5), one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
+| L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5), one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
 
@@ -81,7 +81,8 @@ runtime is 1,970,806 bytes (+2,099 from L2), with the same one dependency. The n
 module is included in the explicit artifact allowlist and test runtime fixtures.
 PR #4 was owner-approved and merged on 2026-11-01 as `129c43b`; L3 is not released.
 
-The L4 candidate implements the syntax-only TS/TSX/JSX pilot. The
+PR #5 was owner-approved and merged as `d934557` on 2026-11-01.
+The L4 implementation provides the syntax-only TS/TSX/JSX pilot. The
 [comparison and fixed acceptance contract](docs/reviews/2026-11-01-typescript-parser-comparison.md)
 records Babel 7.29.12 versus TypeScript 6.0.3 before dependency selection. Babel
 uses a pure synchronous analyzer, 64 KiB pre-parse cap, source-hashed UTF-16 ranges,
@@ -93,8 +94,10 @@ Actual artifact and bounded real-corpus index/live measurements pass the fixed b
 Headless Chrome verified typed labels and source notes, then stable selection/camera
 and refreshed source location after a line move. All nine actual-bundle smoke
 checks and Node 22/24 CI passed. Scope review accepted `ed63223`; PR #5 records
-independent exact-diff review and its final disposition. This is not production
-acceptance or a published release. Revert the focused L4 commits before any future release;
+independent exact-diff review and its final disposition. This is syntax inspection, not full TypeScript editing acceptance.
+The separate 1.1.0 release-readiness work verifies the documented upgrade/rollback
+from published 1.0.3 and installed inspection of a real TS project; publication
+remains an owner action. See [1.1.0 release notes](docs/releases/1.1.0.md). Revert the focused L4 commits before any future release;
 existing target installations are untouched.
 
 The present JS tool remains usable while later stages are unfinished. No stage may
