@@ -16,6 +16,7 @@
   "repository": { "type": "git", "url": "https://github.com/OnFiala/agent.mind.git" },
   "license": "ISC",
   "dependencies": {
+    "@babel/parser": "7.29.12",
     "acorn": "8.18.0"
   },
   "type": "module",

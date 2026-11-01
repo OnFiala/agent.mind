@@ -134,7 +134,7 @@ export function buildHierarchy(graph, configuration = null) {
   for (const symbol of symbols) {
     const file = rawFiles.get(`file:${symbol.path}`);
     if (!file) continue;
-    const node = { ...symbol, label: symbol.name, sourceName: symbol.name, sourceId: symbol.id, parentId: symbol.parentId && symbolIds.has(symbol.parentId) ? symbol.parentId : file.id, kind: 'symbol', symbolKind: symbol.kind, type: symbol.kind === 'class' ? 'module' : 'process', description: `${symbol.kind === 'class' ? 'Class' : symbol.kind === 'method' ? 'Method' : 'Function'} · ${symbol.name}`, aliases: [], fileIds: [file.id], group: 'core', layers: [...new Set(['project', ...(file.kind === 'test' ? ['testing'] : []), ...((file.security ?? []).some(signal => signal.line >= symbol.line && signal.line <= symbol.endLine) ? ['security'] : [])])], hasChildren: false };
+    const node = { ...symbol, label: symbol.name, sourceName: symbol.name, sourceId: symbol.id, parentId: symbol.parentId && symbolIds.has(symbol.parentId) ? symbol.parentId : file.id, kind: 'symbol', symbolKind: symbol.kind, type: symbol.kind === 'class' ? 'module' : 'process', description: `${({ class: 'Class', method: 'Method', function: 'Function', interface: 'Interface', type: 'Type', enum: 'Enum', namespace: 'Namespace', signature: 'Signature' })[symbol.kind] ?? 'Declaration'} · ${symbol.name}`, aliases: [], fileIds: [file.id], group: 'core', layers: [...new Set(['project', ...(file.kind === 'test' ? ['testing'] : []), ...((file.security ?? []).some(signal => signal.line >= symbol.line && signal.line <= symbol.endLine) ? ['security'] : [])])], hasChildren: false };
     nodes.push(node); byId.set(node.id, node);
   }
   const parts = configuration?.parts ?? [];

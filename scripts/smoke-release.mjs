@@ -5,6 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
+import { createRequire } from 'node:module';
 
 if (!process.argv[2]) throw new Error('Usage: node scripts/smoke-release.mjs /absolute/release-directory');
 const release = fs.realpathSync(process.argv[2]);
@@ -38,6 +39,17 @@ try {
   assert(!fs.existsSync(path.join(project, 'node_modules')));
   assert(!fs.existsSync(path.join(project, 'package-lock.json')));
   checks.push('install and attach preserve host dependencies and instructions');
+  const runtime = path.join(installDir, '.local/runtime', installed.runtime.digest);
+  const runtimeRequire = createRequire(path.join(runtime, 'package.json'));
+  assert.equal(runtimeRequire.resolve('@babel/parser'), path.join(runtime, 'node_modules/@babel/parser/lib/index.js'));
+  assert.deepEqual(fs.readdirSync(path.join(runtime, 'node_modules/@babel')), ['parser']);
+  for (let ancestor = path.dirname(runtime); ; ancestor = path.dirname(ancestor)) {
+    for (const dependency of ['@babel/parser', '@babel/types', '@babel/helper-string-parser', '@babel/helper-validator-identifier']) {
+      assert(!fs.existsSync(path.join(ancestor, 'node_modules', dependency)), `Ancestor dependency would invalidate isolation proof: ${ancestor}/${dependency}`);
+    }
+    if (path.dirname(ancestor) === ancestor) break;
+  }
+  checks.push('trimmed parser resolves inside the shipped runtime with no ancestor Babel packages');
 
   fs.writeFileSync(path.join(installDir, 'project-map.json'), JSON.stringify({ schemaVersion: 1, blocks: [{ id: 'module-c', label: 'Module C', aliases: ['modul C', 'modul cé'], description: 'Normalizes a count.', type: 'module', group: 'core', files: ['src/module-c.mjs'], prefixes: [] }] }));
   const context = run(cli, ['context', 'modul C']);
@@ -105,6 +117,14 @@ try {
   run(cli, ['attach']);
   assert.match(run(cli, ['preflight', 'block:module-c', '--revision', current.revision, '--binding-id', current.binding.id, '--generation', String(current.binding.generation)], false), /expired/i);
   checks.push('source drift and pre-detach receipts rejected; exact owner instructions restored');
+
+  fs.writeFileSync(path.join(project, 'src/typed.ts'), 'export interface Box { value: string; }\nexport function typed(value: Box): string { return value.value; }\n');
+  const typedContext = run(cli, ['context', 'src/typed.ts']);
+  assert.equal(typedContext.status, 'partial');
+  assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#Box'));
+  assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#typed'));
+  assert.match(run(cli, ['preflight', 'src/typed.ts', '--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)], false), /partial/i);
+  checks.push('shipped parser extracts typed declarations while installed preflight rejects syntax-only context');
 
   const userNote = '\nOwner edit must survive.\n';
   fs.appendFileSync(path.join(installDir, 'README.md'), userNote);

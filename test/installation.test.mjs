@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { artifactDigest, verifyArtifact, installProject, attachInstallation, detachInstallation, uninstallInstallation, rebindInstallation, statusInstallation, resolveInstallation, purgePlan, purgeInstallation } from '../installation.mjs';
+import { ARTIFACT_FILES, artifactDigest, verifyArtifact, installProject, attachInstallation, detachInstallation, uninstallInstallation, rebindInstallation, statusInstallation, resolveInstallation, purgePlan, purgeInstallation } from '../installation.mjs';
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sha = value => createHash('sha256').update(value).digest('hex');
 function fixture(t) {
@@ -14,9 +14,10 @@ function fixture(t) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const release = path.join(dir, 'release'), project = path.join(dir, 'project with spaces');
   fs.mkdirSync(release); fs.mkdirSync(project);
-  const names = ['cli.mjs', 'installation.mjs', 'server.mjs', 'graph-context.mjs', 'code-index.mjs', 'source-analysis.mjs', 'symbol-index.mjs', 'live-index.mjs', 'project-map.mjs', 'README.md', 'LICENSE', 'package.json', 'package-lock.json'];
-  for (const name of names) fs.copyFileSync(path.join(source, name), path.join(release, name));
-  for (const name of ['public', 'node_modules/acorn']) fs.cpSync(path.join(source, name), path.join(release, name), { recursive: true });
+  for (const name of ARTIFACT_FILES) {
+    fs.mkdirSync(path.dirname(path.join(release, name)), { recursive: true });
+    fs.copyFileSync(path.join(source, name), path.join(release, name));
+  }
   const files = {};
   function walk(current, prefix = '') { for (const entry of fs.readdirSync(current, { withFileTypes: true })) { const rel = prefix + entry.name; if (entry.isDirectory()) walk(path.join(current, entry.name), rel + '/'); else files[rel] = sha(fs.readFileSync(path.join(current, entry.name))); } }
   walk(release);
@@ -46,6 +47,24 @@ test('artifact fails closed for unexpected files, altered bytes, bad digest, tra
   const manifest = JSON.parse(fs.readFileSync(path.join(f.release, 'artifact.json'))); manifest.files['../escape'] = '0'.repeat(64); fs.writeFileSync(path.join(f.release, 'artifact.json'), JSON.stringify(manifest)); assert.throws(() => verifyArtifact(f.release), /Unsafe relative/);
   delete manifest.files['../escape']; fs.writeFileSync(path.join(f.release, 'artifact.json'), JSON.stringify(manifest));
   fs.unlinkSync(path.join(f.release, 'README.md')); fs.symlinkSync(path.join(source, 'README.md'), path.join(f.release, 'README.md')); assert.throws(() => verifyArtifact(f.release), /Symbolic/);
+});
+test('artifact keeps the parser execution closure trimmed and rejects a rehashed version mismatch', t => {
+  const f = fixture(t);
+  assert.deepEqual(ARTIFACT_FILES.filter(name => name.startsWith('node_modules/@babel/')), [
+    'node_modules/@babel/parser/LICENSE',
+    'node_modules/@babel/parser/lib/index.js',
+    'node_modules/@babel/parser/package.json',
+  ]);
+  assert(ARTIFACT_FILES.includes('typed-analysis.mjs'));
+  const relative = 'node_modules/@babel/parser/package.json';
+  const metadata = JSON.parse(fs.readFileSync(path.join(f.release, relative)));
+  metadata.version = '0.0.0';
+  fs.writeFileSync(path.join(f.release, relative), JSON.stringify(metadata));
+  const manifest = JSON.parse(fs.readFileSync(path.join(f.release, 'artifact.json')));
+  manifest.files[relative] = sha(fs.readFileSync(path.join(f.release, relative)));
+  manifest.digest = artifactDigest(manifest.files);
+  fs.writeFileSync(path.join(f.release, 'artifact.json'), JSON.stringify(manifest));
+  assert.throws(() => verifyArtifact(f.release), /@babel\/parser versions do not match/);
 });
 test('foreign destination and project symlinks are rejected without overwriting', t => {
   const f = fixture(t); fs.mkdirSync(f.install); fs.writeFileSync(path.join(f.install, 'mine'), 'keep');

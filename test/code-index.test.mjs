@@ -545,11 +545,11 @@ test('namespaced metadata is a bounded independent snapshot and changes revision
 });
 
 test('unsupported source languages remain visible and cached source content is root-independent', t => {
-  const root = fixture(t, { 'src/value.ts': 'export const typed: number = 1;', 'a.mjs': 'export const value = 1;' });
+  const root = fixture(t, { 'src/value.mts': 'export const typed: number = 1;', 'a.mjs': 'export const value = 1;' });
   const graph = indexProject(root, { generic: true });
   assert.equal(graph.status, 'partial');
-  assert.deepEqual(graph.scope.unsupported, ['src/value.ts']);
-  assert.ok(graph.diagnostics.some(item => item.path === 'src/value.ts' && item.message.includes('Unsupported source')));
+  assert.deepEqual(graph.scope.unsupported, ['src/value.mts']);
+  assert.ok(graph.diagnostics.some(item => item.path === 'src/value.mts' && item.message.includes('Unsupported source')));
   const other = fixture(t, { 'a.mjs': 'export const value = 2;' });
   const second = indexProject(other, { previous: graph, generic: true });
   assert.equal(second.stats.cachedFiles, 0);
@@ -557,9 +557,9 @@ test('unsupported source languages remain visible and cached source content is r
 });
 
 test('bounded inventory fingerprints unsupported text without extending source analysis or resolution', t => {
-  const root = fixture(t, { 'main.mjs': 'import "./value.mjs"; import "./helper.ts";', 'value.mjs': 'export const value = 1;' });
+  const root = fixture(t, { 'main.mjs': 'import "./value.mjs"; import "./helper.mts";', 'value.mjs': 'export const value = 1;' });
   const original = indexProject(root);
-  write(root, 'helper.ts', 'export const typed: number = 1; // Žluťoučký\r\n');
+  write(root, 'helper.mts', 'export const typed: number = 1; // Žluťoučký\r\n');
   write(root, 'notes.txt', 'Plain text, not source analysis.');
   const graph = indexProject(root, { previous: original });
   assert.equal(graph.inventory.status, 'complete');
@@ -567,23 +567,23 @@ test('bounded inventory fingerprints unsupported text without extending source a
   assert.notEqual(graph.revision, original.revision);
   assert.deepEqual(graph.edges, original.edges, 'inventory must not resolve the formerly unsupported import');
   for (const name of ['main.mjs', 'value.mjs']) assert.deepEqual(file(graph, name), file(original, name));
-  const typed = file(graph, 'helper.ts');
+  const typed = file(graph, 'helper.mts');
   assert.equal(typed.kind, 'file');
   assert.deepEqual(typed.capabilities, ['text']);
   assert.deepEqual(typed.symbols, []);
-  assert.ok(!graph.symbolGraph.nodes.some(node => node.path === 'helper.ts'));
+  assert.ok(!graph.symbolGraph.nodes.some(node => node.path === 'helper.mts'));
   assert.equal(readIndexedSource(root, typed), 'export const typed: number = 1; // Žluťoučký\r\n');
-  assert.equal(graph.inventory.entries.find(entry => entry.path === 'helper.ts').hash, typed.hash);
+  assert.equal(graph.inventory.entries.find(entry => entry.path === 'helper.mts').hash, typed.hash);
   assert.equal(indexProject(root, { previous: graph }).revision, graph.revision);
-  write(root, 'helper.ts', 'export const typed: number = 2;\n');
+  write(root, 'helper.mts', 'export const typed: number = 2;\n');
   assert.throws(() => readIndexedSource(root, typed), /changed/);
   const changed = indexProject(root, { previous: graph });
   assert.notEqual(changed.revision, graph.revision);
-  fs.unlinkSync(path.join(root, 'helper.ts'));
+  fs.unlinkSync(path.join(root, 'helper.mts'));
   const removed = indexProject(root, { previous: changed });
   assert.notEqual(removed.revision, changed.revision);
-  assert.ok(!removed.inventory.entries.some(entry => entry.path === 'helper.ts'));
-  assert.ok(!file(removed, 'helper.ts'));
+  assert.ok(!removed.inventory.entries.some(entry => entry.path === 'helper.mts'));
+  assert.ok(!file(removed, 'helper.mts'));
 });
 
 test('inventory separates binary, non-UTF8, oversized and excluded entries from readable text', t => {

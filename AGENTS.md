@@ -64,7 +64,9 @@ Never execute a scanned project to discover its structure.
 `code-index.mjs` owns bounded source inventory, conservative reference resolution
 and graph composition. `source-analysis.mjs` synchronously analyzes checked text
 (JS/HTML/JSON), including static HTTP/SSE references, without I/O or project state. `project-map.mjs` derives the overview from source edges and validated
-naming metadata. `symbol-index.mjs` extracts nested named symbols and conservative
+naming metadata. `typed-analysis.mjs` owns the bounded syntax-only TS/TSX/JSX pilot and its explicit
+uncertainty; no typed import/call/type/security resolution is inferred.
+`symbol-index.mjs` extracts nested named symbols and conservative
 local calls without execution; ambiguous/dynamic calls remain unresolved. The
 overview and drill-down never invent dependencies from labels alone. `live-index.mjs` owns reconciliation
 and freshness. `server.mjs` exposes read-only loopback APIs. `graph-context.mjs`

@@ -26,8 +26,10 @@ const copy = relative => {
     fs.writeFileSync(path.join(bundle, relative), bytes, { flag: 'wx' });
   } else throw new Error(`Unsupported release input: ${relative}`);
 };
-const acorn = JSON.parse(fs.readFileSync(path.join(root, 'node_modules/acorn/package.json'), 'utf8'));
-if (acorn.version !== pkg.dependencies.acorn) throw new Error('Installed Acorn does not match the exact package pin; run npm ci --ignore-scripts.');
+for (const name of ['acorn', '@babel/parser']) {
+  const dependency = JSON.parse(fs.readFileSync(path.join(root, `node_modules/${name}/package.json`), 'utf8'));
+  if (dependency.version !== pkg.dependencies[name]) throw new Error(`Installed ${name} does not match the exact package pin; run npm ci --ignore-scripts.`);
+}
 fs.mkdirSync(bundle, { recursive: true });
 // Explicit runtime allowlist: never package development history or target workspaces.
 for (const relative of ARTIFACT_FILES) copy(relative);
