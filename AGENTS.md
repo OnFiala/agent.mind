@@ -61,8 +61,9 @@ signals identify code dependencies/callsites; they are not vulnerability finding
 Unresolved dynamic references, parse failures and excluded scope must stay visible.
 Never execute a scanned project to discover its structure.
 
-`code-index.mjs` owns bounded source extraction and conservative static HTTP/SSE
-references. `project-map.mjs` derives the overview from source edges and validated
+`code-index.mjs` owns bounded source inventory, conservative reference resolution
+and graph composition. `source-analysis.mjs` synchronously analyzes checked text
+(JS/HTML/JSON), including static HTTP/SSE references, without I/O or project state. `project-map.mjs` derives the overview from source edges and validated
 naming metadata. `symbol-index.mjs` extracts nested named symbols and conservative
 local calls without execution; ambiguous/dynamic calls remain unresolved. The
 overview and drill-down never invent dependencies from labels alone. `live-index.mjs` owns reconciliation

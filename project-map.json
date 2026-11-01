@@ -70,6 +70,7 @@
       ],
       "files": [
         "code-index.mjs",
+        "source-analysis.mjs",
         "project-map.mjs",
         "symbol-index.mjs"
       ],
@@ -430,12 +431,14 @@
       "sectionId": "file-reading"
     },
     {
-      "target": "symbol:code-index.mjs#analyzeJavaScript",
+      "target": "symbol:source-analysis.mjs#analyzeJavaScript",
       "label": "JavaScript analysis",
       "description": "Reads syntax, references, signals and named parts.",
       "section": "Syntax reading",
       "aliases": [
-        "Čtení JavaScriptu"
+        "Čtení JavaScriptu",
+        "symbol:code-index.mjs#analyzeJavaScript",
+        "code-index.mjs#analyzeJavaScript"
       ],
       "sectionId": "syntax-reading"
     },
@@ -490,62 +493,75 @@
       "sectionId": "agent-context"
     },
     {
-      "target": "symbol:code-index.mjs#analyze",
+      "target": "symbol:source-analysis.mjs#analyzeSource",
       "label": "Choose analysis",
       "description": "Chooses analysis by extension and validates structured data syntax.",
       "section": "Syntax reading",
       "aliases": [
-        "Volba čtení"
+        "Volba čtení",
+        "symbol:code-index.mjs#analyze",
+        "code-index.mjs#analyze",
+        "analyze"
       ],
       "sectionId": "syntax-reading"
     },
     {
-      "target": "symbol:code-index.mjs#analyzeHTML",
+      "target": "symbol:source-analysis.mjs#analyzeHTML",
       "label": "Page analysis",
       "description": "Finds script and stylesheet sources in actual HTML tags.",
       "section": "References",
       "aliases": [
-        "Čtení stránky"
+        "Čtení stránky",
+        "symbol:code-index.mjs#analyzeHTML",
+        "code-index.mjs#analyzeHTML"
       ],
       "sectionId": "references"
     },
     {
-      "target": "symbol:code-index.mjs#analyzeJavaScript.globalAvailable",
+      "target": "symbol:source-analysis.mjs#analyzeJavaScript.globalAvailable",
       "label": "Available global name",
       "description": "Checks that a global name is neither shadowed nor changed.",
       "section": "Syntax reading",
       "aliases": [
-        "Volné globální jméno"
+        "Volné globální jméno",
+        "symbol:code-index.mjs#analyzeJavaScript.globalAvailable",
+        "code-index.mjs#analyzeJavaScript.globalAvailable"
       ],
       "sectionId": "syntax-reading"
     },
     {
-      "target": "symbol:code-index.mjs#analyzeJavaScript.reference",
+      "target": "symbol:source-analysis.mjs#analyzeJavaScript.reference",
       "label": "Record reference",
       "description": "Stores a source reference with its supporting location.",
       "section": "References",
       "aliases": [
-        "Záznam odkazu"
+        "Záznam odkazu",
+        "symbol:code-index.mjs#analyzeJavaScript.reference",
+        "code-index.mjs#analyzeJavaScript.reference"
       ],
       "sectionId": "references"
     },
     {
-      "target": "symbol:code-index.mjs#analyzeJavaScript.security",
+      "target": "symbol:source-analysis.mjs#analyzeJavaScript.security",
       "label": "Record signal",
       "description": "Stores a security-relevant source location without a vulnerability verdict.",
       "section": "Signals",
       "aliases": [
-        "Záznam signálu"
+        "Záznam signálu",
+        "symbol:code-index.mjs#analyzeJavaScript.security",
+        "code-index.mjs#analyzeJavaScript.security"
       ],
       "sectionId": "signals"
     },
     {
-      "target": "symbol:code-index.mjs#assignmentTargets",
+      "target": "symbol:source-analysis.mjs#assignmentTargets",
       "label": "Write targets",
       "description": "Finds changed names and properties inside assignment patterns.",
       "section": "Syntax reading",
       "aliases": [
-        "Cíle zápisu"
+        "Cíle zápisu",
+        "symbol:code-index.mjs#assignmentTargets",
+        "code-index.mjs#assignmentTargets"
       ],
       "sectionId": "syntax-reading"
     },
@@ -560,22 +576,26 @@
       "sectionId": "file-reading"
     },
     {
-      "target": "symbol:code-index.mjs#children",
+      "target": "symbol:source-analysis.mjs#children",
       "label": "Syntax children",
       "description": "Returns directly nested syntax tree elements.",
       "section": "Syntax reading",
       "aliases": [
-        "Děti syntaxe"
+        "Děti syntaxe",
+        "symbol:code-index.mjs#children",
+        "code-index.mjs#children"
       ],
       "sectionId": "syntax-reading"
     },
     {
-      "target": "symbol:code-index.mjs#fetchMethod",
+      "target": "symbol:source-analysis.mjs#fetchMethod",
       "label": "Request method",
       "description": "Recognizes a directly specified client request method.",
       "section": "HTTP links",
       "aliases": [
-        "Metoda požadavku"
+        "Metoda požadavku",
+        "symbol:code-index.mjs#fetchMethod",
+        "code-index.mjs#fetchMethod"
       ],
       "sectionId": "http-links"
     },
@@ -590,12 +610,14 @@
       "sectionId": "helpers"
     },
     {
-      "target": "symbol:code-index.mjs#handlerPath",
+      "target": "symbol:source-analysis.mjs#handlerPath",
       "label": "Handler path",
       "description": "Accepts only the exact pathname compared by the server.",
       "section": "HTTP links",
       "aliases": [
-        "Cesta obsluhy"
+        "Cesta obsluhy",
+        "symbol:code-index.mjs#handlerPath",
+        "code-index.mjs#handlerPath"
       ],
       "sectionId": "http-links"
     },
@@ -610,12 +632,14 @@
       "sectionId": "file-reading"
     },
     {
-      "target": "symbol:code-index.mjs#isFunction",
+      "target": "symbol:source-analysis.mjs#isFunction",
       "label": "Function check",
       "description": "Checks whether a syntax element represents a function.",
       "section": "Syntax reading",
       "aliases": [
-        "Rozpoznání funkce"
+        "Rozpoznání funkce",
+        "symbol:code-index.mjs#isFunction",
+        "code-index.mjs#isFunction"
       ],
       "sectionId": "syntax-reading"
     },
@@ -660,32 +684,38 @@
       "sectionId": "classification"
     },
     {
-      "target": "symbol:code-index.mjs#location",
+      "target": "symbol:source-analysis.mjs#location",
       "label": "Source evidence",
       "description": "Adds a path, line and short source excerpt.",
       "section": "Helpers",
       "aliases": [
-        "Zdrojový důkaz"
+        "Zdrojový důkaz",
+        "symbol:code-index.mjs#location",
+        "code-index.mjs#location"
       ],
       "sectionId": "helpers"
     },
     {
-      "target": "symbol:code-index.mjs#memberOf",
+      "target": "symbol:source-analysis.mjs#memberOf",
       "label": "Object property",
       "description": "Matches an exact object and directly named property.",
       "section": "Syntax reading",
       "aliases": [
-        "Vlastnost objektu"
+        "Vlastnost objektu",
+        "symbol:code-index.mjs#memberOf",
+        "code-index.mjs#memberOf"
       ],
       "sectionId": "syntax-reading"
     },
     {
-      "target": "symbol:code-index.mjs#patternNames",
+      "target": "symbol:source-analysis.mjs#patternNames",
       "label": "Assigned names",
       "description": "Extracts variable names, including destructuring patterns.",
       "section": "Syntax reading",
       "aliases": [
-        "Jména v přiřazení"
+        "Jména v přiřazení",
+        "symbol:code-index.mjs#patternNames",
+        "code-index.mjs#patternNames"
       ],
       "sectionId": "syntax-reading"
     },
@@ -710,12 +740,14 @@
       "sectionId": "file-reading"
     },
     {
-      "target": "symbol:code-index.mjs#requestPath",
+      "target": "symbol:source-analysis.mjs#requestPath",
       "label": "Request path",
       "description": "Extracts a fixed local pathname without its query or fragment.",
       "section": "HTTP links",
       "aliases": [
-        "Cesta požadavku"
+        "Cesta požadavku",
+        "symbol:code-index.mjs#requestPath",
+        "code-index.mjs#requestPath"
       ],
       "sectionId": "http-links"
     },
@@ -730,22 +762,26 @@
       "sectionId": "references"
     },
     {
-      "target": "symbol:code-index.mjs#scopeNames",
+      "target": "symbol:source-analysis.mjs#scopeNames",
       "label": "Local names",
       "description": "Collects local names to identify shadowed bindings.",
       "section": "Syntax reading",
       "aliases": [
-        "Jména v okolí"
+        "Jména v okolí",
+        "symbol:code-index.mjs#scopeNames",
+        "code-index.mjs#scopeNames"
       ],
       "sectionId": "syntax-reading"
     },
     {
-      "target": "symbol:code-index.mjs#securityModule",
+      "target": "symbol:source-analysis.mjs#securityModule",
       "label": "Tracked dependency",
       "description": "Recognizes a dependency with tracked security relevance.",
       "section": "Signals",
       "aliases": [
-        "Sledovaná závislost"
+        "Sledovaná závislost",
+        "symbol:code-index.mjs#securityModule",
+        "code-index.mjs#securityModule"
       ],
       "sectionId": "signals"
     },
@@ -760,42 +796,50 @@
       "sectionId": "file-reading"
     },
     {
-      "target": "symbol:code-index.mjs#serverContracts",
+      "target": "symbol:source-analysis.mjs#serverContracts",
       "label": "Handled routes",
       "description": "Identifies routes in a known local HTTP callback.",
       "section": "HTTP links",
       "aliases": [
-        "Obsluhované cesty"
+        "Obsluhované cesty",
+        "symbol:code-index.mjs#serverContracts",
+        "code-index.mjs#serverContracts"
       ],
       "sectionId": "http-links"
     },
     {
-      "target": "symbol:code-index.mjs#serverContracts.equality",
+      "target": "symbol:source-analysis.mjs#serverContracts.equality",
       "label": "Request comparison",
       "description": "Recognizes a known request property compared with fixed text.",
       "section": "HTTP links",
       "aliases": [
-        "Porovnání požadavku"
+        "Porovnání požadavku",
+        "symbol:code-index.mjs#serverContracts.equality",
+        "code-index.mjs#serverContracts.equality"
       ],
       "sectionId": "http-links"
     },
     {
-      "target": "symbol:code-index.mjs#serverContracts.noteWrite",
+      "target": "symbol:source-analysis.mjs#serverContracts.noteWrite",
       "label": "Binding changes",
       "description": "Records writes that may change a local name's meaning.",
       "section": "Syntax reading",
       "aliases": [
-        "Záznam změny vazby"
+        "Záznam změny vazby",
+        "symbol:code-index.mjs#serverContracts.noteWrite",
+        "code-index.mjs#serverContracts.noteWrite"
       ],
       "sectionId": "syntax-reading"
     },
     {
-      "target": "symbol:code-index.mjs#serverContracts.within",
+      "target": "symbol:source-analysis.mjs#serverContracts.within",
       "label": "Scope match",
       "description": "Checks that a name is used within its declaration scope.",
       "section": "Syntax reading",
       "aliases": [
-        "Shoda prostředí"
+        "Shoda prostředí",
+        "symbol:code-index.mjs#serverContracts.within",
+        "code-index.mjs#serverContracts.within"
       ],
       "sectionId": "syntax-reading"
     },
@@ -810,12 +854,14 @@
       "sectionId": "helpers"
     },
     {
-      "target": "symbol:code-index.mjs#stringLiteral",
+      "target": "symbol:source-analysis.mjs#stringLiteral",
       "label": "Fixed text",
       "description": "Returns text only when it is written directly in source.",
       "section": "Syntax reading",
       "aliases": [
-        "Pevný text"
+        "Pevný text",
+        "symbol:code-index.mjs#stringLiteral",
+        "code-index.mjs#stringLiteral"
       ],
       "sectionId": "syntax-reading"
     },
@@ -2271,6 +2317,14 @@
       "description": "Checks whether a visible endpoint belongs to the selected area.",
       "section": "Relationships",
       "sectionId": "relationships",
+      "aliases": []
+    },
+    {
+      "target": "file:source-analysis.mjs",
+      "label": "Source analysis",
+      "description": "Analyzes checked source text without reading files or resolving project links.",
+      "section": "Syntax reading",
+      "sectionId": "syntax-reading",
       "aliases": []
     }
   ]

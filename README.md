@@ -518,6 +518,24 @@ collapsed view; `partCanvas` keeps the full source members and edges.
 `public/hierarchy.mjs` supplies both browser and agent views. Agents cooperate by
 running these checks; there is no global hook enforcing them.
 
+### Internal analysis boundary
+
+`code-index.mjs` owns safe reads, inventory, cache, resolution and graph composition.
+`source-analysis.mjs` accepts checked text, its relative path, the original byte
+hash and the index's test-file flag. It returns the existing syntactic references,
+symbols, security signals and diagnostics; JavaScript also returns HTTP/SSE facts
+and the nested symbol graph. References remain unresolved until the index matches
+them against the project. Analysis is synchronous and has no filesystem or cache
+access. The runtime stays pinned; there is no dynamic adapter registry or settings
+that require a second cache identity.
+
+Current source locations use 1-based lines and columns; columns count UTF-16 code
+units, not UTF-8 bytes. Acorn's 0-based UTF-16 offsets stay internal. CRLF is retained
+in the hashed/read source and counts as one line break. Symbols retain their existing
+kinds and start/end-line fields; no new range or language-support claim is introduced.
+HTML still skips embedded script bodies. A new parser must preserve these contracts
+or explicitly convert its own positions before joining the graph.
+
 ### Local APIs
 
 - `GET /api/graph`: graph, hierarchy and index status.

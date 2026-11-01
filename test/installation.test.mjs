@@ -14,7 +14,7 @@ function fixture(t) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const release = path.join(dir, 'release'), project = path.join(dir, 'project with spaces');
   fs.mkdirSync(release); fs.mkdirSync(project);
-  const names = ['cli.mjs', 'installation.mjs', 'server.mjs', 'graph-context.mjs', 'code-index.mjs', 'symbol-index.mjs', 'live-index.mjs', 'project-map.mjs', 'README.md', 'LICENSE', 'package.json', 'package-lock.json'];
+  const names = ['cli.mjs', 'installation.mjs', 'server.mjs', 'graph-context.mjs', 'code-index.mjs', 'source-analysis.mjs', 'symbol-index.mjs', 'live-index.mjs', 'project-map.mjs', 'README.md', 'LICENSE', 'package.json', 'package-lock.json'];
   for (const name of names) fs.copyFileSync(path.join(source, name), path.join(release, name));
   for (const name of ['public', 'node_modules/acorn']) fs.cpSync(path.join(source, name), path.join(release, name), { recursive: true });
   const files = {};

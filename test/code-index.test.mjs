@@ -686,3 +686,49 @@ for (const generic of [false, true]) test(`inventory and source reads exclude co
     assert.ok(!JSON.stringify(graph).includes(marker));
   } finally { fs.openSync = open; }
 });
+
+
+for (const newline of ['\n', '\r\n']) test(`analysis preserves UTF-16 columns, source lines and raw hashes with ${JSON.stringify(newline)}`, t => {
+  const lines = [
+    '/*🧠*/ import { value } from "./value.mjs";',
+    '/*🧠*/ export function café() {',
+    '  return value;',
+    '}',
+    'export function caller() { "🧠"; return café(); }',
+    'throw new Error("Source must only be scanned");'
+  ];
+  const source = lines.join(newline);
+  const htmlLines = [
+    '<!-- 🧠 -->',
+    '🧠<script src="../main.mjs"></script>',
+    '<script>throw new Error("Inline code must not run"); import("./absent.mjs");</script>'
+  ];
+  const root = fixture(t, { 'main.mjs': source, 'value.mjs': 'export const value = 1;', 'public/index.html': htmlLines.join(newline) });
+  const graph = indexProject(root);
+  const hash = createHash('sha256').update(source).digest('hex');
+  assert.equal(graph.status, 'current');
+  assert.equal(file(graph, 'main.mjs').hash, hash);
+  assert.equal(file(graph, 'main.mjs').bytes, Buffer.byteLength(source));
+  assert.equal(readIndexedSource(root, file(graph, 'main.mjs')), source);
+  const declaration = graph.symbolGraph.nodes.find(node => node.id === 'symbol:main.mjs#café');
+  assert.deepEqual({ line: declaration.line, column: declaration.column, endLine: declaration.endLine, hash: declaration.hash }, {
+    line: 2, column: lines[1].indexOf('function') + 1, endLine: 4, hash
+  });
+  assert.deepEqual(file(graph, 'main.mjs').symbols.find(symbol => symbol.name === 'café'), {
+    name: 'café', kind: 'function', line: 2, column: lines[1].indexOf('café') + 1
+  });
+  const imported = edge(graph, 'main.mjs', 'file:value.mjs', 'import').evidence[0];
+  assert.equal(imported.column, lines[0].indexOf('"./value.mjs"') + 1);
+  const call = graph.symbolGraph.edges.find(item => item.from === 'symbol:main.mjs#caller' && item.to === 'symbol:main.mjs#café');
+  assert.equal(call.evidence[0].line, 5);
+  assert.equal(call.evidence[0].column, lines[4].indexOf('café()') + 1);
+  const asset = edge(graph, 'public/index.html', 'file:main.mjs', 'asset').evidence[0];
+  assert.equal(asset.line, 2);
+  assert.equal(asset.column, 3, 'the astral character occupies two UTF-16 code units');
+  assert.equal(graph.edges.length, 2, 'inline JavaScript remains outside HTML analysis');
+  const warm = indexProject(root, { previous: graph });
+  assert.equal(warm.revision, graph.revision);
+  assert.deepEqual(warm.symbolGraph, graph.symbolGraph);
+  assert.deepEqual(warm.edges, graph.edges);
+  assert.equal(warm.stats.cachedFiles, 3);
+});
