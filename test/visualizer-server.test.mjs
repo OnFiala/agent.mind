@@ -82,6 +82,30 @@ test('source excerpt enforces inventory, content hash, symlinks and bounded line
   assert.throws(() => sourceExcerpt(root, live.graph, 'value.mjs'), /links/);
 });
 
+test('HTTP Python source lines agree with symbol locations for LF, CRLF and lone CR', async t => {
+  const root = fixture(t);
+  const expected = ['class Café:', '\tdef méthode(self): return "🧠"', ''];
+  for (const [index, newline] of ['\n', '\r\n', '\r'].entries()) fs.writeFileSync(path.join(root, `python-${index}.py`), expected.join(newline));
+  const app = createVisualizer({ root, intervalMs: 60000 });
+  t.after(() => app.close());
+  app.server.listen(0, '127.0.0.1');
+  await once(app.server, 'listening');
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  const graph = await (await fetch(`${base}/api/graph`)).json();
+  for (let index = 0; index < 3; index++) {
+    const relative = `python-${index}.py`;
+    const method = graph.symbolGraph.nodes.find(node => node.path === relative && node.qualifiedName === 'Café.méthode');
+    assert.equal(method.line, 2);
+    const response = await fetch(`${base}/api/source?path=${relative}&line=${method.line}`);
+    assert.equal(response.status, 200);
+    const excerpt = await response.json();
+    assert.equal(excerpt.hash, method.hash);
+    assert.equal(excerpt.totalLines, expected.length);
+    assert.deepEqual(excerpt.lines, expected.map((text, offset) => ({ number: offset + 1, text })));
+    assert.equal(excerpt.lines.find(line => line.number === method.line).text, expected[1]);
+  }
+});
+
 test('HTTP serves read-only graph, rejects old controls and foreign origins; SSE receives updates', async t => {
   const root = fixture(t);
   const app = createVisualizer({ root, intervalMs: 40 });

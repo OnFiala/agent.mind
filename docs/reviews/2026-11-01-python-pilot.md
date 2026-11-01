@@ -1,6 +1,6 @@
 # Python syntax-inspection pilot — L5
 
-Status: local candidate validated; exact independent review and hosted CI pending.
+Status: local candidate validated; PR #8 owns independent review and hosted CI disposition.
 The acceptance contract was committed first as `68016d2`, before implementation.
 Base: published 1.1.0, commit `2f6de3f37741876782144765419a9612d95d407d`.
 This candidate will be a separate PR; it does not update published 1.1.0 or targets.
@@ -104,12 +104,12 @@ Measured on Node 22.23.4, macOS arm64, Apple M5. Three fresh-process runs of
 
 | Measurement | Observed maximum | Fixed ceiling |
 |---|---:|---:|
-| Cold module loading (separate from index) | 27.49 ms | Recorded, no separate ceiling |
-| Cold index | 59.25 ms | 1,000 ms |
-| Unchanged index | 4.32 ms | 100 ms |
-| One-file update | 5.27 ms | 200 ms |
-| Live refresh after edit | 10.85 ms | 200 ms |
-| Peak RSS / growth | 93,224,960 / 41,779,200 B | 256 / 160 MiB |
+| Cold module loading (separate from index) | 27.72 ms | Recorded, no separate ceiling |
+| Cold index | 59.99 ms | 1,000 ms |
+| Unchanged index | 4.52 ms | 100 ms |
+| One-file update | 5.37 ms | 200 ms |
+| Live refresh after edit | 10.84 ms | 200 ms |
+| Peak RSS / growth | 93,945,856 / 42,467,328 B | 256 / 160 MiB |
 
 Each result has 389 visible declarations and 11 ambiguity diagnostics; no parser
 recovery/limit failures occurred in this fixed corpus. These values do not prove
@@ -119,16 +119,16 @@ reproducible with the developer harness.
 
 Artifact comparison against the publicly downloaded 1.1.0:
 
-- 47 payload files; **2,761,758 raw bytes** including manifest, **+251,779 B**.
-- Archive **1,480,552 B**, **+73,313 B**; both deltas meet the frozen ceilings.
+- 47 payload files; **2,761,761 raw bytes** including manifest, **+251,782 B**.
+- Archive **1,480,577 B**, **+73,338 B**; both deltas meet the frozen ceilings.
 - Four additional runtime packages, one new direct dependency.
-- Runtime digest `a4d97df2645a91ce8011697b453d60dd21a878f3018ccd98aac795558a65d4cd`.
-- Selected local archive SHA-256 `ae1e8d5f1937e85d8b1fdb6ae8cf384636ef076fd1d1eda23f787e8e1461d068`.
+- Runtime digest `531004ef64492f1320e253c42e683b51e24ac0d3319ab6df16a0cfa4ff5757e0`.
+- Selected local archive SHA-256 `627b99099d636bb76c1d51acfbb882373ee62e866e60c39adbb829e4481aa21c`.
 - Package version remains 1.1.0 during this unreleased source stage; this different
   candidate digest must never replace the published 1.1.0 archive. A future release
   requires its own version/preparation and owner approval.
 
-Validation: **179/179 tests**, including 13 Python tests and the existing JS/typed,
+Validation: **180/180 tests**, including 13 Python tests and the existing JS/typed,
 source, inventory and installation suites. **24 complete legacy graph comparisons**
 against the published 1.1.0 matched (only generation timestamp and parse duration
 normalized). Package construction, **10 actual-bundle smoke groups**, and the
@@ -155,5 +155,20 @@ the documented one-code-unit extension. The parser's malformed-string tolerance 
 retained as a limitation with a regression, not hidden as validated Python.
 
 [PR #8](https://github.com/OnFiala/agent.mind/pull/8) records independent review,
-final-head CI and disposition; it remains draft pending those checks.
-CORTEX reads worked, but governance writes returned HTTP 503 during this work.
+final-head CI and current lifecycle disposition.
+
+
+### Source-line integration repair
+
+Main and the independent reviewer reproduced **L5-SOURCE-01 (P2)**: the Python
+adapter counted lone CR, but HTTP source excerpts split only LF/CRLF and returned
+one line for a three-line Python file. The new HTTP regression failed with
+`totalLines: 1` versus expected `3`. `sourceExcerpt` now splits CRLF, CR or LF;
+LF/CRLF behavior and raw source hashes stay unchanged. The regression covers all
+three newline forms, Unicode and actual symbol-to-source line agreement. This
+bounded integration correction is part of L5 acceptance, not a parser claim.
+
+After L5-SOURCE-01 repair, all 180 tests, the 10 smoke groups, the 11 historical
+upgrade/rollback groups, the 24 legacy comparisons and the same installed browser
+workflow passed against the final candidate above. Three actual-bundle corpus runs
+were refreshed; all fixed budgets still pass. No existing installation changed.

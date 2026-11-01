@@ -20,7 +20,7 @@ export function sourceExcerpt(root, graph, relative, requestedLine = 1, indexOpt
   const node = graph.nodes.find(item => item.path === relative);
   if (!node || !node.hash || !relative || path.isAbsolute(relative) || relative.split('/').includes('..')) throw new Error('The file is not in the active index.');
   const source = readIndexedSource(root, node, indexOptions);
-  const lines = source.split(/\r?\n/);
+  const lines = source.split(/\r\n?|\n/);
   const line = Math.max(1, Math.min(lines.length, Number.isFinite(Number(requestedLine)) ? Math.floor(Number(requestedLine)) : 1));
   const startLine = Math.max(1, line - 8);
   return { path: relative, hash: node.hash, totalLines: lines.length, startLine, lines: lines.slice(startLine - 1, startLine + 70).map((text, offset) => ({ number: startLine + offset, text })) };
