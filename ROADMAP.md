@@ -1,9 +1,9 @@
 # Lightweight expansion plan
 
-Status: proposed sequence for review, 2026-11-01. Current shipped runtime: 1.0.3.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Current shipped runtime: 1.0.3.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
 owns dated findings and their evidence. No new language or platform support is
-claimed by this documentation change.
+claimed by this plan or the L1 correction.
 
 ## Product and installation constraints
 
@@ -36,21 +36,28 @@ project/
 - Require no account, API key, model, persistent daemon, database or cloud service.
   Keep the browser and CLI on the same source-derived graph.
 
-## Proposed PR sequence
+## PR sequence
 
 Every row is independently reviewable and reversible. Status changes only with a
 linked PR/commit and its actual checks; a merged planning PR does not mark later
-stages complete. Only the documentation work in L0 is in this PR.
+stages complete. Approval of the sequence does not authorize later implementation stages.
 
 | ID | Scope / status | Acceptance and rollback |
 |---|---|---|
-| L0 | **In review:** baseline audit, this sequence and contribution workflow | Independent review of the public diff; no private data or runtime payload changes. Revert only the documentation commits. |
-| L1 | **Proposed:** source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
+| L0 | **Merged:** [PR #1](https://github.com/OnFiala/agent.mind/pull/1), baseline audit, sequence and contribution workflow | Independent review of the public diff; no private data or runtime payload changes. Revert only the documentation commits. |
+| L1 | **Validated and owner-approved:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
 | L2 | **Proposed:** safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Proposed:** smallest parser seam needed for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
 | L4 | **Proposed:** one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
+
+L1 implementation commit [`9fbcb61`](https://github.com/OnFiala/agent.mind/commit/9fbcb61fb29a15e145c41f2542b8059e52a51f77) adds six production-path regressions.
+Local checks passed: 144 tests, package build and 7 smoke scenarios; a disposable
+Chrome fixture verified full line coverage and stable card/view state after a symbol
+move. Candidate runtime is 1,961,184 bytes (+177), with no new dependency.
+PR #2 records independent review, CI and the current merge status.
+The owner approved L1 on 2026-11-01; runtime release and target upgrades remain separate.
 
 The present JS tool remains usable while later stages are unfinished. No stage may
 expand the product's support claim before its acceptance evidence exists.
