@@ -49,7 +49,7 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L1 | **Merged:** [PR #2](https://github.com/OnFiala/agent.mind/pull/2), source-view correctness, UI-01 and UI-02 | Excerpts cover all lines; moved symbols refresh their card location; node IDs/camera/selection remain stable. Focused regressions plus relevant suite. Revert that bounded UI commit. |
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
-| L4 | **Candidate:** one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
+| L4 | **In review:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5), one bounded TypeScript/TSX/JSX syntax pilot, then production acceptance | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Proposed:** Python, then other languages according to real use | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
 
@@ -90,8 +90,11 @@ security/HTTP and framework analysis are outside this pilot; strict preflight is
 unchanged. Full local suite: 165 tests. Existing JS behavior matched 24 complete
 baseline/candidate graph comparisons (only generation time/parse duration normalized).
 Actual artifact and bounded real-corpus index/live measurements pass the fixed budgets.
-Independent exact-diff review and CI are pending; this is not production acceptance
-or a published release. Revert the focused L4 commits before any future release;
+Headless Chrome verified typed labels and source notes, then stable selection/camera
+and refreshed source location after a line move. All nine actual-bundle smoke
+checks and Node 22/24 CI passed. Scope review accepted `ed63223`; PR #5 records
+independent exact-diff review and its final disposition. This is not production
+acceptance or a published release. Revert the focused L4 commits before any future release;
 existing target installations are untouched.
 
 The present JS tool remains usable while later stages are unfinished. No stage may

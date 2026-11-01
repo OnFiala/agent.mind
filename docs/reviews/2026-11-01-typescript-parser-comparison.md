@@ -188,6 +188,17 @@ artifact digest `bb733c35eb62b80e3cf897abf6a1250e5bd558090ba0b759ab779e883d1219d
 archive SHA-256 `28c54193ed9e3b21324e50186a85cbb916a8efe2da9cfa586a667aa868b75404`.
 All nine actual-bundle smoke checks passed. Refresh this identity if payload changes.
 
-Independent review/CI and browser acceptance are pending. CORTEX was unavailable;
-this is a technical candidate with partial governance evidence, no merge/release
-or target upgrade authority.
+Headless Chrome exercised a disposable TSX fixture through the actual browser UI:
+Interface/Type labels and syntax-only notes were visible, and a selected function
+moved from line 3 to 5 with refreshed source/hash and unchanged selection/camera.
+The helper first missed the existing Other parts expansion and expected a different
+location format; correcting those helper assumptions required no product change.
+CUA startup was blocked by the session's existing symlink writable root; the check
+used a separate headless Chrome profile and loopback server, both stopped afterward.
+
+[CI run 41343574997](https://github.com/OnFiala/agent.mind/actions/runs/41343574997)
+passed for implementation `ed63223`. Scope review passed that exact head.
+[PR #5](https://github.com/OnFiala/agent.mind/pull/5) owns independent exact-diff
+review, final head CI and delivery disposition. CORTEX was unavailable; this is a
+technical candidate with partial governance evidence, no merge/release or target
+upgrade authority.
