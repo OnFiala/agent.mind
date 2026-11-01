@@ -1,6 +1,8 @@
 # Lightweight expansion plan
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Current published runtime: 1.0.3; source candidate: 1.1.0.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.1.0**.
+[GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
+versions and downloads; source version numbers alone do not establish publication.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
 owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
@@ -97,7 +99,9 @@ checks and Node 22/24 CI passed. Scope review accepted `ed63223`; PR #5 records
 independent exact-diff review and its final disposition. This is syntax inspection, not full TypeScript editing acceptance.
 The separate [1.1.0 preparation PR #6](https://github.com/OnFiala/agent.mind/pull/6) verifies the documented upgrade/rollback
 from published 1.0.3 and installed inspection of a real TS project; publication
-remains an owner action. See [1.1.0 release notes](docs/releases/1.1.0.md).
+remains an owner action. [PR #7](https://github.com/OnFiala/agent.mind/pull/7) records
+the final documentation audit and release verification. See
+[1.1.0 release notes](docs/releases/1.1.0.md).
 If the owner chooses to withdraw L4 before publication, revert the focused L4
 implementation commits. Reverting only PR #6 withdraws release preparation.
 Existing target installations are untouched.
