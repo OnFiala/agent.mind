@@ -62,6 +62,20 @@ function scopeNames(node) {
   return names;
 }
 
+// Membership-only scope state: retain local names without copying inherited sets.
+// Empty scopes reuse their parent; lookup is iterative and grows with scope depth.
+class ShadowScope {
+  constructor(names, parent = null) {
+    this.names = names;
+    this.parent = parent;
+  }
+
+  has(name) {
+    for (let scope = this; scope; scope = scope.parent) if (scope.names.has(name)) return true;
+    return false;
+  }
+}
+
 const isFunction = node => /Function/.test(node.type) || node.type === 'ArrowFunctionExpression';
 const stringLiteral = node => node?.type === 'Literal' && typeof node.value === 'string' ? node.value : null;
 const memberOf = (node, receiver, property) => node?.type === 'MemberExpression' && !node.computed && node.object.type === 'Identifier' && node.object.name === receiver && node.property.name === property;
@@ -274,11 +288,11 @@ function analyzeJavaScript(relative, source, hash, testFile) {
     }
     mutationStack.push(...children(node));
   }
-  const stack = [{ node: ast, shadowed: new Set() }];
+  const stack = [{ node: ast, shadowed: new ShadowScope(new Set()) }];
   while (stack.length) {
     const { node, shadowed } = stack.pop();
     const localNames = scopeNames(node);
-    const nextShadowed = localNames.size ? new Set([...shadowed, ...localNames]) : shadowed;
+    const nextShadowed = localNames.size ? new ShadowScope(localNames, shadowed) : shadowed;
     const globalAvailable = name => !moduleBindings.has(name) && !nextShadowed.has(name);
     if (node.type === 'ImportExpression') {
       if (node.source.type === 'Literal' && typeof node.source.value === 'string') {
