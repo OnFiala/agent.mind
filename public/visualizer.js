@@ -663,6 +663,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
 
   function status() {
     const runtime = state.runtime || {};
+    $('hierarchy-warning').hidden = !state.graph?.hierarchy || Boolean(projectScope);
     const statusNode = $('live-status');
     let label;
     let kind;
@@ -1442,6 +1443,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     else openPanel(control.dataset.panel);
   }));
   $('scope-back').addEventListener('click', goBack);
+  $('reload-map').addEventListener('click', () => window.location.reload());
   $('clear-area-focus').addEventListener('click', () => {
     state.focusedAreaId = null;
     if (state.selection?.type === 'area') { state.selection = null; if (state.panel === 'selection') renderPanel(); }
