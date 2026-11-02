@@ -46,6 +46,12 @@ function writable(pattern) {
   return [];
 }
 
+// Direct property syntax only; computed identifiers and receiver aliases are
+// outside this bounded model (no constant propagation or runtime evaluation).
+function staticMemberName(node) {
+  return node.computed ? node.property.type === 'Literal' ? node.property.value : null : node.property.name;
+}
+
 function methodName(node) {
   if (node.computed) return null;
   if (node.key.type === 'Identifier') return node.key.name;
@@ -211,9 +217,9 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
         // Explicit Class.method / Class.prototype.method writes invalidate
         // matching same-class this calls. No receiver aliases are inferred.
         let prototype = false;
-        if (receiver.type === 'MemberExpression' && !receiver.computed && receiver.property.name === 'prototype') { prototype = true; receiver = receiver.object; }
+        if (receiver.type === 'MemberExpression' && staticMemberName(receiver) === 'prototype') { prototype = true; receiver = receiver.object; }
         if (receiver.type === 'Identifier') for (const binding of lookup(record.scope, receiver.name)) if (binding.symbol?.kind === 'class') {
-          const name = item.computed ? item.property.type === 'Literal' ? item.property.value : null : item.property.name;
+          const name = staticMemberName(item);
           for (const [key, methods] of classMethods.get(binding.symbol.id) ?? []) if (name === null || !prototype && name === 'prototype' && key.startsWith('false:') || key === `${!prototype}:${name}`) methods.forEach(method => { method.mutated = true; });
         }
       }
