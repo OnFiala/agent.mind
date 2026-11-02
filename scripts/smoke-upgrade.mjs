@@ -10,7 +10,7 @@ import { once } from 'node:events';
 import { pathToFileURL } from 'node:url';
 
 const args = process.argv.slice(2);
-if (args.length !== 2 || args.some(value => !path.isAbsolute(value))) throw new Error('Usage: node scripts/smoke-upgrade.mjs /absolute/published-1.0.3-or-1.1.0 /absolute/candidate-release');
+if (args.length !== 2 || args.some(value => !path.isAbsolute(value))) throw new Error('Usage: node scripts/smoke-upgrade.mjs /absolute/pinned-published-release /absolute/candidate-release');
 const oldRelease = fs.realpathSync(args[0]), newRelease = fs.realpathSync(args[1]);
 assert.notEqual(oldRelease, newRelease);
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -32,12 +32,16 @@ const newArtifact = newVerifier.verifyArtifact(newRelease);
 const publishedDigests = new Map([
   ['1.0.3', 'ffcf92c345d0bd2d6ad6082dc546947e36b6e0e9b7f0b79d107e236434a8db28'],
   ['1.1.0', '7e6be652f82dc782928468a791dcc591e052fa9ee717247ffbd985b4bad6d102'],
+  ['1.2.0', '6f27e1b1e1d8a0740847f7bfef1f06c04d8c73dbefe2719c71c746975537550d'],
 ]);
-assert(publishedDigests.has(oldArtifact.version), 'Only published 1.0.3 and 1.1.0 are supported previous releases');
+assert(publishedDigests.has(oldArtifact.version), 'Only pinned published previous releases are supported');
 assert.equal(oldArtifact.digest, publishedDigests.get(oldArtifact.version), `The old artifact must be the exact published ${oldArtifact.version} payload`);
 assert.notEqual(newArtifact.version, oldArtifact.version);
 assert.notEqual(newArtifact.digest, oldArtifact.digest);
-assert.throws(() => newVerifier.verifyArtifact(oldRelease), /missing required file|unapproved|versions do not match/i);
+// Patch releases keep the same payload allowlist. Version identity comes from
+// the verified manifest/digest, not the version of the verifier importing it.
+if (oldArtifact.version === '1.2.0') assert.equal(newVerifier.verifyArtifact(oldRelease).digest, oldArtifact.digest);
+else assert.throws(() => newVerifier.verifyArtifact(oldRelease), /missing required file|unapproved|versions do not match/i);
 
 const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-upgrade-smoke-')));
 const backups = path.join(temporary, 'parked outside projects');
@@ -45,7 +49,7 @@ const unrelated = path.join(temporary, 'unrelated cwd');
 fs.mkdirSync(backups); fs.mkdirSync(unrelated);
 const env = { ...process.env };
 delete env.AGENT_MIND_PROJECT;
-const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; current allowlist rejects old payload`];
+const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; ${oldArtifact.version === '1.2.0' ? 'compatible allowlist preserves distinct manifest/digest identities' : 'current allowlist rejects the older payload shape'}`];
 const receipts = [];
 let view, report;
 const run = (cli, argv, expectedError) => {
@@ -243,8 +247,9 @@ try {
   checks.push('post-uninstall tampered-candidate failure is explicit and leaves no runtime/stage; original release plus saved map restores a verified usable old installation');
 
   // 1.0.3 predates the bounded text-inventory contract. Its regression above stays
-  // focused on lifecycle preservation; use published 1.1.0 for the Python transition.
-  if (oldArtifact.version === '1.1.0') {
+  // focused on lifecycle preservation. Later releases also exercise Python.
+  if (['1.1.0', '1.2.0'].includes(oldArtifact.version)) {
+    const oldPythonSyntax = oldArtifact.version === '1.2.0';
     const python = fixture('Python capability transition');
     install(python, oldRelease, oldArtifact);
     const relative = 'src/inspect.py';
@@ -267,7 +272,7 @@ try {
       assertHost(python);
       return context;
     };
-    const inventory = pythonContext(false);
+    const inventory = pythonContext(oldPythonSyntax);
     const beforePython = uninstallAndPark(python, 'Python inventory remnants', addOwnerData(python, 'Python inventory'));
     install(python, newRelease, newArtifact, 'partial');
     const declarations = pythonContext(true);
@@ -276,13 +281,56 @@ try {
     // lifecycle fixture above separately proves stale binding/revision rejection.
     run(installedCLI(python), ['preflight', relative, ...receiptArgs(inventory)], /partial/i);
     const afterPython = uninstallAndPark(python, 'Python syntax remnants', addOwnerData(python, 'Python syntax'));
-    install(python, oldRelease, oldArtifact);
-    rejectOldReceipt(python, declarations);
-    pythonContext(false);
+    install(python, oldRelease, oldArtifact, oldPythonSyntax ? 'partial' : 'current');
+    const restored = pythonContext(oldPythonSyntax);
+    assert.notEqual(restored.binding.id, declarations.binding.id);
+    if (!oldPythonSyntax) rejectOldReceipt(python, declarations);
+    else run(installedCLI(python), ['preflight', relative, ...receiptArgs(declarations)], /partial/i);
     assertParked(beforePython); assertParked(afterPython);
-    checks.push('published 1.1.0 Python text-only inventory upgrades to named declarations/partial with strict preflight rejection; rollback restores text-only inventory, exact CRLF/Unicode source and both recovery backups');
+    checks.push(oldPythonSyntax
+      ? 'published 1.2.0 Python declarations/partial and strict preflight rejection survive upgrade and rollback; exact CRLF/Unicode source and both recovery backups preserved'
+      : 'published 1.1.0 Python text-only inventory upgrades to named declarations/partial with strict preflight rejection; rollback restores text-only inventory, exact CRLF/Unicode source and both recovery backups');
   } else {
     checks.push('1.0.3 regression retains lifecycle/typed checks; Python inventory-to-syntax-to-inventory transition is explicitly exercised only with published 1.1.0');
+  }
+
+  if (oldArtifact.version === '1.2.0') {
+    const js = fixture('JavaScript binding repair roundtrip');
+    js.files['src/main.mjs'] = [
+      'throw new Error("Target must never execute");',
+      'function target() {}',
+      'export function owner(value = target()) {',
+      '  var target = () => {};',
+      '  target();',
+      '}',
+      'class Store { run() { this.save(); } save() {} }',
+      'function replacement() {}',
+      'Store["prototype"].save = replacement;',
+      ''
+    ].join('\n');
+    fs.writeFileSync(path.join(js.project, 'src/main.mjs'), js.files['src/main.mjs']);
+    const bindingContext = fixed => {
+      const context = run(installedCLI(js), ['context', selector]);
+      assert.equal(context.status, 'current');
+      const edge = (from, to) => context.symbolGraph.edges.find(item => item.from === `symbol:src/main.mjs#${from}` && item.to === `symbol:src/main.mjs#${to}`);
+      assert.deepEqual(edge('owner', 'target')?.evidence.map(item => item.line), fixed ? [3] : undefined);
+      assert.deepEqual(edge('owner', 'owner.target')?.evidence.map(item => item.line), fixed ? [5] : [3, 5]);
+      assert.equal(Boolean(edge('Store.run', 'Store.save')), !fixed);
+      assertHost(js);
+      return context;
+    };
+    install(js, oldRelease, oldArtifact);
+    const original = bindingContext(false);
+    const oldJS = uninstallAndPark(js, 'JS original remnants', addOwnerData(js, 'JS original'));
+    install(js, newRelease, newArtifact);
+    const repaired = bindingContext(true);
+    rejectOldReceipt(js, original);
+    const newJS = uninstallAndPark(js, 'JS repaired remnants', addOwnerData(js, 'JS repaired'));
+    install(js, oldRelease, oldArtifact);
+    bindingContext(false);
+    rejectOldReceipt(js, repaired);
+    assertParked(oldJS); assertParked(newJS);
+    checks.push('installed CLI shows both known 1.2.0 JS binding defects, correct candidate callsites/invalidation, and the original behavior after rollback; source, maps and recovery bytes preserved');
   }
 
   assert.deepEqual(snapshot(oldRelease), inputBefore[0]); assert.deepEqual(snapshot(newRelease), inputBefore[1]);
