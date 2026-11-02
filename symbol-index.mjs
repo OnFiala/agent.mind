@@ -25,6 +25,17 @@ function names(pattern) {
   return [];
 }
 
+// Only parameter expressions need an environment outside the body's var scope.
+// Destructuring alone does not: defaults and computed keys may occur at any depth.
+function hasParameterExpression(pattern) {
+  if (!pattern) return false;
+  if (pattern.type === 'AssignmentPattern') return true;
+  if (pattern.type === 'RestElement') return hasParameterExpression(pattern.argument);
+  if (pattern.type === 'ArrayPattern') return pattern.elements.some(hasParameterExpression);
+  if (pattern.type === 'ObjectPattern') return pattern.properties.some(item => item.computed || hasParameterExpression(item.value ?? item.argument));
+  return false;
+}
+
 function writable(pattern) {
   if (!pattern) return [];
   if (['Identifier', 'MemberExpression'].includes(pattern.type)) return [pattern];
@@ -154,7 +165,10 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
         closureDepth: own ? 0 : context.closureDepth + 1, method: false
       };
       for (const parameter of node.params) visit(parameter, current, depth + 1);
-      visit(node.body, current, depth + 1);
+      // Body var declarations cannot shadow reads, closures or writes created
+      // while evaluating parameter expressions. Keep the owner and lexical this.
+      const bodyContext = node.params.some(hasParameterExpression) ? { ...current, scope: scope(functionScope, 'function') } : current;
+      visit(node.body, bodyContext, depth + 1);
       return;
     }
     if (node.type === 'BlockStatement' || node.type === 'StaticBlock' || node.type === 'CatchClause' || ['ForStatement', 'ForInStatement', 'ForOfStatement', 'SwitchStatement'].includes(node.type)) {
