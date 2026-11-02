@@ -1,7 +1,7 @@
 {
   "name": "agent-mind",
-  "version": "1.1.0",
-  "description": "Local read-only code maps: JavaScript relationships and syntax-only TypeScript/TSX/JSX inspection",
+  "version": "1.2.0",
+  "description": "Local read-only code maps: JavaScript relationships and syntax-only TypeScript/TSX/JSX/Python inspection",
   "directories": {
     "test": "test"
   },
@@ -13,7 +13,10 @@
   },
   "keywords": [],
   "author": "OnFiala",
-  "repository": { "type": "git", "url": "https://github.com/OnFiala/agent.mind.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OnFiala/agent.mind.git"
+  },
   "license": "ISC",
   "dependencies": {
     "@babel/parser": "7.29.12",
