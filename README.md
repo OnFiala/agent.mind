@@ -5,9 +5,9 @@ and named declarations, inspect supported static relationships, and use the same
 project names in the canvas and agent context. Saved source changes refresh the map.
 
 agent.mind reads source files without running your project. It currently analyzes
-JavaScript (`.js`, `.mjs`). Version 1.1.0 adds bounded text inventory and a
-TypeScript/TSX/JSX syntax-only inspection pilot. Framework routing remains
-unsupported; typed files remain explicitly partial.
+JavaScript (`.js`, `.mjs`). Version 1.2.0 includes bounded text inventory and
+TypeScript/TSX/JSX/Python syntax-only inspection. Framework routing remains
+unsupported; typed and Python files remain explicitly partial.
 It runs locally, with no global install, account, API key or model required.
 
 **Start with a small project you know.** Try ordinary JavaScript with around
@@ -24,31 +24,35 @@ an installation, or a contribution to agent.mind.
 
 ## Support at a glance
 
-| Source | Available in 1.1.0 | Boundary |
+| Source | Available in the 1.2.0 release line | Boundary |
 |---|---|---|
 | JavaScript `.js`, `.mjs` | Named symbols, static file references, conservative same-file calls, selected security/HTTP signals | No imported-call resolution, arbitrary runtime dispatch or framework routing |
 | TypeScript `.ts`, TSX `.tsx`, JSX `.jsx` | Named declarations, source locations and parser provenance | Syntax-only inspection; every pilot file is `partial` and strict preflight rejects it |
 | HTML / JSON | Static HTML asset references / JSON syntax validation | Embedded scripts are not analyzed |
-| Python `.py`, CSS, Markdown and other eligible UTF-8 text | Inventory and hash-bound source reads | No language symbols or internal dependency/call analysis |
+| Python `.py` | Named functions, classes, methods, source locations and parser provenance | Syntax-only inspection, not CPython validation; every Python file is `partial` and strict preflight rejects it |
+| CSS, Markdown, `.pyi`, notebooks and other eligible UTF-8 text | Inventory and hash-bound source reads | No language symbols or internal dependency/call analysis |
 | Binary, oversized or excluded input | Explicit inventory/scope state where observable | No readable source claim for unread contents |
 
 Capabilities are per file; a visible file or a current context is not proof that
 its language semantics were analyzed. Security and Testing are source-reference
 views, not vulnerability scans, test execution or coverage. See
 [What it can read](#what-it-can-read) and the [typed pilot](#typescripttsxjsx-inspection-pilot-110)
-for the exact limits. The development checkout adds an **unreleased Python syntax
-pilot** described below; published 1.1.0 and existing installations do not include
-it. Additional host environments remain planned.
+for the exact limits and the [Python pilot](#python-inspection-pilot-120).
+The source checkout prepares **1.2.0**; only a published release with downloadable
+assets establishes availability. Version 1.1.0 has Python inventory/text reads only.
+Existing installations do not update automatically. Additional host environments
+remain planned.
 
 ## Install into a project
 
-These instructions describe **1.1.0**. Download the archive and checksum from the
-[1.1.0 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.1.0).
+These instructions describe the **1.2.0 release line**. After publication, download
+the archive and checksum from the
+[1.2.0 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.0).
 A version in source alone is not proof of publication: if those assets are not
 available, use an existing published version or build a local candidate as described
 under [Development](#development). Existing targets keep their pinned version;
-upgrades are explicit. Version 1.0.3 remains available for rollback and does not
-contain the inventory/typed-syntax additions.
+upgrades are explicit. The prior [1.1.0 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.1.0)
+remains available for rollback; it includes typed inspection but no Python declarations.
 
 Requires Node.js 22 or newer on macOS or Linux. Select the published version before
 downloading; source candidates can be built locally using [Development](#development):
@@ -56,11 +60,11 @@ downloading; source candidates can be built locally using [Development](#develop
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.1.0.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.1.0/agent-mind-1.1.0.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.1.0/SHA256SUMS
+curl --fail --location --output agent-mind-1.2.0.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.2.0/agent-mind-1.2.0.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.2.0/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.1.0.tar.gz
-node agent-mind-1.1.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.1.0" --attach
+tar -xzf agent-mind-1.2.0.tar.gz
+node agent-mind-1.2.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.2.0" --attach
 ```
 
 Stop if checksum verification fails. Checksums check the downloaded bytes, so
@@ -68,8 +72,9 @@ choose the source repository deliberately. The installer also checks the full
 runtime manifest and rejects unknown files and symlinks. It will not overwrite
 an existing unowned `agent.mind/` directory.
 
-The 1.1.0 runtime includes Acorn and the bounded Babel parser, with dependencies
-kept inside `agent.mind/`. No target compiler or build configuration is executed.
+The 1.2.0 runtime includes Acorn, the bounded Babel parser and Lezer Python with
+its three supporting packages, all inside `agent.mind/`. No Python interpreter,
+target compiler or build configuration is executed.
 It leaves your project's package.json, lockfile and node_modules alone. `--attach`
 adds one marked block to the project's `AGENTS.md`, preserving existing instructions.
 This is the only integration outside `agent.mind/`.
@@ -112,7 +117,7 @@ A fresh clone needs a local installation. Download the same pinned release,
 then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.1.0/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.1.0 --adopt --attach
+node /path/to/agent-mind-1.2.0/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.2.0 --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -244,10 +249,11 @@ affected targets, without treating those unsupported bodies as call evidence.
 Anonymous callbacks can add references to their nearest named symbol, marked
 `nested-closure`; that does not mean the parent calls them directly. Imported
 function calls, arbitrary object dispatch and runtime behavior are unsupported. **Entry** and **File body** show statements at the current source
-level. File imports are not treated as function calls. CSS, JSON, Markdown and
-Python files are listed without internal call analysis. Other bounded UTF-8 text
-files can also be listed and read, including unsupported source languages; this
-does not add symbols, dependency resolution or security analysis for those types.
+level. File imports are not treated as function calls. Python and typed source
+have the declaration-only support described above, without internal call analysis.
+CSS, Markdown and other bounded UTF-8 text can be listed and read, including
+unsupported source languages; inventory does not add symbols, dependency
+resolution or security analysis for those types. JSON syntax is checked.
 Binary or non-UTF-8 content is inventoried but never returned as source text.
 
 HTTP/SSE connections match global `fetch`/`EventSource` calls with fixed local
@@ -338,8 +344,8 @@ data**, including your map and recovery copies, stop external writers, inspect
 the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.1.0/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.1.0/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.2.0/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.2.0/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
 Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
@@ -391,7 +397,8 @@ the original verified release. If installation/attachment fails after creating a
 integration, inspect it with that release's CLI; resolve conflicts or uninstall
 before moving its remnants aside. Never force another install over partial state.
 The forward, failure/recovery and downgrade paths are exercised by
-`scripts/smoke-upgrade.mjs` using the actual published 1.0.3 artifact and new bundle.
+`scripts/smoke-upgrade.mjs` using the actual published 1.0.3 and 1.1.0 artifacts
+and the new bundle, including the Python capability transition and rollback.
 These are caught-failure checks, not crash/power-loss atomicity guarantees.
 Existing installations do not change when a new release is published.
 
@@ -498,8 +505,8 @@ verified edit. Preflight does not lock files or control your other tools.
 
 After edits, run the target project's relevant checks and obtain fresh context.
 Static test links do not prove tests passed or measure coverage. Security labels
-identify source to review; they are not vulnerability findings. The 1.1.0
-syntax pilot does not resolve typed imports or calls; framework routing and
+identify source to review; they are not vulnerability findings. The typed and
+Python syntax pilots do not resolve imports or calls; framework routing and
 dynamic calls remain unsupported even when the visible map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
 
@@ -618,11 +625,11 @@ license, alongside Acorn. No project config, compiler, scripts or dependencies
 are loaded. [Comparison and acceptance evidence](https://github.com/OnFiala/agent.mind/blob/b1cac5792e0427369d3e15defc5e590e93edf7db/docs/reviews/2026-11-01-typescript-parser-comparison.md)
 records the exact candidates, fixed budgets and measured corpus; these are bounded
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
-installations. Version 1.0.3 remains the prior release for explicit rollback.
+installations. Use the original release matching the chosen rollback version.
 
-### Python inspection pilot (unreleased L5 candidate)
+### Python inspection pilot (1.2.0)
 
-The source candidate uses `@lezer/python` 1.1.19 with `@lezer/common` 1.5.5,
+Version 1.2.0 uses `@lezer/python` 1.1.19 with `@lezer/common` 1.5.5,
 `@lezer/lr` 1.4.12 and `@lezer/highlight` 1.2.5 (MIT). The runtime bundles their
 ESM entrypoints, metadata and licenses. It requires no Python interpreter and
 never imports or executes the scanned source or its environment.
@@ -647,10 +654,11 @@ depth 256 produce an explicit limitation and no declarations. These are not hard
 parser deadlines or a security sandbox. Source text remains available within the
 separate inventory limits.
 
-This is a development candidate, not a published support claim. The source
-repository's `docs/reviews/2026-11-01-python-pilot.md` records fixed budgets, parser
-selection and exact validation evidence; that report is not shipped in the runtime.
-No target installation is upgraded by building or reviewing this branch.
+The [Python contract and implementation evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
+records fixed budgets, parser selection and validation of the merged pilot.
+Release preparation is recorded in the source repository's `docs/releases/1.2.0.md`;
+review documents are not shipped in the runtime. Publication and target upgrades
+remain separate from building or reviewing a candidate.
 
 ### Local APIs
 
@@ -669,14 +677,17 @@ blocks listening, run them with permission to use local ports.
 
 ## Validation and known limits
 
-For 1.1.0, [release notes and validation](https://github.com/OnFiala/agent.mind/blob/v1.1.0/docs/releases/1.1.0.md)
+For 1.2.0, the source release record `docs/releases/1.2.0.md` covers the Python
+workflow and upgrade/rollback from published 1.1.0, with 1.0.3 retained as a regression.
+The [Python pilot evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
+records the bounded parser measurements. For 1.1.0, [release notes and validation](https://github.com/OnFiala/agent.mind/blob/v1.1.0/docs/releases/1.1.0.md)
 record the installed TS workflow, artifact checks and upgrade/rollback from 1.0.3.
 The release page carries the final downloadable bytes and checksum; `artifact.json`
 inside the verified archive identifies its runtime. Source commits and CI alone do
 not establish which version a target has installed: inspect that target's `status`.
 
 The following 1.0.1/1.0.2 measurements are retained as **historical evidence**.
-They are not a new benchmark of 1.1.0. The hierarchy issue described below was
+They are not a new benchmark of 1.2.0. The hierarchy issue described below was
 repaired in 1.0.2; remaining synchronous parser and workload limits still apply.
 
 This is an engineering validation record, not a formal compliance certification or
