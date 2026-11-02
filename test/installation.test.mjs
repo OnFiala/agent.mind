@@ -66,6 +66,23 @@ test('artifact keeps the parser execution closure trimmed and rejects a rehashed
   fs.writeFileSync(path.join(f.release, 'artifact.json'), JSON.stringify(manifest));
   assert.throws(() => verifyArtifact(f.release), /@babel\/parser versions do not match/);
 });
+test('Python artifact includes its ESM closure and rejects rehashed transitive metadata drift', t => {
+  const f = fixture(t);
+  for (const name of ['python', 'common', 'lr', 'highlight']) {
+    assert(ARTIFACT_FILES.includes(`node_modules/@lezer/${name}/LICENSE`));
+    assert(ARTIFACT_FILES.includes(`node_modules/@lezer/${name}/dist/index.js`));
+    assert(!ARTIFACT_FILES.includes(`node_modules/@lezer/${name}/dist/index.cjs`));
+  }
+  const relative = 'node_modules/@lezer/common/package.json';
+  const metadata = JSON.parse(fs.readFileSync(path.join(f.release, relative)));
+  metadata.version = '0.0.0';
+  fs.writeFileSync(path.join(f.release, relative), JSON.stringify(metadata));
+  const manifest = JSON.parse(fs.readFileSync(path.join(f.release, 'artifact.json')));
+  manifest.files[relative] = sha(fs.readFileSync(path.join(f.release, relative)));
+  manifest.digest = artifactDigest(manifest.files);
+  fs.writeFileSync(path.join(f.release, 'artifact.json'), JSON.stringify(manifest));
+  assert.throws(() => verifyArtifact(f.release), /@lezer\/common versions do not match/);
+});
 test('foreign destination and project symlinks are rejected without overwriting', t => {
   const f = fixture(t); fs.mkdirSync(f.install); fs.writeFileSync(path.join(f.install, 'mine'), 'keep');
   assert.throws(() => install(f)); assert.equal(fs.readFileSync(path.join(f.install, 'mine'), 'utf8'), 'keep');

@@ -126,6 +126,27 @@ try {
   assert.match(run(cli, ['preflight', 'src/typed.ts', '--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)], false), /partial/i);
   checks.push('shipped parser extracts typed declarations while installed preflight rejects syntax-only context');
 
+  for (const name of ['python', 'common', 'lr', 'highlight']) {
+    assert(fs.existsSync(path.join(runtime, 'node_modules/@lezer', name, 'dist/index.js')));
+    assert(!fs.existsSync(path.join(runtime, 'node_modules/@lezer', name, 'dist/index.cjs')));
+    for (let ancestor = path.dirname(runtime); ; ancestor = path.dirname(ancestor)) {
+      assert(!fs.existsSync(path.join(ancestor, 'node_modules/@lezer', name)), 'Ancestor Lezer package invalidates runtime isolation');
+      if (path.dirname(ancestor) === ancestor) break;
+    }
+  }
+  fs.writeFileSync(path.join(project, 'src/python.py'), 'raise RuntimeError("Scanned source must not run")\nclass Service:\n    async def run(self):\n        return 1\n');
+  const pythonContext = run(cli, ['context', 'src/python.py']);
+  assert.equal(pythonContext.status, 'partial');
+  assert(pythonContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/python.py#Service.run'));
+  assert.equal(pythonContext.symbolGraph.edges.length, 0);
+  assert.match(run(cli, ['preflight', 'src/python.py', '--revision', pythonContext.revision, '--binding-id', pythonContext.binding.id, '--generation', String(pythonContext.binding.generation)], false), /partial/i);
+  fs.writeFileSync(path.join(project, 'src/python.py'), 'def original(): pass\ndef broken(\n');
+  const failedPython = run(cli, ['context', 'src/python.py']);
+  assert(!failedPython.symbolGraph.nodes.some(node => node.path === 'src/python.py'));
+  assert(failedPython.diagnostics.some(d => /parse error/i.test(d.message)));
+  checks.push('shipped isolated Python parser exposes declarations, rejects partial preflight and withholds recovered symbols without source execution');
+
+
   const userNote = '\nOwner edit must survive.\n';
   fs.appendFileSync(path.join(installDir, 'README.md'), userNote);
   fs.writeFileSync(path.join(installDir, 'owner-note.txt'), 'keep');

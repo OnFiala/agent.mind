@@ -12,7 +12,7 @@ export const INDEX_LIMITS = Object.freeze({ files: 1000, fileBytes: 512 * 1024, 
 const EXTENSIONS = new Set(['.mjs', '.js', '.json', '.html', '.css', '.md', '.py']);
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'backups', 'evidence', 'workspace', 'legacy', 'coverage']);
 const GENERIC_EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
-const UNSUPPORTED_SOURCE = /\.(?:ts|tsx|jsx|mts|cts|go|rs|java|swift|kt|c|h|cpp|cs|rb|php|vue|svelte)$/i;
+const UNSUPPORTED_SOURCE = /\.(?:ts|tsx|jsx|mts|cts|pyi|go|rs|java|swift|kt|c|h|cpp|cs|rb|php|vue|svelte)$/i;
 const CACHE = new WeakMap();
 const sha = value => createHash('sha256').update(value).digest('hex');
 const fileId = relative => `file:${relative}`;
@@ -43,6 +43,7 @@ function capabilitiesFor(relative) {
   const extension = path.extname(relative);
   if (extension === '.js' || extension === '.mjs') return ['text', 'javascript-syntax', 'static-references', 'named-symbols', 'local-calls', 'security-signals'];
   if (isTypedSource(relative)) return ['text', ...(extension === '.jsx' ? [] : ['typescript-syntax']), ...(extension === '.ts' ? [] : ['jsx-syntax']), 'named-symbols'];
+  if (extension === '.py') return ['text', 'python-syntax', 'named-symbols'];
   if (extension === '.html') return ['text', 'html-assets'];
   if (extension === '.json') return ['text', 'json-validation'];
   return ['text'];
@@ -355,6 +356,7 @@ export function indexProject(directory, options = {}) {
       'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, Python dependencies and Markdown links.',
       'Inventory includes bounded regular files independently of language support. UTF-8 text without binary controls can be read by indexed hash. Binary, unreadable, oversized and unscanned entries have explicit states; excluded directories are not traversed. Hidden/sensitive paths, symlinks and configured exclusions remain excluded.',
       'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
+      ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python pilot provides bounded named declarations only (64 KiB per file), using an editor grammar rather than CPython validation. Every file is partial; imports, calls, types, security and framework behavior remain unanalyzed. Recovery errors and traversal limits withhold all symbols; ambiguous declarations and descendants are withheld. Decorator effects, notebooks and .pyi files are outside scope. Parser limits are not timeouts or a sandbox.'] : []),
       ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides syntax and bounded named declarations only (64 KiB per file); no import/type/call/security/HTTP analysis. Both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse errors and ambiguity withhold affected symbols; traversal limits withhold all symbols from the file. Parser and traversal limits are not timeouts or a sandbox.'] : []),
       `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'

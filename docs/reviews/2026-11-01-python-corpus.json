@@ -1,0 +1,130 @@
+{
+  "repository": "https://github.com/pallets/flask",
+  "commit": "2c1b30d0503cfb064f1cb252e6614a06915a362a",
+  "license": "BSD-3-Clause",
+  "archiveSHA256": "41fb36e5e022870ff304336f7f6bc1e69b5927f448da2f62e2a15d9319b99d09",
+  "files": [
+    {
+      "path": "src/flask/__init__.py",
+      "bytes": 2701,
+      "sha256": "987bc937d4b0b65d510ed8c2a82218c889e22bf499fe5fe1a94ca73b382927da"
+    },
+    {
+      "path": "src/flask/__main__.py",
+      "bytes": 30,
+      "sha256": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279"
+    },
+    {
+      "path": "src/flask/app.py",
+      "bytes": 61744,
+      "sha256": "5c6aa0151b0b8018732280761d27eda0c4c83378630e21faadd57b73783720a7"
+    },
+    {
+      "path": "src/flask/blueprints.py",
+      "bytes": 4541,
+      "sha256": "a79404da5635f0622d6ddaff44a46967c0e8d7b8343ef4062206644940e15f69"
+    },
+    {
+      "path": "src/flask/cli.py",
+      "bytes": 37184,
+      "sha256": "3df87bdbe07196fa07d101c20ce7351ef5c6ecaab95deb5fdf3ccdcf690d4879"
+    },
+    {
+      "path": "src/flask/config.py",
+      "bytes": 13219,
+      "sha256": "3e2a85d033da9ba1d6d051f8087d61a574c17b7d0d4b38cf10ec2bcf56fa92dd"
+    },
+    {
+      "path": "src/flask/ctx.py",
+      "bytes": 15064,
+      "sha256": "b0f2b36a1aad831692eced32f44fcdcd424d503c930fa3381a40eb56ed9f5376"
+    },
+    {
+      "path": "src/flask/debughelpers.py",
+      "bytes": 6080,
+      "sha256": "3c6203852b56fde7d18e969adf31c8a68fa1b52b49391e35229dce2563d8070a"
+    },
+    {
+      "path": "src/flask/globals.py",
+      "bytes": 1713,
+      "sha256": "5dd419992b4198f22cf2df77b63c7aa4eec19b78286c068e3569057141da19ab"
+    },
+    {
+      "path": "src/flask/helpers.py",
+      "bytes": 23517,
+      "sha256": "ac96607bbfc9dbcf09d5442fe7e90d7f8a046b0df7d8f3fc3535b44112016d71"
+    },
+    {
+      "path": "src/flask/json/__init__.py",
+      "bytes": 5602,
+      "sha256": "84b351f3df296aaa1e7dd78086b69ae70c89cbe6e6441da4d9d578120572d99f"
+    },
+    {
+      "path": "src/flask/json/provider.py",
+      "bytes": 7672,
+      "sha256": "e62984cd8e478d5d87a1456b41b24ba970b330da595df0f46355ea74b5765c10"
+    },
+    {
+      "path": "src/flask/json/tag.py",
+      "bytes": 9281,
+      "sha256": "0e168dc2e20e85db7647be28382f58e19f19a6bc4562245be5d50fe5bcb220dc"
+    },
+    {
+      "path": "src/flask/logging.py",
+      "bytes": 2377,
+      "sha256": "f2c33758c4ee6e2d5c05bd9cfe53e45a937427c74c02aae029160b2e2d5d0952"
+    },
+    {
+      "path": "src/flask/sansio/app.py",
+      "bytes": 38099,
+      "sha256": "e446f1c0739c86072966a4326a503dbf20c1a299273af0e0e815705c5c850f6b"
+    },
+    {
+      "path": "src/flask/sansio/blueprints.py",
+      "bytes": 24637,
+      "sha256": "4ea7beec4919fad6d67219bc883a027c3f38f1fd3fde72efe8d3637883ef1f03"
+    },
+    {
+      "path": "src/flask/sansio/scaffold.py",
+      "bytes": 30371,
+      "sha256": "c120125d8745456266a9c2f45eaf93ecdf8f0d55128851af8cef643d9839f1b9"
+    },
+    {
+      "path": "src/flask/sessions.py",
+      "bytes": 15480,
+      "sha256": "76ebd81a608687f1f772032ecb6a1e4a3ac2b02bcbca517808128e5e9374426b"
+    },
+    {
+      "path": "src/flask/signals.py",
+      "bytes": 750,
+      "sha256": "57b94c530c3b0aa809d93854067d4f89ab59b506a73b2b7b399a6ed86648fb7e"
+    },
+    {
+      "path": "src/flask/templating.py",
+      "bytes": 7536,
+      "sha256": "207b1db05f9e0493c2244d0024b0a2d558619f2b4e19dcc70a7df24e1cfcedce"
+    },
+    {
+      "path": "src/flask/testing.py",
+      "bytes": 10117,
+      "sha256": "cf30bb5f184158e3fd1faf7b215ff8486ecb8372f36f93d68b210ff77fca4171"
+    },
+    {
+      "path": "src/flask/typing.py",
+      "bytes": 3293,
+      "sha256": "2fe2f9b768ca812d1a3a65618a843fca5a9c8225459c0eb2c4ef912cd86af865"
+    },
+    {
+      "path": "src/flask/views.py",
+      "bytes": 6962,
+      "sha256": "c73271ea826a18495386d12085937b65018cc394c3172b91c5491e73046e0280"
+    },
+    {
+      "path": "src/flask/wrappers.py",
+      "bytes": 9406,
+      "sha256": "8d492fe2655e93622ae21c3177846faab20c6faf41bf43c49438162e6779391a"
+    }
+  ],
+  "omitted": [],
+  "bytes": 337376
+}
