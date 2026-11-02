@@ -382,3 +382,48 @@ test('prototype normalization preserves nonmutation, different-property, lexical
   assert.ok(!call(staticWrite, 'Store.runStatic', 'Store.build'));
   assert.match(staticWrite.diagnostics.map(item => item.message).join(' '), /unresolved/);
 });
+
+test('switch discriminants use the enclosing scope while all cases share their lexical scope', () => {
+  for (const discriminant of ['target()', '(() => target())()']) {
+    const source = ['function target() {}', `function owner() { switch (${discriminant}) {`, 'case target(): const target = () => {}; target(); break;', 'default: target();', '} target(); }'].join('\n');
+    const graph = analyze(source);
+    assert.deepEqual(call(graph, 'owner', 'target')?.evidence.map(item => [item.line, item.column, item.containment]), [
+      [2, source.split('\n')[1].indexOf('target()') + 1, discriminant.startsWith('(') ? 'nested-closure' : 'direct-body'],
+      [5, 3, 'direct-body']
+    ], discriminant);
+    assert.deepEqual(call(graph, 'owner', 'owner.target')?.evidence.map(item => [item.line, item.column]).sort((a, b) => a[0] - b[0] || a[1] - b[1]), [[3, 6], [3, 41], [4, 10]], discriminant);
+  }
+});
+
+test('switch discriminant writes and closures invalidate the outer binding independently of case-local writes', () => {
+  for (const discriminant of ['target = replacement', '(() => { target = replacement; })()']) {
+    const graph = analyze(`function target() {} function owner() { switch (${discriminant}) { case 1: const target = () => {}; target(); } } function caller() { target(); }`);
+    assert.ok(!call(graph, 'caller', 'target'), discriminant);
+    assert.ok(call(graph, 'owner', 'owner.target'), discriminant);
+    assert.match(graph.diagnostics.map(item => item.message).join(' '), /unresolved/, discriminant);
+  }
+  const graph = analyze('function target() {} function owner() { switch (target()) { case 1: let target = () => {}; target = replacement; target(); } }');
+  assert.ok(call(graph, 'owner', 'target'));
+  assert.ok(!call(graph, 'owner', 'owner.target'));
+});
+
+test('switch scope preserves function var hoisting, nested-switch scopes and unrelated block shadows', () => {
+  const hoisted = analyze('function target() {} function owner() { switch (target()) { case 1: var target = () => {}; target(); } }');
+  assert.ok(!call(hoisted, 'owner', 'target'));
+  assert.equal(call(hoisted, 'owner', 'owner.target')?.evidence.length, 2);
+  const nested = analyze([
+    'function outer() {} function inner() {}',
+    'function owner() { switch (outer()) {',
+    'case 1: const inner = () => {}; switch (inner()) {',
+    'case 2: const outer = () => {}; outer();',
+    '} inner();',
+    '} outer(); }'
+  ].join('\n'));
+  assert.deepEqual(call(nested, 'owner', 'outer')?.evidence.map(item => item.line), [2, 6]);
+  assert.deepEqual(call(nested, 'owner', 'owner.inner')?.evidence.map(item => item.line), [3, 5]);
+  assert.deepEqual(call(nested, 'owner', 'owner.outer')?.evidence.map(item => item.line), [4]);
+  assert.ok(!call(nested, 'owner', 'inner'));
+  const block = analyze('function target() {} function owner() { switch (target()) { case 1: { const target = () => {}; target(); } break; default: target(); } }');
+  assert.equal(call(block, 'owner', 'target')?.evidence.length, 2);
+  assert.equal(call(block, 'owner', 'owner.target')?.evidence.length, 1);
+});

@@ -53,7 +53,7 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
 | L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5); release preparation merged in [PR #6](https://github.com/OnFiala/agent.mind/pull/6) | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
 | L5 | **Python pilot merged; 1.2.0 preparation:** [PR #8](https://github.com/OnFiala/agent.mind/pull/8), bounded Python syntax inspection; other languages remain demand-led | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
-| L6 | **Deferred until needed:** additional environment/framework depth | Accept Windows/WSL, container/remote and host integrations separately. Verify paths, binding, cancellation and actual consumer behavior; do not infer platform support from a parser. |
+| L6 | **Codex consumer evaluation started:** existing local AGENTS + CLI workflow; additional integration remains demand-led | Verify instruction activation and actual consumer behavior first. Accept Windows/WSL, container/remote, cancellation and framework depth separately; do not infer platform support from a parser. |
 
 L1 implementation commit [`9fbcb61`](https://github.com/OnFiala/agent.mind/commit/9fbcb61fb29a15e145c41f2542b8059e52a51f77) adds six production-path regressions.
 Local checks passed: 144 tests, package build and 7 smoke scenarios; a disposable
@@ -127,6 +127,41 @@ Four separate repair PRs track [parameter environments #10](https://github.com/O
 They preserve the current architecture, dependency set and language capability limits.
 The [1.2.1 release record](docs/releases/1.2.1.md) owns the combined checks and rollback;
 PR state and Releases own review/merge/publication facts. These repairs do not advance L6.
+
+## Follow-up repair candidate: switch scope and wide AST arrays
+
+Two focused commits after 1.2.1 keep switch discriminants in the enclosing scope
+and remove breadth-dependent variadic appends in the source/symbol analyzers.
+The cases retain their shared lexical scope; existing traversal order and budgets
+remain unchanged. A 300,018-byte array fixture now has one readable, hash-bound
+inventory entry and an explicit symbol-budget diagnostic. Local validation passed
+204 tests, packaging and all 10 bundle smoke groups. Independent review covered
+all five code/test files, reran 75 tests and checked 24 differential cases.
+This is a source candidate; it does not change the published 1.2.1 or installed targets.
+Rollback the wide-array commit, then the switch-scope commit.
+
+## L6: first Codex consumer check
+
+The selected focus is use from Codex. A disposable two-source-file JavaScript
+project with the published 1.2.1 integration passed a read-only consumer probe on
+macOS with Codex CLI 0.166.0. A fresh Codex run emitted a fixture instruction marker
+before any tool use, without manually opening the instruction file, selected a
+named block, read its implementation and related test, and obtained a matching
+revision/binding preflight. All 59 fixture/runtime files retained their hashes.
+This verifies one startup and inspection workflow. The installed status correctly
+continues to report `instructionActivation: not-verified`; the host-run evidence
+is separate from what the CLI itself can establish.
+
+[Codex instruction discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+loads the instruction chain at startup; overrides, working directory and size
+limits still matter. No new plugin, MCP service or global configuration is required
+by this tested path. The next proposed acceptance step is an authorized edit on a
+representative real project, including stale context, refreshed source and relevant
+tests. The synthetic probe did not measure coding quality or token/time savings,
+exercise edits, cancellation, the Codex desktop app, remote hosts or other platforms.
+Typed/Python inspection remains partial and strict preflight still rejects it;
+this probe does not approve editing those projects through that contract.
+Broader L6 support remains unaccepted until its own evidence exists.
 
 ## Small internal boundaries
 

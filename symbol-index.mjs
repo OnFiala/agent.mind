@@ -9,7 +9,9 @@ const isClass = node => ['ClassDeclaration', 'ClassExpression'].includes(node.ty
 function children(node) {
   const output = [];
   for (const value of Object.values(node)) {
-    if (Array.isArray(value)) output.push(...value.filter(item => item && typeof item.type === 'string'));
+    if (Array.isArray(value)) {
+      for (const item of value) if (item && typeof item.type === 'string') output.push(item);
+    }
     else if (value && typeof value.type === 'string') output.push(value);
   }
   return output;
@@ -74,7 +76,7 @@ function hasLexicalThisWrite(root) {
       while (target.type === 'MemberExpression') target = target.object;
       if (target.type === 'ThisExpression') return true;
     }
-    pending.push(...children(node));
+    for (const child of children(node)) pending.push(child);
   }
   return false;
 }
@@ -177,7 +179,16 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
       visit(node.body, bodyContext, depth + 1);
       return;
     }
-    if (node.type === 'BlockStatement' || node.type === 'StaticBlock' || node.type === 'CatchClause' || ['ForStatement', 'ForInStatement', 'ForOfStatement', 'SwitchStatement'].includes(node.type)) {
+    if (node.type === 'SwitchStatement') {
+      records.push({ node, ...context });
+      // The discriminant is evaluated before entering the shared case scope.
+      // Case tests and bodies still see every case-local lexical declaration.
+      visit(node.discriminant, context, depth + 1);
+      const caseContext = { ...context, scope: scope(context.scope, 'block') };
+      for (const item of node.cases) visit(item, caseContext, depth + 1);
+      return;
+    }
+    if (node.type === 'BlockStatement' || node.type === 'StaticBlock' || node.type === 'CatchClause' || ['ForStatement', 'ForInStatement', 'ForOfStatement'].includes(node.type)) {
       current = { ...context, scope: scope(context.scope, node.type === 'StaticBlock' ? 'static-block' : 'block') };
       if (node.type === 'CatchClause') names(node.param).forEach(name => bind(current.scope, name));
     }
