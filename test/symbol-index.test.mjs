@@ -347,3 +347,38 @@ test('parameter environments retain lexical this, named owners and unsupported-b
   assert.deepEqual(omitted.nodes.map(node => node.qualifiedName), ['caller', 'Store', 'target']);
   assert.match(omitted.diagnostics.map(item => item.message).join(' '), /unresolved/);
 });
+
+test('static prototype spellings invalidate the same instance call through every writable leaf', () => {
+  const writes = [
+    leaf => `${leaf} = other;`,
+    leaf => `delete ${leaf};`,
+    leaf => `({value: ${leaf}} = unknown);`,
+    leaf => `[${leaf}] = unknown;`,
+    leaf => `[...${leaf}] = unknown;`,
+    leaf => `[${leaf} = other] = unknown;`,
+    leaf => `${leaf}++;`,
+    leaf => `for (${leaf} of unknown) {}`,
+    leaf => `for (${leaf} in unknown) {}`
+  ];
+  for (const receiver of ['Store.prototype', 'Store["prototype"]', "Store['prototype']"]) for (const property of ['.save', '["save"]']) for (const write of writes) {
+    const mutation = write(receiver + property);
+    const graph = analyze(`class Store { run() { this.save(); } save() {} static runStatic() { this.build(); } static build() {} }\nfunction other() {}\n${mutation}`);
+    assert.ok(!call(graph, 'Store.run', 'Store.save'), mutation);
+    assert.deepEqual(call(graph, 'Store.runStatic', 'Store.build')?.evidence.map(item => [item.line, item.column]), [[1, 69]], mutation);
+    assert.match(graph.diagnostics.map(item => item.message).join(' '), /unresolved/, mutation);
+  }
+});
+
+test('prototype normalization preserves nonmutation, different-property, lexical-shadow and static controls', () => {
+  const prefix = 'class Store { run() { this.save(); } save() {} static runStatic() { this.build(); } static build() {} }\nfunction other() {}\n';
+  for (const suffix of ['', 'Store["prototype"].save;', 'Store["prototype"].other = other;', 'Store.prototype.other = other;', 'Store["metadata"].save = other;', 'function shadow(Store) { Store["prototype"].save = other; }']) {
+    const graph = analyze(prefix + suffix);
+    assert.deepEqual(call(graph, 'Store.run', 'Store.save')?.evidence.map(item => [item.line, item.column]), [[1, 23]], suffix);
+    assert.ok(call(graph, 'Store.runStatic', 'Store.build'), suffix);
+    assert.deepEqual(graph.diagnostics, [], suffix);
+  }
+  const staticWrite = analyze(prefix + 'Store["build"] = other;');
+  assert.ok(call(staticWrite, 'Store.run', 'Store.save'));
+  assert.ok(!call(staticWrite, 'Store.runStatic', 'Store.build'));
+  assert.match(staticWrite.diagnostics.map(item => item.message).join(' '), /unresolved/);
+});
