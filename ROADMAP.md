@@ -1,6 +1,6 @@
 # Lightweight expansion plan
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.2.0 preparation**; latest published version is recorded on Releases.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.2.1**; latest published version is recorded on Releases.
 [GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
 versions and downloads; source version numbers alone do not establish publication.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
@@ -117,6 +117,16 @@ real-target upgrades and L6 environment expansion remain separate owner decision
 
 The present JS tool remains usable while later stages are unfinished. No stage may
 expand the product's support claim before its acceptance evidence exists.
+
+## 1.2.1 targeted repairs
+
+Four separate repair PRs track [parameter environments #10](https://github.com/OnFiala/agent.mind/pull/10),
+[static prototype writes #11](https://github.com/OnFiala/agent.mind/pull/11),
+[dense-source analysis cost #12](https://github.com/OnFiala/agent.mind/pull/12), and
+[visible nested-map failure #13](https://github.com/OnFiala/agent.mind/pull/13).
+They preserve the current architecture, dependency set and language capability limits.
+The [1.2.1 release record](docs/releases/1.2.1.md) owns the combined checks and rollback;
+PR state and Releases own review/merge/publication facts. These repairs do not advance L6.
 
 ## Small internal boundaries
 
