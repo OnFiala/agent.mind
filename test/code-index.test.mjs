@@ -733,3 +733,24 @@ for (const newline of ['\n', '\r\n']) test(`analysis preserves UTF-16 columns, s
   assert.deepEqual(warm.edges, graph.edges);
   assert.equal(warm.stats.cachedFiles, 3);
 });
+
+test('an eligible wide array remains one readable text entry when symbol analysis reaches its AST budget', t => {
+  const source = 'const values = [' + Array(150000).fill('0').join(',') + '];\n';
+  assert.equal(Buffer.byteLength(source), 300018);
+  assert.ok(Buffer.byteLength(source) < INDEX_LIMITS.fileBytes);
+  const root = fixture(t, { 'wide.mjs': source });
+  const graph = indexProject(root, { generic: true });
+  const node = file(graph, 'wide.mjs');
+  const hash = createHash('sha256').update(source).digest('hex');
+  assert.ok(node);
+  assert.equal(graph.stats.files, 1);
+  assert.equal(graph.status, 'partial');
+  assert.equal(graph.inventory.status, 'complete');
+  assert.deepEqual(graph.inventory.entries, [{ path: 'wide.mjs', state: 'text', bytes: 300018, hash }]);
+  assert.equal(node.hash, hash);
+  assert.equal(readIndexedSource(root, node, { generic: true }), source);
+  assert.ok(graph.diagnostics.some(item => item.path === 'wide.mjs' && /budget exceeded;.*partial/.test(item.message)));
+  assert.ok(!graph.diagnostics.some(item => /Cannot index file|call stack/.test(item.message)));
+  write(root, 'wide.mjs', source + '// changed\n');
+  assert.throws(() => readIndexedSource(root, node, { generic: true }), /changed/);
+});

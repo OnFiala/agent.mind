@@ -25,7 +25,9 @@ function patternNames(pattern, output = new Set()) {
 function children(node) {
   const result = [];
   for (const value of Object.values(node)) {
-    if (Array.isArray(value)) result.push(...value.filter(item => item && typeof item.type === 'string'));
+    if (Array.isArray(value)) {
+      for (const item of value) if (item && typeof item.type === 'string') result.push(item);
+    }
     else if (value && typeof value === 'object' && typeof value.type === 'string') result.push(value);
   }
   return result;
@@ -46,7 +48,7 @@ function scopeNames(node) {
       }
       if (item.type === 'VariableDeclarator') patternNames(item.id, names);
       if (item.type === 'ClassDeclaration' && item.id) names.add(item.id.name);
-      stack.push(...children(item));
+      for (const child of children(item)) stack.push(child);
     }
   } else if (node.type === 'BlockStatement') {
     for (const item of node.body) {
@@ -214,7 +216,7 @@ function serverContracts(callback, factory, relative, lines, globalURLAvailable)
           if (header.type === 'Property' && !header.computed && String(header.key.name ?? header.key.value).toLowerCase() === 'content-type' && stringLiteral(header.value)?.split(';')[0].trim().toLowerCase() === 'text/event-stream') streamEvidence = location(relative, lines, node);
         }
       }
-      branch.push(...children(node).reverse());
+      for (const child of children(node).reverse()) branch.push(child);
     }
     if (responseEvidence) providers.push({ pathname: target.pathname, method: guards.length ? equality(guards[0].test, 'method') : null, eventStream: Boolean(streamEvidence), streamEvidence, evidence: location(relative, lines, route.test), factoryEvidence: location(relative, lines, factory), urlEvidence: binding.evidence, responseEvidence });
   }
@@ -286,7 +288,7 @@ function analyzeJavaScript(relative, source, hash, testFile) {
         if (['fetch', 'EventSource', 'URL'].includes(target.name)) moduleBindings.add(target.name);
       }
     }
-    mutationStack.push(...children(node));
+    for (const child of children(node)) mutationStack.push(child);
   }
   const stack = [{ node: ast, shadowed: new ShadowScope(new Set()) }];
   while (stack.length) {
@@ -326,7 +328,7 @@ function analyzeJavaScript(relative, source, hash, testFile) {
       }
       if (node.type === 'CallExpression' && binding && !mutatedImports.has(callee.name) && ['http', 'node:http'].includes(binding.specifier) && (binding.member === 'createServer' && members.length === 0 || ['*', 'default'].includes(binding.member) && members.length === 1 && members[0] === 'createServer')) {
         const callback = node.arguments.at(-1);
-        if (callback && isFunction(callback)) analysis.contracts.providers.push(...serverContracts(callback, node, relative, lines, globalAvailable('URL')));
+        if (callback && isFunction(callback)) for (const contract of serverContracts(callback, node, relative, lines, globalAvailable('URL'))) analysis.contracts.providers.push(contract);
       }
     }
     if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'process' && globalAvailable('process') && ((!node.computed && node.property.name === 'env') || (node.computed && node.property.value === 'env'))) security('Environment access: process.env', 'environment', node);

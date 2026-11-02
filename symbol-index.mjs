@@ -9,7 +9,9 @@ const isClass = node => ['ClassDeclaration', 'ClassExpression'].includes(node.ty
 function children(node) {
   const output = [];
   for (const value of Object.values(node)) {
-    if (Array.isArray(value)) output.push(...value.filter(item => item && typeof item.type === 'string'));
+    if (Array.isArray(value)) {
+      for (const item of value) if (item && typeof item.type === 'string') output.push(item);
+    }
     else if (value && typeof value.type === 'string') output.push(value);
   }
   return output;
@@ -74,7 +76,7 @@ function hasLexicalThisWrite(root) {
       while (target.type === 'MemberExpression') target = target.object;
       if (target.type === 'ThisExpression') return true;
     }
-    pending.push(...children(node));
+    for (const child of children(node)) pending.push(child);
   }
   return false;
 }

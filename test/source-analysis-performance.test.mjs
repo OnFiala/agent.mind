@@ -94,3 +94,34 @@ test('one dense eligible file retains references and security after the symbol b
   assert.equal(result.error, undefined, result.error?.message);
   assert.equal(result.status, 0, result.stderr);
 });
+
+const wideElements = Array(150000).fill('0').join(',');
+const wideContexts = [
+  ['top-level', `const values = [${wideElements}];\nfetch('/api/tail');`, result => {
+    assert.deepEqual(result.contracts.consumers.map(item => [item.pathname, item.evidence.line]), [['/api/tail', 2]]);
+  }],
+  ['function scope', `function owner() { const values = [${wideElements}]; }\nfetch('/api/tail');`, result => {
+    assert.deepEqual(result.contracts.consumers.map(item => [item.pathname, item.evidence.line]), [['/api/tail', 2]]);
+  }],
+  ['unsupported field without this write', `class Store { run() { this.save(); } save() {} value = [${wideElements}]; }`, result => {
+    assert.ok(result.symbolGraph.edges.some(edge => edge.from.endsWith('#Store.run') && edge.to.endsWith('#Store.save')));
+  }],
+  ['unsupported field with this write', `class Store { run() { this.save(); } save() {} value = [${wideElements}, this.save = replacement]; }`, result => {
+    assert.ok(!result.symbolGraph.edges.some(edge => edge.from.endsWith('#Store.run') && edge.to.endsWith('#Store.save')));
+    assert.match(result.symbolGraph.diagnostics.map(item => item.message).join(' '), /unresolved/);
+  }],
+  ['unsupported static block with this write', `class Store { static run() { this.save(); } static save() {} static { const values = [${wideElements}]; this.save = replacement; } }`, result => {
+    assert.ok(!result.symbolGraph.edges.some(edge => edge.from.endsWith('#Store.run') && edge.to.endsWith('#Store.save')));
+    assert.match(result.symbolGraph.diagnostics.map(item => item.message).join(' '), /unresolved/);
+  }],
+  ['HTTP handler and response branch', `import {createServer} from 'node:http';\ncreateServer((req, res) => { const url = new URL(req.url, 'http://localhost'); if (url.pathname === '/api/wide') { const values = [${wideElements}]; res.setHeader('Content-Type', 'text/event-stream'); res.end('ok'); } });`, result => {
+    assert.deepEqual(result.contracts.providers.map(item => [item.pathname, item.eventStream, item.evidence.line]), [['/api/wide', true, 2]]);
+    assert.deepEqual(result.references.map(item => item.specifier), ['node:http']);
+  }]
+];
+for (const [name, source, check] of wideContexts) test(`wide child arrays preserve ${name} analysis and explicit symbol-budget diagnostics`, () => {
+  const result = analyze(source);
+  assert.match(result.symbolGraph.diagnostics.map(item => item.message).join(' '), /budget exceeded;.*partial/);
+  assert.ok(!result.diagnostics.some(item => /parse error|call stack/i.test(item.message)));
+  check(result);
+});
