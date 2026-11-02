@@ -284,3 +284,66 @@ test('nested class superclass mutations resolve the inner class name without inv
     assert.equal(outerMutation.edges.length, 0, declaration);
   }
 });
+
+test('parameter expressions and body vars resolve each exact call site in their own environment', () => {
+  const owners = [
+    ['function owner(value = target()) {', 'direct-body'],
+    ['const owner = (value = target()) => {', 'direct-body'],
+    ['function owner(value = () => target()) {', 'nested-closure'],
+    ['function owner({[target()]: value}) {', 'direct-body'],
+    ['function owner({value = target()}) {', 'direct-body'],
+    ['function owner([value = target()]) {', 'direct-body'],
+    ['function owner({...value} = target()) {', 'direct-body']
+  ];
+  for (const [header, containment] of owners) {
+    const source = ['function target() {}', header, '  var target = () => {};', '  target();', '  (() => target())();', '};'].join('\n');
+    const graph = analyze(source);
+    const sites = graph.edges.flatMap(edge => edge.evidence.map(item => ({ from: edge.from, to: edge.to, line: item.line, column: item.column, containment: item.containment }))).filter(item => item.line === 2 || item.line === 4 || item.line === 5);
+    assert.deepEqual(sites.sort((a, b) => a.line - b.line), [
+      { from: get(graph, 'owner').id, to: get(graph, 'target').id, line: 2, column: header.indexOf('target()') + 1, containment },
+      { from: get(graph, 'owner').id, to: get(graph, 'owner.target').id, line: 4, column: 3, containment: 'direct-body' },
+      { from: get(graph, 'owner').id, to: get(graph, 'owner.target').id, line: 5, column: 10, containment: 'nested-closure' }
+    ], header);
+  }
+});
+
+test('parameter writes invalidate the outer binding even when the body declares a same-named var', () => {
+  for (const parameter of ['value = (target = replacement)', '{[target = replacement]: value}', '{value = (target = replacement)}', 'value = () => (target = replacement)']) {
+    const graph = analyze(`function target() {} function owner(${parameter}) { var target = () => {}; target(); } function caller() { target(); }`);
+    assert.ok(!call(graph, 'caller', 'target'), parameter);
+    assert.ok(call(graph, 'owner', 'owner.target'), parameter);
+    assert.match(graph.diagnostics.map(item => item.message).join(' '), /unresolved/, parameter);
+  }
+});
+
+test('parameter/body scope separation preserves conservative shadows and expression-free body bindings', () => {
+  for (const declaration of ['var target;', 'let target = () => {};', 'function target() {}', '{ let target = () => {}; target(); }', 'function child() { var target = () => {}; target(); }']) {
+    const graph = analyze(`function target() {}\nfunction owner(value = target()) { ${declaration} }`);
+    assert.deepEqual(call(graph, 'owner', 'target')?.evidence.map(item => [item.line, item.column]), [[2, 24]], declaration);
+  }
+  for (const parameter of ['', 'value', '{value}', '[value]', '...value']) {
+    const graph = analyze(`function target() {} function owner(${parameter}) { var target = () => {}; target(); }`);
+    assert.ok(call(graph, 'owner', 'owner.target'), parameter);
+    assert.ok(!call(graph, 'owner', 'target'), parameter);
+  }
+  for (const parameter of ['target', 'target = () => {}', '{target}', '{target = () => {}}']) {
+    const source = `function target() {} function owner(${parameter}, value = target()) { var target = () => {}; target(); }`;
+    const graph = analyze(source);
+    assert.ok(!call(graph, 'owner', 'target'), parameter);
+    assert.deepEqual(call(graph, 'owner', 'owner.target')?.evidence.map(item => item.column), [source.lastIndexOf('target()') + 1], parameter);
+    assert.equal(call(graph, 'owner', 'owner.target')?.evidence.length, 1, parameter);
+    assert.match(graph.diagnostics.map(item => item.message).join(' '), /unresolved/, parameter);
+  }
+  const duplicate = analyze('function owner(target) { var target = () => {}; target(); }');
+  assert.equal(duplicate.edges.length, 0);
+  assert.match(duplicate.diagnostics.map(item => item.message).join(' '), /Ambiguous lexical binding target/);
+});
+
+test('parameter environments retain lexical this, named owners and unsupported-body mutation-only mode', () => {
+  const graph = analyze('class Store { run(value = () => this.save()) { var local; this.save(); } save() {} }');
+  assert.deepEqual(call(graph, 'Store.run', 'Store.save')?.evidence.map(item => item.containment), ['nested-closure', 'direct-body']);
+  const omitted = analyze('function target() {} class Store { value = function hidden(value = (target = replacement)) { var target; }; } function caller() { target(); }');
+  assert.equal(omitted.edges.length, 0);
+  assert.deepEqual(omitted.nodes.map(node => node.qualifiedName), ['caller', 'Store', 'target']);
+  assert.match(omitted.diagnostics.map(item => item.message).join(' '), /unresolved/);
+});
