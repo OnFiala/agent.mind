@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { INDEX_LIMITS, indexProject, readIndexedSource } from '../code-index.mjs';
 
 function fixture(t, contents) {
@@ -942,7 +943,7 @@ test('Python module lookup never normalizes filesystem paths to invent Unicode a
     'plain/sub/main.py': 'from ..𝓂 import value\n'
   });
   const graph = indexProject(root);
-  for (const specifier of ['K', '𝓅𝓀𝓰.𝓂', 'plain.𝓂']) assert.ok(edge(graph, 'main.py', `external:python:${specifier}`, 'import'), specifier);
+  for (const specifier of ['K', '𝓅𝓀𝓰.𝓂', 'plain.𝓂']) assert.ok(edge(graph, 'main.py', `external:python:${specifier.normalize('NFKC')}`, 'import'), specifier);
   for (const source of ['main.py', 'plain/main.py', 'plain/sub/main.py']) assert.ok(!graph.edges.some(relation => relation.from === `file:${source}` && relation.to.startsWith('file:')), source);
   for (const source of ['plain/main.py', 'plain/sub/main.py']) assert.ok(graph.diagnostics.some(item => item.path === source && item.severity === 'warning' && /Unresolved local Python module/.test(item.message)), source);
   assert.equal(graph.status, 'partial');
@@ -1065,4 +1066,118 @@ test('Python cached namespace resolution follows descendant, blocker and initial
   fs.unlinkSync(path.join(root, 'pkg/ns/child.py'));
   const removed = indexProject(root, { previous: collision });
   assert.equal(removed.revision, missing.revision);
+});
+
+test('Python private import modules resolve effective class identities and retain raw source evidence', t => {
+  const root = fixture(t, {
+    'main.py': 'class A:\n    import __dep\nclass B:\n    import __dep\nclass Box:\n    import __dep as __alias\n    from __pkg import __member as __alias\n    import __raw.child as __alias\n    from pkg.__raw import __member\n',
+    '__dep.py': 'pass\n',
+    '_A__dep.py': 'pass\n',
+    '_B__dep.py': 'pass\n',
+    '_Box__dep.py': 'pass\n',
+    '__pkg/__init__.py': 'pass\n',
+    '_Box__pkg/__init__.py': 'pass\n',
+    '_Box__pkg/__member.py': 'pass\n',
+    '__raw/__init__.py': 'pass\n',
+    '__raw/child.py': 'pass\n',
+    '_Box__raw/__init__.py': 'pass\n',
+    '_Box__raw/child.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'pkg/__raw.py': 'pass\n',
+    'pkg/_Box__raw.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  const vector = graph.edges.filter(relation => relation.from === 'file:main.py').map(relation => ({
+    target: relation.to, evidence: relation.evidence.map(({ path, line, column, snippet }) => ({ path, line, column, snippet }))
+  })).sort((a, b) => a.target.localeCompare(b.target, 'en'));
+  const expected = [
+    ['_A__dep.py', 2, 12, 'import __dep'],
+    ['_B__dep.py', 4, 12, 'import __dep'],
+    ['_Box__dep.py', 6, 12, 'import __dep as __alias'],
+    ['_Box__pkg/__init__.py', 7, 5, 'from __pkg import __member as __alias'],
+    ['__raw/child.py', 8, 12, 'import __raw.child as __alias'],
+    ['pkg/__raw.py', 9, 5, 'from pkg.__raw import __member']
+  ].map(([target, line, column, snippet]) => ({ target: `file:${target}`, evidence: [{ path: 'main.py', line, column, snippet }] })).sort((a, b) => a.target.localeCompare(b.target, 'en'));
+  assert.deepEqual(vector, expected);
+  for (const target of ['__dep.py', '__pkg/__init__.py', '_Box__pkg/__member.py', '_Box__raw/child.py', 'pkg/_Box__raw.py']) assert.ok(!edge(graph, 'main.py', `file:${target}`, 'import'), target);
+});
+
+test('Python private relative from-modules keep package boundaries and never guess member or alias files', t => {
+  const root = fixture(t, {
+    'pkg/__init__.py': 'pass\n',
+    'pkg/main.py': 'class Box:\n    from .__dep import item as __alias\n    from .__raw.child import member\n    from . import __member as __alias\n',
+    'pkg/__dep.py': 'pass\n',
+    'pkg/_Box__dep.py': 'pass\n',
+    'pkg/__alias.py': 'pass\n',
+    'pkg/__member.py': 'pass\n',
+    'pkg/__raw/__init__.py': 'pass\n',
+    'pkg/__raw/child.py': 'pass\n',
+    'pkg/_Box__raw/__init__.py': 'pass\n',
+    'pkg/_Box__raw/child.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.deepEqual(graph.edges.map(relation => relation.to).sort(), ['file:pkg/_Box__dep.py', 'file:pkg/__init__.py', 'file:pkg/__raw/child.py'].sort());
+  assert.deepEqual(edge(graph, 'pkg/main.py', 'file:pkg/_Box__dep.py', 'import').evidence, [{ path: 'pkg/main.py', line: 2, column: 5, snippet: 'from .__dep import item as __alias' }]);
+  for (const target of ['pkg/__dep.py', 'pkg/__alias.py', 'pkg/__member.py', 'pkg/_Box__raw/child.py']) assert.ok(!edge(graph, 'pkg/main.py', `file:${target}`, 'import'));
+});
+
+test('Python unresolved private imports keep distinct effective class identities and raw evidence', t => {
+  const root = fixture(t, { 'main.py': 'class A:\n    import __dep\nclass B:\n    import __dep\nimport K\n' });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.deepEqual(graph.edges.map(relation => ({ target: relation.to, evidence: relation.evidence })).sort((a, b) => a.target.localeCompare(b.target, 'en')), [
+    { target: 'external:python:_A__dep', evidence: [{ path: 'main.py', line: 2, column: 12, snippet: 'import __dep' }] },
+    { target: 'external:python:_B__dep', evidence: [{ path: 'main.py', line: 4, column: 12, snippet: 'import __dep' }] },
+    { target: 'external:python:K', evidence: [{ path: 'main.py', line: 5, column: 8, snippet: 'import K' }] }
+  ].sort((a, b) => a.target.localeCompare(b.target, 'en')));
+  assert.ok(!graph.nodes.some(node => node.id === 'external:python:__dep'));
+});
+
+test('Python effective private module collisions cannot fall back to a unique raw candidate', t => {
+  const root = fixture(t, {
+    'main.py': 'class Box:\n    import __dep\n',
+    '__dep.py': 'pass\n',
+    '_Box__dep.py': 'pass\n',
+    '_Box__dep/__init__.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  assert.equal(graph.edges.length, 0);
+  assert.ok(graph.diagnostics.some(item => item.path === 'main.py' && item.line === 2 && item.severity === 'warning' && /module\/package collision/.test(item.message)));
+});
+
+
+test('Python adapter lookup metadata rejects invalid present values without falling back to raw module', async t => {
+  // Exercise the real index through its existing text-adapter seam. This trusted
+  // runtime copy injects only reference metadata, never executes scanned files,
+  // and avoids adding a public resolver API just for invalid producer output.
+  const runtime = fixture(t, {
+    'code-index.mjs': fs.readFileSync(new URL('../code-index.mjs', import.meta.url)),
+    'typed-analysis.mjs': fs.readFileSync(new URL('../typed-analysis.mjs', import.meta.url)),
+    'source-analysis.mjs': `export const securityModule = () => false;
+export function analyzeSource(relative, source) {
+  return { references: relative === 'main.py' ? [{ kind: 'import', specifier: 'raw', evidence: { path: relative, line: 1, column: 1, snippet: 'import raw' }, python: JSON.parse(source) }] : [], symbols: [], security: [], diagnostics: [] };
+}
+`
+  });
+  fs.symlinkSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'node_modules'), path.join(runtime, 'node_modules'), 'dir');
+  const { indexProject: injectedIndex } = await import(pathToFileURL(path.join(runtime, 'code-index.mjs')).href);
+  const root = fixture(t, { 'main.py': '', 'raw.py': 'pass\n', '_Box__raw.py': 'pass\n' });
+  const metadata = { level: 0, module: 'raw', names: [{ name: 'raw' }], form: 'import' };
+  for (const lookupModule of [null, false, 7, '', '../raw', '/raw', 'raw/child', 'raw..child', 'raw.／child']) {
+    write(root, 'main.py', JSON.stringify({ ...metadata, lookupModule }));
+    const graph = injectedIndex(root);
+    assert.equal(graph.status, 'partial', JSON.stringify(lookupModule));
+    assert.equal(graph.edges.length, 0, JSON.stringify(lookupModule));
+    assert.ok(graph.diagnostics.some(item => item.path === 'main.py' && item.severity === 'warning' && /Malformed Python module reference/.test(item.message)), JSON.stringify(lookupModule));
+  }
+  write(root, 'main.py', JSON.stringify(metadata));
+  assert.ok(edge(injectedIndex(root), 'main.py', 'file:raw.py', 'import'), 'absent metadata preserves raw lookup');
+  write(root, 'main.py', JSON.stringify({ ...metadata, lookupModule: '_Box__raw' }));
+  const effective = injectedIndex(root);
+  assert.equal(effective.status, 'current');
+  assert.ok(edge(effective, 'main.py', 'file:_Box__raw.py', 'import'));
+  assert.ok(!edge(effective, 'main.py', 'file:raw.py', 'import'));
 });

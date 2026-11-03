@@ -206,19 +206,22 @@ function resolvePythonReference(relative, reference, available, directories) {
   const specifier = reference.specifier;
   const python = reference.python;
   const identifier = /^[_\p{ID_Start}][_\p{ID_Continue}]*$/u;
-  // Python normalizes identifier tokens before module lookup. Normalize only
-  // source-spelled segments; inventory paths retain their exact filesystem names.
-  const parts = typeof python.module === 'string' && python.module ? python.module.split('.').map(part => part.normalize('NFKC')) : [];
+  // The adapter supplies class-private module identity separately from spelling.
+  // Invalid present metadata must fail closed, never fall back to the raw token.
+  const module = Object.hasOwn(python, 'lookupModule') ? python.lookupModule : python.module;
+  // Normalize identifier tokens only; inventory paths retain their exact names.
+  const parts = typeof module === 'string' && module ? module.split('.').map(part => part.normalize('NFKC')) : [];
   if (!Number.isSafeInteger(python.level) || python.level < 0 || !['import', 'from'].includes(python.form)
-      || typeof python.module !== 'string' || parts.some(part => !identifier.test(part))
-      || (!parts.length && (!python.level || python.form !== 'from'))) {
+      || typeof python.module !== 'string' || typeof module !== 'string' || parts.some(part => !identifier.test(part))
+      || (!parts.length && (python.module !== '' || !python.level || python.form !== 'from'))) {
     return { error: `Malformed Python module reference: ${specifier}` };
   }
   const packageFile = directory => directory === '.' ? '__init__.py' : `${directory}/__init__.py`;
   const regularPackage = directory => available.has(packageFile(directory));
+  const lookupModule = parts.join('.');
   const unresolved = () => python.level
     ? { error: `Unresolved local Python module in the indexed regular package: ${specifier}` }
-    : { external: `python:${specifier}`, label: `${specifier} (external/unresolved Python)`, info: `Python import is external or unresolved in the project-root regular-package layout: ${specifier}. No environment or top-level namespace-package resolution is inferred.` };
+    : { external: `python:${lookupModule}`, label: `${lookupModule} (external/unresolved Python)`, info: `Python import is external or unresolved in the project-root regular-package layout: ${specifier}. No environment or top-level namespace-package resolution is inferred.` };
   let base = '', anchor = null;
   const sourceDirectory = path.posix.dirname(relative);
   if (python.level) {

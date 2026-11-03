@@ -207,3 +207,124 @@ for (const relative of ['calc.test.py', 'calc.spec.py']) test(`review R4: ${rela
   assert.equal(result.symbolGraph.edges.length, 1);
   assert.deepEqual(result.symbolGraph.edges[0].layers, ['project', 'testing']);
 });
+
+test('private identity: bare reads select the effective class name and preserve exact raw evidence', () => {
+  const source = '# 🧠\r\ndef __target(): pass\r\ndef _Box__target(): pass\r\nclass Box:\r\n    def caller(self): __target()\r\n';
+  const result = analyze(source); clean(result);
+  assert.deepEqual(pairs(result), [['Box.caller', '_Box__target', 'call']]);
+  assert.deepEqual(result.symbolGraph.edges[0].evidence, [{ path: 'test/example.py', line: 5, column: 23, snippet: 'def caller(self): __target()', containment: 'direct-body' }]);
+  assert.deepEqual(result.symbolGraph.nodes.map(node => node.id), ['__target', '_Box__target', 'Box', 'Box.caller'].map(name => `symbol:test/example.py#${name}`));
+  for (const node of result.symbolGraph.nodes) {
+    assert.equal(node.hash, createHash('sha256').update(source).digest('hex'));
+    assert.equal(source.slice(node.range.start, node.range.end).startsWith(node.kind === 'class' ? 'class Box:' : `def ${node.name}(`), true);
+  }
+});
+
+test('private identity: declaration binders and explicit effective reads share one key without renaming symbols', () => {
+  const result = analyze('def _Box__helper(): pass\nclass Box:\n    def caller(self):\n        def __helper(): pass\n        __helper()\n        _Box__helper()\n'); clean(result);
+  assert.deepEqual(pairs(result), [['Box.caller', 'Box.caller.__helper', 'call']]);
+  assert.deepEqual(result.symbolGraph.edges[0].evidence.map(item => [item.line, item.column, item.snippet]), [[5, 9, '__helper()'], [6, 9, '_Box__helper()']]);
+  const nested = analyze('class Outer:\n    class __Inner: pass\n    _Outer__Inner()\n'); clean(nested);
+  assert.deepEqual(pairs(nested), [['Outer', 'Outer.__Inner', 'construct']]);
+});
+
+for (const [name, signature, statement] of [
+  ['parameter', 'self, __target', 'pass'],
+  ['assignment', 'self', '__target = other'],
+  ['annotation', 'self', '__target: object'],
+  ['destructuring', 'self', 'x, __target = values'],
+  ['chained assignment', 'self', 'x = __target = other'],
+  ['loop', 'self', 'for __target in values: pass'],
+  ['except', 'self', 'try: pass\n        except Error as __target: pass'],
+  ['with', 'self', 'with ctx as __target: pass'],
+  ['delete', 'self', 'del __target'],
+  ['update', 'self', '__target += other'],
+  ['walrus', 'self', '(__target := other)'],
+  ['comprehension walrus', 'self', '[(__target := x) for x in values]'],
+  ['match', 'self', 'match value:\n            case {"key": __target}: pass'],
+  ['type alias', 'self', 'type __target = object'],
+  ['import', 'self', 'import __target'],
+  ['dotted import', 'self', 'import __target.member'],
+  ['import alias', 'self', 'import other as __target'],
+  ['from member', 'self', 'from other import __target'],
+  ['from alias', 'self', 'from other import value as __target']
+]) test(`private identity: ${name} shadows an explicit mangled call for the whole function`, () => {
+  const result = analyze(`def _Box__target(): pass\nclass Box:\n    def caller(${signature}):\n        _Box__target()\n        ${statement}\n`); clean(result);
+  assert.deepEqual(pairs(result), []);
+  assert(result.diagnostics.some(item => /Unresolved Python call/.test(item.message) && item.line === 4 && item.column === 9));
+});
+
+test('private identity: global writes and member poison affect effective keys without poisoning raw module names', () => {
+  for (const mutation of ['def mutate(self):\n        global __target\n        __target = other', '__target.__code__ = other']) {
+    const result = analyze(`def __target(): pass\ndef _Box__target(): pass\nclass Box:\n    ${mutation}\ndef caller():\n    _Box__target()\n    __target()\n`); clean(result);
+    assert.deepEqual(pairs(result), [['caller', '__target', 'call']]);
+    assert.equal(result.symbolGraph.edges[0].evidence[0].snippet, '__target()');
+  }
+  const nonlocal = analyze('def outer():\n    def _Box__target(): pass\n    class Box:\n        def caller(self):\n            nonlocal __target\n            _Box__target()\n            __target = other\n'); clean(nonlocal);
+  assert.deepEqual(pairs(nonlocal), []);
+});
+
+test('private identity: nested headers use outer context and bodies use the original inner class name', () => {
+  const source = 'def __target(): pass\ndef _Outer__target(): pass\ndef _Inner__target(): pass\nclass Outer:\n    @__target()\n    class __Inner(__target()):\n        def caller(self, value=__target()):\n            def nested(): __target()\n            __target()\n';
+  const result = analyze(source); clean(result);
+  assert.deepEqual(new Set(pairs(result).map(JSON.stringify)), new Set([
+    ['Outer', '_Outer__target', 'call'], ['Outer.__Inner', '_Inner__target', 'call'],
+    ['Outer.__Inner.caller.nested', '_Inner__target', 'call'], ['Outer.__Inner.caller', '_Inner__target', 'call']
+  ].map(JSON.stringify)));
+  assert.deepEqual(result.symbolGraph.edges.find(edge => edge.from.endsWith('#Outer')).evidence.map(item => [item.line, item.column]), [[5, 5], [6, 19]]);
+  assert.deepEqual(result.symbolGraph.edges.find(edge => edge.from.endsWith('#Outer.__Inner')).evidence.map(item => [item.line, item.column]), [[7, 32]]);
+});
+
+test('private identity: NFKC precedes class/name mangling while dunders and underscore-only reset stay unchanged', () => {
+  const unicode = analyze('def __K(): pass\ndef _K__K(): pass\nclass K:\n    def caller(self): __K()\n'); clean(unicode);
+  assert.deepEqual(pairs(unicode), [['K.caller', '_K__K', 'call']]);
+  assert(unicode.symbolGraph.nodes.some(node => node.id === 'symbol:test/example.py#__K' && node.name === '__K'));
+  const leading = analyze('def _Box__target(): pass\nclass __Box:\n    def caller(self): __target()\n'); clean(leading);
+  assert.deepEqual(pairs(leading), [['__Box.caller', '_Box__target', 'call']]);
+  const controls = analyze('def __target(): pass\ndef __target__(): pass\ndef _Outer__target(): pass\ndef module(): __target()\nclass Outer:\n    class ___:\n        def caller(self):\n            __target()\n            __target__()\n'); clean(controls);
+  assert.deepEqual(new Set(pairs(controls).map(JSON.stringify)), new Set([
+    ['module', '__target', 'call'], ['Outer.___.caller', '__target', 'call'], ['Outer.___.caller', '__target__', 'call']
+  ].map(JSON.stringify)));
+});
+
+test('private identity: generic class bases and keywords are explicitly unresolved while ordinary headers remain supported', () => {
+  const source = 'def __target(): pass\ndef _Outer__target(): pass\ndef _Generic__target(): pass\nclass Outer:\n    class Generic[T](__target(), metaclass=__target()):\n        def caller(self): __target()\n    class Ordinary(__target()): pass\n';
+  const result = analyze(source); clean(result);
+  assert.deepEqual(new Set(pairs(result).map(JSON.stringify)), new Set([
+    ['Outer.Generic.caller', '_Generic__target', 'call'], ['Outer', '_Outer__target', 'call']
+  ].map(JSON.stringify)));
+  assert.equal(result.diagnostics.filter(item => /generic class header/.test(item.message) && item.line === 5).length, 2);
+  const typeParam = analyze('def _Generic__T(): pass\nclass Outer:\n    class Generic[__T](__T()):\n        def caller(self): __T()\n'); clean(typeParam);
+  assert.deepEqual(pairs(typeParam), []);
+});
+
+test('private identity: import lookup modules follow simple/dotted operands and retain raw spelling and relative levels', () => {
+  const source = 'class Box:\n    import __mod\n    import __mod as __alias\n    import __mod.child\n    import __mod.child as __alias2\n    from __pkg import __member\n    from .__pkg import __member as __alias3\n    from pkg.__mod import __member\n    from .. import __member\n    import __mod__\n    import __K\n    import K\n';
+  const result = analyze(source); clean(result);
+  assert.deepEqual(result.references.map(({ specifier, python }) => [specifier, python.module, python.lookupModule, python.level, python.names]), [
+    ['__mod', '__mod', '_Box__mod', 0, [{ name: '__mod' }]],
+    ['__mod', '__mod', '_Box__mod', 0, [{ name: '__mod', as: '__alias' }]],
+    ['__mod.child', '__mod.child', undefined, 0, [{ name: '__mod.child' }]],
+    ['__mod.child', '__mod.child', undefined, 0, [{ name: '__mod.child', as: '__alias2' }]],
+    ['__pkg', '__pkg', '_Box__pkg', 0, [{ name: '__member' }]],
+    ['.__pkg', '__pkg', '_Box__pkg', 1, [{ name: '__member', as: '__alias3' }]],
+    ['pkg.__mod', 'pkg.__mod', undefined, 0, [{ name: '__member' }]],
+    ['..', '', undefined, 2, [{ name: '__member' }]],
+    ['__mod__', '__mod__', undefined, 0, [{ name: '__mod__' }]],
+    ['__K', '__K', '_Box__K', 0, [{ name: '__K' }]],
+    ['K', 'K', 'K', 0, [{ name: 'K' }]]
+  ]);
+  assert.deepEqual(result.references.map(reference => reference.evidence.line), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const reset = analyze('class Outer:\n    class ___:\n        import __mod\n'); clean(reset);
+  assert(!Object.hasOwn(reset.references[0].python, 'lookupModule'));
+});
+
+test('private identity: long implementation-defined transforms withhold affected relationships explicitly', () => {
+  const at = 'B'.repeat(251), over = 'B'.repeat(252);
+  const safe = analyze(`def _${at}__x(): pass\nclass ${at}:\n    def caller(self): __x()\n`); clean(safe);
+  assert.deepEqual(pairs(safe), [[`${at}.caller`, `_${at}__x`, 'call']]);
+  const limited = analyze(`def helper(): pass\nclass ${over}:\n    import __x\n    def caller(self): __x()\ndef caller(): helper()\n`);
+  assert.deepEqual(limited.references, []);
+  assert.deepEqual(pairs(limited), []);
+  assert(limited.diagnostics.some(item => item.severity === 'warning' && /private.*255|255.*private/i.test(item.message)));
+});
