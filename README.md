@@ -5,9 +5,10 @@ and named declarations, inspect supported static relationships, and use the same
 project names in the canvas and agent context. Saved source changes refresh the map.
 
 agent.mind reads source files without running your project. It currently analyzes
-JavaScript (`.js`, `.mjs`). Version 1.2.1 includes bounded text inventory and
-TypeScript/TSX/JSX/Python syntax-only inspection. Framework routing remains
-unsupported; typed and Python files remain explicitly partial.
+JavaScript (`.js`, `.mjs`) and Python (`.py`). Version 1.3.0 includes bounded text
+inventory, conservative Python source imports/local calls and TypeScript/TSX/JSX
+syntax-only inspection. Framework routing remains unsupported; typed files remain
+explicitly partial. Supported Python source can pass the ordinary context preflight.
 It runs locally, with no global install, account, API key or model required.
 
 **Start with a small project you know.** Try ordinary JavaScript with around
@@ -24,12 +25,12 @@ an installation, or a contribution to agent.mind.
 
 ## Support at a glance
 
-| Source | Available in the 1.2.1 release line | Boundary |
+| Source | Available in the 1.3.0 release line | Boundary |
 |---|---|---|
 | JavaScript `.js`, `.mjs` | Named symbols, static file references, conservative same-file calls, selected security/HTTP signals | No imported-call resolution, arbitrary runtime dispatch or framework routing |
 | TypeScript `.ts`, TSX `.tsx`, JSX `.jsx` | Named declarations, source locations and parser provenance | Syntax-only inspection; every pilot file is `partial` and strict preflight rejects it |
 | HTML / JSON | Static HTML asset references / JSON syntax validation | Embedded scripts are not analyzed |
-| Python `.py` | Named functions, classes, methods, source locations and parser provenance | Syntax-only inspection, not CPython validation; every Python file is `partial` and strict preflight rejects it |
+| Python `.py` | Named declarations, source imports and conservative same-file bare calls, source locations and parser provenance | Static source analysis, not CPython validation; dynamic/member/imported calls, types and runtime paths remain unresolved |
 | CSS, Markdown, `.pyi`, notebooks and other eligible UTF-8 text | Inventory and hash-bound source reads | No language symbols or internal dependency/call analysis |
 | Binary, oversized or excluded input | Explicit inventory/scope state where observable | No readable source claim for unread contents |
 
@@ -37,23 +38,23 @@ Capabilities are per file; a visible file or a current context is not proof that
 its language semantics were analyzed. Security and Testing are source-reference
 views, not vulnerability scans, test execution or coverage. See
 [What it can read](#what-it-can-read) and the [typed pilot](#typescripttsxjsx-inspection-pilot-110)
-for the exact limits and the [Python pilot](#python-inspection-pilot-120).
-The source checkout prepares **1.2.1**; only a published release with downloadable
+for the exact limits and the [Python support](#python-source-analysis-130).
+The source checkout prepares **1.3.0**; only a published release with downloadable
 assets establishes availability. Version 1.1.0 has Python inventory/text reads only.
 Existing installations do not update automatically. Additional host environments
 remain planned.
 
 ## Install into a project
 
-These instructions describe the **1.2.1 release line**. After publication, download
+These instructions describe the **1.3.0 release line**. After publication, download
 the archive and checksum from the
-[1.2.1 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.1).
+[1.3.0 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0).
 A version in source alone is not proof of publication: if those assets are not
 available, use an existing published version or build a local candidate as described
 under [Development](#development). Existing targets keep their pinned version;
-upgrades are explicit. The prior [1.2.0 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.0)
-remains available for rollback. It has the same language capabilities, with the
-JavaScript correctness, dense-source cost and nested-map warning limitations repaired in 1.2.1.
+upgrades are explicit. The prior [1.2.1 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.1)
+remains available for rollback. It includes the earlier JavaScript repairs and
+Python declaration inspection; its Python contexts remain partial and reject preflight.
 
 Requires Node.js 22 or newer on macOS or Linux. Select the published version before
 downloading; source candidates can be built locally using [Development](#development):
@@ -61,11 +62,11 @@ downloading; source candidates can be built locally using [Development](#develop
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.2.1.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.2.1/agent-mind-1.2.1.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.2.1/SHA256SUMS
+curl --fail --location --output agent-mind-1.3.0.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.3.0/agent-mind-1.3.0.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.3.0/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.2.1.tar.gz
-node agent-mind-1.2.1/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.2.1" --attach
+tar -xzf agent-mind-1.3.0.tar.gz
+node agent-mind-1.3.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.3.0" --attach
 ```
 
 Stop if checksum verification fails. Checksums check the downloaded bytes, so
@@ -73,7 +74,7 @@ choose the source repository deliberately. The installer also checks the full
 runtime manifest and rejects unknown files and symlinks. It will not overwrite
 an existing unowned `agent.mind/` directory.
 
-The 1.2.1 runtime includes Acorn, the bounded Babel parser and Lezer Python with
+The 1.3.0 runtime includes Acorn, the bounded Babel parser and Lezer Python with
 its three supporting packages, all inside `agent.mind/`. No Python interpreter,
 target compiler or build configuration is executed.
 It leaves your project's package.json, lockfile and node_modules alone. `--attach`
@@ -118,7 +119,7 @@ A fresh clone needs a local installation. Download the same pinned release,
 then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.2.1/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.2.1 --adopt --attach
+node /path/to/agent-mind-1.3.0/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.3.0 --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -252,8 +253,9 @@ affected targets, without treating those unsupported bodies as call evidence.
 Anonymous callbacks can add references to their nearest named symbol, marked
 `nested-closure`; that does not mean the parent calls them directly. Imported
 function calls, arbitrary object dispatch and runtime behavior are unsupported. **Entry** and **File body** show statements at the current source
-level. File imports are not treated as function calls. Python and typed source
-have the declaration-only support described above, without internal call analysis.
+level. File imports are not treated as function calls. Python also supports
+conservative bare same-file calls and source-module references as described below.
+Typed source retains declaration-only inspection.
 CSS, Markdown and other bounded UTF-8 text can be listed and read, including
 unsupported source languages; inventory does not add symbols, dependency
 resolution or security analysis for those types. JSON syntax is checked.
@@ -347,8 +349,8 @@ data**, including your map and recovery copies, stop external writers, inspect
 the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.2.1/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.2.1/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.3.0/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.3.0/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
 Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
@@ -400,7 +402,7 @@ the original verified release. If installation/attachment fails after creating a
 integration, inspect it with that release's CLI; resolve conflicts or uninstall
 before moving its remnants aside. Never force another install over partial state.
 The forward, failure/recovery and downgrade paths are exercised by
-`scripts/smoke-upgrade.mjs` using the actual published 1.0.3, 1.1.0 and 1.2.0
+`scripts/smoke-upgrade.mjs` using the actual published 1.0.3, 1.1.0, 1.2.0 and 1.2.1
 artifacts and the new bundle, including Python capabilities, corrected JavaScript
 relationships, user-data preservation and rollback.
 These are caught-failure checks, not crash/power-loss atomicity guarantees.
@@ -509,9 +511,10 @@ verified edit. Preflight does not lock files or control your other tools.
 
 After edits, run the target project's relevant checks and obtain fresh context.
 Static test links do not prove tests passed or measure coverage. Security labels
-identify source to review; they are not vulnerability findings. The typed and
-Python syntax pilots do not resolve imports or calls; framework routing and
-dynamic calls remain unsupported even when the visible map looks plausible. Never execute a scanned project to discover its
+identify source to review; they are not vulnerability findings. Language capabilities differ:
+typed files expose declarations only; Python adds
+source-module references and conservative bare local calls. Framework routing,
+imported calls and dynamic dispatch remain unsupported even when the map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
 
 ### View and hand back the result
@@ -631,38 +634,50 @@ records the exact candidates, fixed budgets and measured corpus; these are bound
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
 installations. Use the original release matching the chosen rollback version.
 
-### Python inspection pilot (1.2.0)
+### Python source analysis (1.3.0)
 
-Version 1.2.0 uses `@lezer/python` 1.1.19 with `@lezer/common` 1.5.5,
-`@lezer/lr` 1.4.12 and `@lezer/highlight` 1.2.5 (MIT). The runtime bundles their
-ESM entrypoints, metadata and licenses. It requires no Python interpreter and
-never imports or executes the scanned source or its environment.
+The runtime bundles `@lezer/python` 1.1.19, `@lezer/common` 1.5.5,
+`@lezer/lr` 1.4.12 and `@lezer/highlight` 1.2.5 (MIT). It requires no Python
+interpreter and never imports or executes scanned source or its environment.
 
-For `.py`, it exposes named functions, async functions, classes and nested methods
-with native parser kinds, source hashes, parser provenance and raw UTF-16 ranges.
-Ranges exclude decorator wrappers; an end inside CRLF is extended through its LF
-so a source range never splits that newline pair. Ordinary variables, lambdas and import/name,
-call/type/security/framework relationships are not inferred. Existing literal
-references to a `.py` file remain source-file references, not Python resolution.
+For `.py`, the map exposes named functions, async functions, classes and nested
+methods with raw UTF-16 ranges, native parser kinds, source hashes and producer
+provenance. Ranges exclude decorators and preserve complete CRLF boundaries.
+Bare calls may link to a unique, unmodified, undecorated function or class in the
+same file. Whole-function bindings, closures and class namespace boundaries are
+handled conservatively. Imported, member, aliased and dynamic call targets remain
+unresolved; no type inference or Python security/framework analysis is claimed.
 
-Every Python file is **partial**, so strict installed preflight rejects it. Lezer
-is an editor grammar, not a CPython validator: a tree without recovery errors does
-not prove valid Python or support for a specific Python version. Some unterminated
-strings are accepted as tokens without a recovery node. Arbitrary decorator
-expressions and type-parameter defaults are examples of unsupported syntax;
-`.pyi` and notebooks remain inventory-only. Decorator effects are not interpreted.
-Recovery/error nodes anywhere withhold all declarations from that file; duplicate
-qualified names and their descendants are withheld instead of selecting a runtime
-binding. Files over 64 KiB and traversals over 2,000 declarations, 100,000 nodes or
-depth 256 produce an explicit limitation and no declarations. These are not hard
-parser deadlines or a security sandbox. Source text remains available within the
-separate inventory limits.
+Imports reference source modules. Absolute names use the project root as the
+only source root; relative names use indexed regular packages with `__init__.py`.
+The map does not discover `sys.path`, virtual environments, build configuration,
+namespace packages or an implicit `src` root. Unmatched absolute names are visibly
+external/unresolved, not proof that a dependency is installed. For
+`from package import member`, the reference names the package module; whether the
+member is an attribute or submodule remains unresolved. Ambiguous paths are never
+selected arbitrarily. Python test filenames and imports provide Testing links,
+not test results or coverage.
 
-The [Python contract and implementation evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
-records fixed budgets, parser selection and validation of the merged pilot.
-Release preparation is recorded in the source repository's `docs/releases/1.2.0.md`;
-review documents are not shipped in the runtime. Publication and target upgrades
-remain separate from building or reviewing a candidate.
+Supported Python files no longer receive an unconditional `partial` warning.
+A complete current index can pass the unchanged strict preflight. `current` means
+fresh bounded source analysis; it does not establish valid Python, test success,
+runtime correctness or future freshness. Ordinary unresolved calls and bindings
+remain informational. Actual read/parse errors, known malformed or unsupported
+constructs and limits still produce `partial` and reject preflight. The editor
+grammar is not a CPython validator or a guarantee for every Python version;
+run the target's authorized tests and syntax checks for those claims.
+
+Recovery errors withhold the file's source relationships. Ambiguous declaration
+IDs and descendants are withheld. Limits remain 64 KiB/file, 2,000 declarations,
+100,000 parser nodes and nesting depth 256; calls are bounded to 10,000 sites
+and 5,000 edges per file. Source text remains
+available within the independent inventory limits. Parser limits are not deadlines
+or a sandbox. `.pyi` and notebooks remain inventory-only; annotation evaluation,
+comprehension/lambda bodies and decorator effects are not inferred as call targets.
+
+The source repository's `docs/releases/1.3.0.md` records acceptance and rollback.
+The [earlier Python pilot evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
+records parser selection and historical declaration-only behavior in 1.2.x.
 
 ### Local APIs
 

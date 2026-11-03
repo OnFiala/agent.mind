@@ -66,8 +66,11 @@ and graph composition. `source-analysis.mjs` synchronously analyzes checked text
 (JS/HTML/JSON), including static HTTP/SSE references, without I/O or project state. `project-map.mjs` derives the overview from source edges and validated
 naming metadata. `typed-analysis.mjs` owns the bounded syntax-only TS/TSX/JSX pilot and its explicit
 uncertainty; no typed import/call/type/security resolution is inferred.
-`python-analysis.mjs` owns the bounded syntax-only Python declaration pilot; it never
-executes Python or resolves imports, names, calls or types.
+`python-analysis.mjs` owns bounded Python declarations, import syntax and conservative
+same-file bare-call bindings; `code-index.mjs` resolves indexed regular-package modules
+from the project root and explicit relative imports. Never execute Python, infer
+runtime import paths, imported/member calls, types or security behavior. Ordinary
+unresolved relationships stay visible; actual errors and limits still fail preflight.
 `symbol-index.mjs` extracts nested named symbols and conservative
 local calls without execution; ambiguous/dynamic calls remain unresolved. The
 overview and drill-down never invent dependencies from labels alone. `live-index.mjs` owns reconciliation

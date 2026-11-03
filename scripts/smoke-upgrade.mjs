@@ -33,6 +33,7 @@ const publishedDigests = new Map([
   ['1.0.3', 'ffcf92c345d0bd2d6ad6082dc546947e36b6e0e9b7f0b79d107e236434a8db28'],
   ['1.1.0', '7e6be652f82dc782928468a791dcc591e052fa9ee717247ffbd985b4bad6d102'],
   ['1.2.0', '6f27e1b1e1d8a0740847f7bfef1f06c04d8c73dbefe2719c71c746975537550d'],
+  ['1.2.1', '3f5c0348900525542d5b6860769c728610690db01e444e5a36bfe423d2d268ce'],
 ]);
 assert(publishedDigests.has(oldArtifact.version), 'Only pinned published previous releases are supported');
 assert.equal(oldArtifact.digest, publishedDigests.get(oldArtifact.version), `The old artifact must be the exact published ${oldArtifact.version} payload`);
@@ -40,7 +41,7 @@ assert.notEqual(newArtifact.version, oldArtifact.version);
 assert.notEqual(newArtifact.digest, oldArtifact.digest);
 // Patch releases keep the same payload allowlist. Version identity comes from
 // the verified manifest/digest, not the version of the verifier importing it.
-if (oldArtifact.version === '1.2.0') assert.equal(newVerifier.verifyArtifact(oldRelease).digest, oldArtifact.digest);
+if (['1.2.0', '1.2.1'].includes(oldArtifact.version)) assert.equal(newVerifier.verifyArtifact(oldRelease).digest, oldArtifact.digest);
 else assert.throws(() => newVerifier.verifyArtifact(oldRelease), /missing required file|unapproved|versions do not match/i);
 
 const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-upgrade-smoke-')));
@@ -49,7 +50,7 @@ const unrelated = path.join(temporary, 'unrelated cwd');
 fs.mkdirSync(backups); fs.mkdirSync(unrelated);
 const env = { ...process.env };
 delete env.AGENT_MIND_PROJECT;
-const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; ${oldArtifact.version === '1.2.0' ? 'compatible allowlist preserves distinct manifest/digest identities' : 'current allowlist rejects the older payload shape'}`];
+const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; ${['1.2.0', '1.2.1'].includes(oldArtifact.version) ? 'compatible allowlist preserves distinct manifest/digest identities' : 'current allowlist rejects the older payload shape'}`];
 const receipts = [];
 let view, report;
 const run = (cli, argv, expectedError) => {
@@ -248,48 +249,51 @@ try {
 
   // 1.0.3 predates the bounded text-inventory contract. Its regression above stays
   // focused on lifecycle preservation. Later releases also exercise Python.
-  if (['1.1.0', '1.2.0'].includes(oldArtifact.version)) {
-    const oldPythonSyntax = oldArtifact.version === '1.2.0';
+  if (['1.1.0', '1.2.0', '1.2.1'].includes(oldArtifact.version)) {
+    const oldPythonSyntax = ['1.2.0', '1.2.1'].includes(oldArtifact.version);
     const python = fixture('Python capability transition');
     install(python, oldRelease, oldArtifact);
     const relative = 'src/inspect.py';
     python.files[relative] = '# Owner Python source 🧠\r\nraise RuntimeError("Target must never execute")\r\nclass Box:\r\n    def read(self):\r\n        return 1\r\ndef inspect():\r\n    return Box()\r\n';
     fs.writeFileSync(path.join(python.project, relative), python.files[relative]);
-    const pythonContext = syntax => {
+    const pythonContext = mode => {
+      const syntax = mode !== 'text', source = mode === 'source';
       const context = run(installedCLI(python), ['context', relative]);
       const file = context.nodes.find(node => node.id === `file:${relative}`);
       assert(file, 'Python must remain visible in the installed inventory');
       assert.equal(file.hash, sha(Buffer.from(python.files[relative])));
-      assert.deepEqual(file.capabilities, syntax ? ['text', 'python-syntax', 'named-symbols'] : ['text']);
-      assert.equal(context.status, syntax ? 'partial' : 'current');
+      assert.deepEqual(file.capabilities, source ? ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls'] : syntax ? ['text', 'python-syntax', 'named-symbols'] : ['text']);
+      assert.equal(context.status, syntax && !source ? 'partial' : 'current');
       assert.deepEqual(context.symbolGraph.nodes.map(node => node.id).sort(), syntax ? [
         'symbol:src/inspect.py#Box', 'symbol:src/inspect.py#Box.read', 'symbol:src/inspect.py#inspect',
       ] : []);
-      assert.deepEqual(context.symbolGraph.edges, []);
+      if (source) assert(context.symbolGraph.edges.some(edge => edge.from === 'symbol:src/inspect.py#inspect' && edge.to === 'symbol:src/inspect.py#Box' && edge.kind === 'construct'));
+      else assert.deepEqual(context.symbolGraph.edges, []);
       assert.deepEqual(context.edges, []);
       assert.deepEqual(file.security, []);
-      if (syntax) run(installedCLI(python), ['preflight', relative, ...receiptArgs(context)], /partial/i);
+      if (syntax && !source) run(installedCLI(python), ['preflight', relative, ...receiptArgs(context)], /partial/i);
+      else assert.equal(run(installedCLI(python), ['preflight', relative, ...receiptArgs(context)]).preflight, 'verified-at-read');
       assertHost(python);
       return context;
     };
-    const inventory = pythonContext(oldPythonSyntax);
+    const inventory = pythonContext(oldPythonSyntax ? 'syntax' : 'text');
     const beforePython = uninstallAndPark(python, 'Python inventory remnants', addOwnerData(python, 'Python inventory'));
-    install(python, newRelease, newArtifact, 'partial');
-    const declarations = pythonContext(true);
+    install(python, newRelease, newArtifact, 'current');
+    const declarations = pythonContext('source');
     assert.notEqual(declarations.binding.id, inventory.binding.id);
-    // Partial contexts fail closed before receipt validation. The current JS
-    // lifecycle fixture above separately proves stale binding/revision rejection.
-    run(installedCLI(python), ['preflight', relative, ...receiptArgs(inventory)], /partial/i);
-    const afterPython = uninstallAndPark(python, 'Python syntax remnants', addOwnerData(python, 'Python syntax'));
+    // The completed Python context now validates receipts rather than failing
+    // on its language alone: the old version's receipt must still be rejected.
+    rejectOldReceipt(python, inventory);
+    const afterPython = uninstallAndPark(python, 'Python source remnants', addOwnerData(python, 'Python source'));
     install(python, oldRelease, oldArtifact, oldPythonSyntax ? 'partial' : 'current');
-    const restored = pythonContext(oldPythonSyntax);
+    const restored = pythonContext(oldPythonSyntax ? 'syntax' : 'text');
     assert.notEqual(restored.binding.id, declarations.binding.id);
     if (!oldPythonSyntax) rejectOldReceipt(python, declarations);
     else run(installedCLI(python), ['preflight', relative, ...receiptArgs(declarations)], /partial/i);
     assertParked(beforePython); assertParked(afterPython);
     checks.push(oldPythonSyntax
-      ? 'published 1.2.0 Python declarations/partial and strict preflight rejection survive upgrade and rollback; exact CRLF/Unicode source and both recovery backups preserved'
-      : 'published 1.1.0 Python text-only inventory upgrades to named declarations/partial with strict preflight rejection; rollback restores text-only inventory, exact CRLF/Unicode source and both recovery backups');
+      ? `published ${oldArtifact.version} Python partial upgrades to current imports/local-call capabilities and verified preflight, rollback restores partial; exact CRLF/Unicode source and recovery preserved`
+      : 'published 1.1.0 Python text inventory upgrades to current source analysis and verified preflight; rollback restores text-only inventory, exact CRLF/Unicode source and recovery');
   } else {
     checks.push('1.0.3 regression retains lifecycle/typed checks; Python inventory-to-syntax-to-inventory transition is explicitly exercised only with published 1.1.0');
   }
