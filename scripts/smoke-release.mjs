@@ -139,12 +139,22 @@ try {
   fs.unlinkSync(path.join(project, 'src/typed.ts'));
   fs.writeFileSync(path.join(project, 'src/__init__.py'), '');
   fs.writeFileSync(path.join(project, 'src/helper.py'), 'def remote(): return 2\n');
-  fs.writeFileSync(path.join(project, 'src/python.py'), 'from .helper import remote\nraise RuntimeError("Scanned source must not run")\ndef helper(): return 1\nclass Service:\n    async def run(self):\n        return helper()\n');
+  const pythonSource = 'from .helper import remote\nraise RuntimeError("Scanned source must not run")\ndef helper(): return 1\ndef __target(): return 0\ndef _Service__target(): return 2\nclass Service:\n    from .__dep import remote\n    async def run(self):\n        return helper() + __target()\n';
+  const privateSources = { 'src/python.py': pythonSource, 'src/__dep.py': 'def remote(): return 0\n', 'src/_Service__dep.py': 'def remote(): return 2\n' };
+  for (const [relative, contents] of Object.entries(privateSources)) fs.writeFileSync(path.join(project, relative), contents);
   const pythonContext = run(cli, ['context', 'src/python.py']);
   assert.equal(pythonContext.status, 'current');
   assert(pythonContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/python.py#Service.run'));
   assert(pythonContext.symbolGraph.edges.some(edge => edge.from === 'symbol:src/python.py#Service.run' && edge.to === 'symbol:src/python.py#helper'));
   assert(pythonContext.edges.some(edge => edge.kind === 'import' && edge.from === 'file:src/python.py' && edge.to === 'file:src/helper.py'));
+  const privateImport = pythonContext.edges.find(edge => edge.kind === 'import' && edge.from === 'file:src/python.py' && edge.to === 'file:src/_Service__dep.py');
+  assert.deepEqual(privateImport?.evidence, [{ path: 'src/python.py', line: 7, column: 5, snippet: 'from .__dep import remote' }]);
+  assert(!pythonContext.edges.some(edge => edge.from === 'file:src/python.py' && edge.to === 'file:src/__dep.py'));
+  const privateCall = pythonContext.symbolGraph.edges.find(edge => edge.from === 'symbol:src/python.py#Service.run' && edge.to === 'symbol:src/python.py#_Service__target');
+  assert(privateCall?.evidence.some(item => item.path === 'src/python.py' && item.line === 9 && item.snippet === 'return helper() + __target()'));
+  assert(!pythonContext.symbolGraph.edges.some(edge => edge.from === 'symbol:src/python.py#Service.run' && edge.to === 'symbol:src/python.py#__target'));
+  for (const [key, value] of Object.entries(run(cli, ['status']).binding)) assert.equal(pythonContext.binding[key], value);
+  for (const [relative, contents] of Object.entries(privateSources)) assert.equal(fs.readFileSync(path.join(project, relative), 'utf8'), contents);
   const pythonReceipt = ['--revision', pythonContext.revision, '--binding-id', pythonContext.binding.id, '--generation', String(pythonContext.binding.generation)];
   assert.equal(run(cli, ['preflight', 'src/python.py', ...pythonReceipt]).preflight, 'verified-at-read');
   fs.appendFileSync(path.join(project, 'src/python.py'), '# changed after preflight\n');
@@ -155,7 +165,14 @@ try {
   assert(failedPython.diagnostics.some(d => /parse error/i.test(d.message)));
   assert.equal(failedPython.status, 'partial');
   assert.match(run(cli, ['preflight', 'src/python.py', ...pythonReceipt], false), /partial/i);
-  checks.push('shipped Python runtime resolves source imports/local calls, passes current preflight and rejects stale/error context without source execution');
+  fs.writeFileSync(path.join(project, 'src/python.py'), pythonSource);
+  const restoredPython = run(cli, ['context', 'src/python.py']);
+  assert.equal(restoredPython.status, 'current');
+  assert.equal(restoredPython.revision, pythonContext.revision);
+  assert.deepEqual(restoredPython.binding, pythonContext.binding);
+  assert.equal(run(cli, ['preflight', 'src/python.py', ...pythonReceipt]).preflight, 'verified-at-read');
+  for (const [relative, contents] of Object.entries(privateSources)) assert.equal(fs.readFileSync(path.join(project, relative), 'utf8'), contents);
+  checks.push('shipped Python runtime preserves private import/call identity and raw evidence, accepts current preflight, rejects stale/error context and preserves binding/source without execution');
 
 
   const userNote = '\nOwner edit must survive.\n';

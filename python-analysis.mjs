@@ -10,6 +10,10 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 // Python compares identifier tokens after NFKC normalization; displayed source
 // spelling, symbol IDs, module references and ranges remain untouched.
 const bindingKey = name => name.normalize('NFKC');
+const privateContext = name => {
+  const prefix = bindingKey(name).replace(/^_+/, '');
+  return Object.freeze({ prefix, length: [...prefix].length });
+};
 // Keep the index's test naming contract without introducing index/I/O coupling.
 const isTestSource = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py|ts|tsx|jsx)$/.test(name) || /(?:^|\/)(?:test_[^/]+|[^/]+_test)\.py$/.test(name);
 
@@ -117,25 +121,38 @@ export function analyzePythonSource(relative, source, hash) {
 
   const makeScope = (parent, type) => ({ parent, type, bindings: new Map(), unknown: false });
   const moduleScope = makeScope(null, 'module'), calls = [], poisoned = new Set();
-  let dynamicNamespace = false, limited = false;
-  const bind = (scope, name, symbol = null, node = null) => {
-    const key = bindingKey(name);
+  let dynamicNamespace = false, limited = false, uncertainIdentity = false;
+  const identity = (spelling, privateClass, node) => {
+    const name = bindingKey(spelling);
+    if (!privateClass?.prefix || !name.startsWith('__') || name.endsWith('__') || name.includes('.')) return name;
+    // The language reference permits implementation-defined truncation beyond
+    // 255 characters. Such a binding can affect explicit names elsewhere too.
+    if (1 + privateClass.length + [...name].length > 255) {
+      uncertainIdentity = true;
+      report('Python private-name transform exceeds 255 characters; implementation-defined identity is unresolved. Affected imports and file call targets are withheld.', node);
+      return null;
+    }
+    return `_${privateClass.prefix}${name}`;
+  };
+  const bind = (scope, name, symbol = null, node = null, privateClass = null) => {
+    const key = identity(name, privateClass, node);
+    if (key === null) return;
     if (!scope.bindings.has(key)) scope.bindings.set(key, []);
     const bindings = scope.bindings.get(key);
     if (bindings.some(binding => binding.spelling !== name)) report(`Ambiguous normalized Python binding ${name}; colliding source spellings cannot resolve a call target.`, node, 'info');
     bindings.push({ symbol, node, spelling: name });
   };
-  const target = (node, scope) => {
+  const target = (node, scope, privateClass) => {
     if (!node) return;
-    if (node.name === 'VariableName') bind(scope, text(node));
+    if (node.name === 'VariableName') bind(scope, text(node), null, node, privateClass);
     else if (node.name === 'MemberExpression') {
       // Mutation of a declaration object may change construction/call behavior.
       let base = node;
       while (base?.name === 'MemberExpression') base = base.children[0];
-      if (base?.name === 'VariableName') poisoned.add(bindingKey(text(base)));
-    } else if (['TupleExpression', 'ArrayExpression', 'ParenthesizedExpression', 'StarredExpression'].includes(node.name)) for (const child of node.children) target(child, scope);
+      if (base?.name === 'VariableName') poisoned.add(identity(text(base), privateClass, base));
+    } else if (['TupleExpression', 'ArrayExpression', 'ParenthesizedExpression', 'StarredExpression'].includes(node.name)) for (const child of node.children) target(child, scope, privateClass);
   };
-  const importStatement = (node, scope) => {
+  const importStatement = (node, scope, privateClass) => {
     const children = node.children.filter(child => child.name !== 'Comment'), from = children[0].name === 'from';
     const importIndex = children.findIndex(child => child.name === 'import');
     const tail = children.slice(importIndex + 1).filter(child => !['(', ')'].includes(child.name));
@@ -146,16 +163,23 @@ export function analyzePythonSource(relative, source, hash) {
       const head = alias < 0 ? group : group.slice(0, alias);
       return { name: head.map(text).join(''), ...(alias < 0 ? {} : { as: text(group[alias + 1]) }) };
     };
+    const moduleIdentity = module => {
+      if (!module) return {};
+      const lookupModule = identity(module, privateClass, node);
+      return lookupModule === null ? null : lookupModule === module ? {} : { lookupModule };
+    };
     if (from) {
       const moduleNodes = children.slice(1, importIndex), spelling = moduleNodes.map(text).join('');
       const level = spelling.match(/^\.+/)?.[0].length ?? 0;
       const imported = groups.filter(group => group.length).map(names);
-      result.references.push({ kind: 'import', specifier: spelling, evidence: evidence(node), python: { level, module: spelling.slice(level), names: imported, form: 'from' } });
-      for (const entry of imported) entry.name === '*' ? scope.unknown = true : bind(scope, entry.as ?? entry.name);
+      const module = spelling.slice(level), effective = moduleIdentity(module);
+      if (effective) result.references.push({ kind: 'import', specifier: spelling, evidence: evidence(node), python: { level, module, ...effective, names: imported, form: 'from' } });
+      for (const entry of imported) entry.name === '*' ? scope.unknown = true : bind(scope, entry.as ?? entry.name, null, node, privateClass);
     } else for (const group of groups.filter(group => group.length)) {
       const entry = names(group);
-      result.references.push({ kind: 'import', specifier: entry.name, evidence: evidence(group[0]), python: { level: 0, module: entry.name, names: [entry], form: 'import' } });
-      bind(scope, entry.as ?? entry.name.split('.')[0]);
+      const effective = moduleIdentity(entry.name);
+      if (effective) result.references.push({ kind: 'import', specifier: entry.name, evidence: evidence(group[0]), python: { level: 0, module: entry.name, ...effective, names: [entry], form: 'import' } });
+      bind(scope, entry.as ?? entry.name.split('.')[0], null, node, privateClass);
     }
   };
   const isDocstring = node => {
@@ -171,17 +195,20 @@ export function analyzePythonSource(relative, source, hash) {
     const direct = callee?.name === 'VariableName' ? text(callee) : null;
     return { direct, name: direct ?? (callee?.name === 'MemberExpression' ? text(callee.children.at(-1)) : node.name === 'Decorator' ? text(parts.at(-1)) : '') };
   };
-  function visit(node, scope, owner = null, omitted = false, conditional = false) {
+  function visit(node, scope, owner = null, omitted = false, conditional = false, privateClass = null) {
     const children = node.children;
     if (node.symbol) {
       const decorated = node.parent.name === 'DecoratedStatement';
       const dynamicClass = node.name === 'ClassDefinition' && children.some(child => child.name === 'ArgList' && child.children.some(item => !['(', ')'].includes(item.name)));
-      bind(scope, node.symbol.name, decorated || conditional || dynamicClass ? null : node.symbol, node);
+      bind(scope, node.symbol.name, decorated || conditional || dynamicClass ? null : node.symbol, node, privateClass);
+      // Lexical private identity is independent of namespace lookup: the class
+      // binder/header uses the outer class, its body resets to its raw name.
+      const bodyClass = node.name === 'ClassDefinition' ? privateContext(node.symbol.name) : privateClass;
       const typeParams = children.find(child => child.name === 'TypeParamList');
       const headerScope = typeParams ? makeScope(scope, 'type-parameters') : scope;
       if (typeParams) for (const parameter of typeParams.children.filter(child => child.name === 'TypeParam')) {
         const name = parameter.children.find(child => child.name === 'VariableName');
-        if (name) bind(headerScope, text(name));
+        if (name) bind(headerScope, text(name), null, name, bodyClass);
       }
       // Methods capture a compiler-supplied __class__ cell; class bodies do
       // not. Keep it outside the skipped class namespace for nested closures.
@@ -200,41 +227,44 @@ export function analyzePythonSource(relative, source, hash) {
         let parameter = true;
         for (const child of params.children) {
           if ([',', '*', '**'].includes(child.name)) parameter = true;
-          else if (child.name === 'VariableName' && parameter) { bind(ownScope, text(child)); parameter = false; }
-          else visit(child, headerScope, owner, omitted, conditional);
+          else if (child.name === 'VariableName' && parameter) { bind(ownScope, text(child), null, child, bodyClass); parameter = false; }
+          else visit(child, headerScope, owner, omitted, conditional, privateClass);
         }
       }
       for (const child of children) {
-        if (child.name === 'Body') visit(child, ownScope, node.symbol, omitted, false);
-        else if (!['ParamList', 'VariableName'].includes(child.name)) visit(child, headerScope, owner, omitted, conditional);
+        if (child.name === 'Body') visit(child, ownScope, node.symbol, omitted, false, bodyClass);
+        else if (!['ParamList', 'VariableName'].includes(child.name)) {
+          const genericHeader = node.name === 'ClassDefinition' && typeParams && child.name === 'ArgList';
+          visit(child, headerScope, owner, genericHeader ? 'generic class header' : omitted, conditional, child.name === 'TypeParamList' ? bodyClass : privateClass);
+        }
       }
       return;
     }
-    if (node.name === 'ImportStatement') { importStatement(node, scope); return; }
+    if (node.name === 'ImportStatement') { importStatement(node, scope, privateClass); return; }
     if (['TypeDef', 'TypeParamList'].includes(node.name)) {
-      for (const child of children) visit(child, scope, owner, 'annotation/type-parameter context', conditional);
+      for (const child of children) visit(child, scope, owner, 'annotation/type-parameter context', conditional, privateClass);
       return;
     }
     if (node.name === 'TypeDefinition') {
-      target(children.find(child => child.name === 'VariableName'), scope);
-      for (const child of children) visit(child, scope, owner, 'type-alias context', conditional);
+      target(children.find(child => child.name === 'VariableName'), scope, privateClass);
+      for (const child of children) visit(child, scope, owner, 'type-alias context', conditional, privateClass);
       return;
     }
     if (node.name === 'ScopeStatement') {
-      for (const child of children) if (child.name === 'VariableName') { poisoned.add(bindingKey(text(child))); bind(scope, text(child)); }
+      for (const child of children) if (child.name === 'VariableName') { poisoned.add(identity(text(child), privateClass, child)); bind(scope, text(child), null, child, privateClass); }
       return;
     }
     if (node.name === 'LambdaExpression') {
       const local = makeScope(scope, 'function');
       const params = children.find(child => child.name === 'ParamList');
-      for (const child of params?.children ?? []) if (child.name === 'VariableName') bind(local, text(child));
-      for (const child of children) visit(child, local, owner, 'lambda/comprehension context', conditional);
+      for (const child of params?.children ?? []) if (child.name === 'VariableName') bind(local, text(child), null, child, privateClass);
+      for (const child of children) visit(child, local, owner, 'lambda/comprehension context', conditional, privateClass);
       return;
     }
     if (/ComprehensionExpression$/.test(node.name)) {
       const local = makeScope(scope, 'comprehension');
       for (let index = 0; index < children.length; index++) {
-        if (children[index].name === 'for') for (let end = index + 1; end < children.length && children[end].name !== 'in'; end++) target(children[end], local);
+        if (children[index].name === 'for') for (let end = index + 1; end < children.length && children[end].name !== 'in'; end++) target(children[end], local, privateClass);
       }
       // Comprehension scope/evaluation order is intentionally omitted. Walrus
       // names bind the enclosing non-comprehension scope, including in filters.
@@ -242,39 +272,42 @@ export function analyzePythonSource(relative, source, hash) {
       while (walruses.length) {
         const child = walruses.pop();
         if (child !== node && child.name === 'LambdaExpression') continue;
-        if (child.name === 'NamedExpression') target(child.children[0], scope);
+        if (child.name === 'NamedExpression') target(child.children[0], scope, privateClass);
         walruses.push(...child.children);
       }
-      for (const child of children) visit(child, local, owner, 'lambda/comprehension context', conditional);
+      for (const child of children) visit(child, local, owner, 'lambda/comprehension context', conditional, privateClass);
       return;
     }
     if (node.name === 'AssignStatement') {
       const ops = children.map((child, index) => child.name === 'AssignOp' ? index : -1).filter(index => index >= 0);
-      if (!ops.length) target(children[0], scope);
+      if (!ops.length) target(children[0], scope, privateClass);
       let start = 0;
       for (const index of ops) {
-        for (const child of children.slice(start, index)) if (child.name !== 'TypeDef') target(child, scope);
+        for (const child of children.slice(start, index)) if (child.name !== 'TypeDef') target(child, scope, privateClass);
         start = index + 1;
       }
     }
-    if (['UpdateStatement', 'NamedExpression'].includes(node.name)) target(children[0], scope);
-    if (node.name === 'DeleteStatement') for (const child of children.slice(1)) target(child, scope);
-    if (node.name === 'ForStatement') for (const child of children.slice(children.findIndex(child => child.name === 'for') + 1, children.findIndex(child => child.name === 'in'))) target(child, scope);
-    if (['WithStatement', 'TryStatement', 'AsPattern'].includes(node.name)) for (let index = 0; index < children.length; index++) if (children[index].name === 'as') target(children[index + 1], scope);
-    if (node.name === 'CapturePattern') target(children[0], scope);
+    if (['UpdateStatement', 'NamedExpression'].includes(node.name)) target(children[0], scope, privateClass);
+    if (node.name === 'DeleteStatement') for (const child of children.slice(1)) target(child, scope, privateClass);
+    if (node.name === 'ForStatement') for (const child of children.slice(children.findIndex(child => child.name === 'for') + 1, children.findIndex(child => child.name === 'in'))) target(child, scope, privateClass);
+    if (['WithStatement', 'TryStatement', 'AsPattern'].includes(node.name)) for (let index = 0; index < children.length; index++) if (children[index].name === 'as') target(children[index + 1], scope, privateClass);
+    if (node.name === 'CapturePattern') target(children[0], scope, privateClass);
     if (node.name === 'CallExpression' || node.name === 'Decorator' && children.some(child => child.name === 'ArgList')) {
       if (calls.length >= PYTHON_LIMITS.callSites) limited = true;
-      else calls.push({ node, scope, owner, omitted });
+      else {
+        const { direct } = callCallee(node);
+        calls.push({ node, scope, owner, omitted, key: direct ? identity(direct, privateClass, node) : null });
+      }
       const { name } = callCallee(node);
       if (['exec', 'eval', 'globals', 'locals', 'vars', 'setattr', 'delattr', '__import__'].includes(bindingKey(name))) dynamicNamespace = true;
     }
     const branch = conditional || ['IfStatement', 'ForStatement', 'WhileStatement', 'TryStatement', 'WithStatement', 'MatchStatement'].includes(node.name);
-    for (const child of children) visit(child, scope, owner, omitted, branch);
+    for (const child of children) visit(child, scope, owner, omitted, branch, privateClass);
   }
   visit(root.children[0], moduleScope);
-  const lookup = (scope, spelling) => {
-    const name = bindingKey(spelling);
-    if (poisoned.has(name) || dynamicNamespace) return null;
+  // The source occurrence has already been normalized/mangled exactly once.
+  const lookup = (scope, name) => {
+    if (name === null || poisoned.has(name) || dynamicNamespace || uncertainIdentity) return null;
     let skipClasses = false;
     for (let current = scope; current; current = current.parent) {
       if (!(skipClasses && current.type === 'class')) {
@@ -291,9 +324,8 @@ export function analyzePythonSource(relative, source, hash) {
   const edges = new Map();
   let unresolved = 0;
   for (const record of calls) {
-    const { node, scope, owner, omitted } = record;
-    const callee = callCallee(node);
-    const binding = !omitted && callee.direct ? lookup(scope, callee.direct) : null;
+    const { node, scope, owner, omitted, key: lookupKey } = record;
+    const binding = !omitted ? lookup(scope, lookupKey) : null;
     const candidate = binding?.symbol;
     // Module/class bodies execute sequentially. Deferred function bodies use
     // lexical candidates; the edge is source evidence, never execution proof.
