@@ -328,3 +328,101 @@ test('private identity: long implementation-defined transforms withhold affected
   assert.deepEqual(pairs(limited), []);
   assert(limited.diagnostics.some(item => item.severity === 'warning' && /private.*255|255.*private/i.test(item.message)));
 });
+
+test('lambda defaults bind walrus writes in the enclosing module or function scope', () => {
+  const module = analyze('def target(): pass\ndef replacement(): pass\nfactory = lambda value=(target := replacement): None\ndef caller(): target()\n'); clean(module);
+  assert.deepEqual(pairs(module), []);
+  const closure = analyze('def target(): pass\ndef outer():\n    def replacement(): pass\n    factory = lambda value=(target := replacement): None\n    def caller(): target()\ndef unaffected(): target()\n'); clean(closure);
+  assert.deepEqual(pairs(closure), [['unaffected', 'target', 'call']]);
+});
+
+test('lambda default calls use enclosing bindings and retain source identities and evidence', () => {
+  const source = '# 🧠\r\ndef target(): pass\r\ndef caller():\r\n    factory = lambda target=target(), *, value=target(): target()\r\n    target()\r\n';
+  const result = analyze(source); clean(result);
+  assert.deepEqual(pairs(result), [['caller', 'target', 'call']]);
+  assert.deepEqual(result.symbolGraph.edges[0].evidence.map(item => [item.line, item.column, item.snippet]), [
+    [4, 29, 'factory = lambda target=target(), *, value=target(): target()'],
+    [4, 48, 'factory = lambda target=target(), *, value=target(): target()'],
+    [5, 5, 'target()']
+  ]);
+  assert(result.diagnostics.some(item => /lambda\/comprehension context/.test(item.message) && item.line === 4 && item.column === 58));
+  assert.deepEqual(result.symbolGraph.nodes.map(node => node.id), ['target', 'caller'].map(name => `symbol:test/example.py#${name}`));
+  for (const node of result.symbolGraph.nodes) {
+    assert.equal(node.hash, createHash('sha256').update(source).digest('hex'));
+    assert(source.slice(node.range.start, node.range.end).startsWith(`def ${node.name}(`));
+  }
+});
+
+test('lambda parameters, body writes and nested lambda defaults keep their own local scopes', () => {
+  for (const expression of ['lambda target=target: target()', 'lambda *target, **other: target()', 'lambda: (target := replacement)', 'lambda: (lambda value=(target := replacement): target())']) {
+    const result = analyze(`def target(): pass\ndef replacement(): pass\nfactory = ${expression}\ndef caller(): target()\n`); clean(result);
+    assert.deepEqual(pairs(result), [['caller', 'target', 'call']], expression);
+  }
+  const nestedDefault = analyze('def target(): pass\ndef replacement(): pass\nfactory = lambda value=(lambda nested=(target := replacement): None): None\ndef caller(): target()\n'); clean(nestedDefault);
+  assert.deepEqual(pairs(nestedDefault), []);
+});
+
+test('lambda defaults preserve lexical class-private context without leaking body writes', () => {
+  const result = analyze('def __target(): pass\ndef _Box__target(): pass\ndef replacement(): pass\nclass Box:\n    def method(self):\n        factory = lambda __target=__target(): (__target := replacement)\n        __target()\n    class Inner:\n        factory = lambda value=(__target := replacement): None\n        __target()\ndef caller(): __target()\n'); clean(result);
+  assert.deepEqual(new Set(pairs(result).map(JSON.stringify)), new Set([
+    ['Box.method', '_Box__target', 'call'], ['caller', '__target', 'call']
+  ].map(JSON.stringify)));
+  assert.deepEqual(result.symbolGraph.edges.find(edge => edge.from.endsWith('#Box.method')).evidence.map(item => item.line), [6, 7]);
+  const write = analyze('def _Box__target(): pass\ndef replacement(): pass\nclass Box:\n    def method(self):\n        factory = lambda value=(__target := replacement): None\n        _Box__target()\ndef unaffected(): _Box__target()\n'); clean(write);
+  assert.deepEqual(pairs(write), [['unaffected', '_Box__target', 'call']]);
+});
+
+test('lambda defaults inside comprehensions do not hide enclosing walrus writes', () => {
+  const result = analyze('def target(): pass\ndef replacement(): pass\ndef caller():\n    factories = [lambda value=(target := replacement): None for item in items]\n    target()\n'); clean(result);
+  assert.deepEqual(pairs(result), []);
+});
+
+for (const annotation of ['value: int', 'value: int = 1', '(value): int', 'obj.value: int', 'values[0]: int']) {
+  test(`version-sensitive class __annotations__ collision includes ${annotation}`, () => {
+    const result = analyze(`def __annotations__(): pass\nclass Box:\n    __annotations__()\n    ${annotation}\n    __annotations__()\n    def method(self): __annotations__()\n`); clean(result);
+    assert.deepEqual(pairs(result), [['Box.method', '__annotations__', 'call']]);
+    const collisions = result.diagnostics.filter(item => /version-sensitive.*__annotations__/.test(item.message));
+    assert.deepEqual(collisions.map(item => item.line), [3, 5]);
+    assert(collisions.every(item => item.severity === 'info' && item.column === 5 && /3\.12\/3\.13/.test(item.message) && /3\.14/.test(item.message)));
+  });
+}
+
+test('class annotation collision stops at function and nested class boundaries', () => {
+  const result = analyze('def __annotations__(): pass\nclass Outer:\n    __annotations__()\n    def method(self, value: int) -> int:\n        local: int\n        __annotations__()\n    class Inner:\n        value: int\n        __annotations__()\n    class Plain:\n        __annotations__()\n    __annotations__()\n'); clean(result);
+  assert.deepEqual(new Set(pairs(result).map(JSON.stringify)), new Set([
+    ['Outer', '__annotations__', 'call'], ['Outer.method', '__annotations__', 'call'], ['Outer.Plain', '__annotations__', 'call']
+  ].map(JSON.stringify)));
+  assert.deepEqual(result.symbolGraph.edges.find(edge => edge.from.endsWith('#Outer')).evidence.map(item => item.line), [3, 12]);
+  assert.deepEqual(result.diagnostics.filter(item => /version-sensitive.*__annotations__/.test(item.message)).map(item => item.line), [9]);
+});
+
+for (const statement of ['if False:\n        value: int', 'for item in items:\n        value: int', 'while enabled:\n        value: int', 'try:\n        pass\n    except Error:\n        value: int', 'with context:\n        value: int', 'match value:\n        case 0:\n            field: int']) {
+  test(`class annotation collision includes same-body control flow: ${statement.split(':')[0]}`, () => {
+    const result = analyze(`def __annotations__(): pass\nclass Box:\n    __annotations__()\n    ${statement}\n`); clean(result);
+    assert.deepEqual(pairs(result), []);
+    assert(result.diagnostics.some(item => /version-sensitive.*__annotations__/.test(item.message) && item.line === 3));
+  });
+}
+
+test('class annotation collision stays local and does not make unrelated files or calls partial', () => {
+  const result = analyze('def __annotations__(): pass\ndef target(): pass\nclass Annotated:\n    value: int\n    target()\n    class Nested:\n        __annotations__()\n    def method(self): __annotations__()\nclass Plain:\n    __annotations__()\ndef caller(): __annotations__()\n'); clean(result);
+  assert.deepEqual(new Set(pairs(result).map(JSON.stringify)), new Set([
+    ['Annotated', 'target', 'call'], ['Annotated.Nested', '__annotations__', 'call'], ['Annotated.method', '__annotations__', 'call'],
+    ['Plain', '__annotations__', 'call'], ['caller', '__annotations__', 'call']
+  ].map(JSON.stringify)));
+  assert(!result.diagnostics.some(item => /version-sensitive/.test(item.message)));
+});
+
+test('class annotation collision preserves explicit later class declarations and future-import uncertainty', () => {
+  const local = analyze('def __annotations__(): pass\nclass Box:\n    value: int\n    __annotations__()\n    def __annotations__(): pass\n    __annotations__()\n'); clean(local);
+  assert.deepEqual(pairs(local), [['Box', 'Box.__annotations__', 'call']]);
+  assert.deepEqual(local.symbolGraph.edges[0].evidence.map(item => item.line), [6]);
+  const future = analyze('from __future__ import annotations\ndef __annotations__(): pass\nclass Box:\n    __annotations__()\n    value: int\n'); clean(future);
+  assert.deepEqual(pairs(future), []);
+});
+
+test('annotations inside conditional nested declarations do not mark their enclosing class', () => {
+  const result = analyze('def __annotations__(): pass\nclass Box:\n    if enabled:\n        class Nested:\n            value: int\n        def method(self):\n            value: int\n    __annotations__()\n'); clean(result);
+  assert.deepEqual(pairs(result), [['Box', '__annotations__', 'call']]);
+  assert(!result.diagnostics.some(item => /version-sensitive/.test(item.message)));
+});

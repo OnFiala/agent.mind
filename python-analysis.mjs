@@ -189,6 +189,18 @@ export function analyzePythonSource(relative, source, hash) {
     const content = node.children.filter(child => !['(', ')', 'Comment'].includes(child.name));
     return content.length > 0 && content.every(isDocstring);
   };
+  const hasBodyAnnotation = body => {
+    const pending = body ? [body] : [];
+    while (pending.length) {
+      const node = pending.pop();
+      // A nested declaration owns its own annotations. Same-body conditional
+      // suites still count, including non-simple annotated assignment targets.
+      if (node.symbol) continue;
+      if (node.name === 'AssignStatement' && node.children.some(child => child.name === 'TypeDef')) return true;
+      pending.push(...node.children);
+    }
+    return false;
+  };
   const callCallee = node => {
     const parts = node.name === 'Decorator' ? node.children.filter(child => !['At', 'ArgList', 'Comment'].includes(child.name)) : [node.children[0]];
     const callee = parts.length === 1 ? parts[0] : null;
@@ -219,6 +231,11 @@ export function analyzePythonSource(relative, source, hash) {
         bind(ownScope, '__module__'); bind(ownScope, '__qualname__');
         const body = children.find(child => child.name === 'Body');
         if (isDocstring(body?.children.find(child => ![':', 'Comment'].includes(child.name)))) bind(ownScope, '__doc__');
+        // Python 3.12/3.13 initialize __annotations__ at class-body entry;
+        // 3.14 uses lazy annotation scopes (future annotations still differs).
+        // With no target version, mark only this possible namespace collision,
+        // rather than inventing a universal implicit binding or partial file.
+        ownScope.annotationCollision = hasBodyAnnotation(body);
       }
       const params = children.find(child => child.name === 'ParamList');
       if (params) {
@@ -257,8 +274,13 @@ export function analyzePythonSource(relative, source, hash) {
     if (node.name === 'LambdaExpression') {
       const local = makeScope(scope, 'function');
       const params = children.find(child => child.name === 'ParamList');
-      for (const child of params?.children ?? []) if (child.name === 'VariableName') bind(local, text(child), null, child, privateClass);
-      for (const child of children) visit(child, local, owner, 'lambda/comprehension context', conditional, privateClass);
+      let parameter = true;
+      for (const child of params?.children ?? []) {
+        if ([',', '*', '**'].includes(child.name)) parameter = true;
+        else if (child.name === 'VariableName' && parameter) { bind(local, text(child), null, child, privateClass); parameter = false; }
+        else visit(child, scope, owner, omitted, conditional, privateClass);
+      }
+      for (const child of children) if (child !== params) visit(child, local, owner, 'lambda/comprehension context', conditional, privateClass);
       return;
     }
     if (/ComprehensionExpression$/.test(node.name)) {
@@ -271,7 +293,13 @@ export function analyzePythonSource(relative, source, hash) {
       const walruses = [node];
       while (walruses.length) {
         const child = walruses.pop();
-        if (child !== node && child.name === 'LambdaExpression') continue;
+        if (child.name === 'LambdaExpression') {
+          // Defaults execute outside the lambda; its body and parameter names
+          // must not leak their walrus bindings into the comprehension owner.
+          const params = child.children.find(item => item.name === 'ParamList');
+          if (params) walruses.push(params);
+          continue;
+        }
         if (child.name === 'NamedExpression') target(child.children[0], scope, privateClass);
         walruses.push(...child.children);
       }
@@ -316,6 +344,7 @@ export function analyzePythonSource(relative, source, hash) {
           const bindings = current.bindings.get(name);
           return bindings.length === 1 ? bindings[0] : null;
         }
+        if (name === '__annotations__' && current.annotationCollision) return { uncertainty: 'version-sensitive class __annotations__ collision: Python 3.12/3.13 initialize the namespace at body entry; Python 3.14 annotation behavior differs' };
       }
       if (['function', 'class', 'comprehension'].includes(current.type)) skipClasses = true;
     }
@@ -334,7 +363,7 @@ export function analyzePythonSource(relative, source, hash) {
     const beforeDeclaration = binding?.node && scope.type !== 'function' && binding.node.to > node.from;
     if (!candidate || inOwnHeader || beforeDeclaration || invalid.has(candidate.id) || owner && invalid.has(owner.id)) {
       unresolved++;
-      report(`Unresolved Python call: ${omitted || (dynamicNamespace ? 'dynamic namespace operations in file' : 'imported, member/dynamic, ambiguous, shadowed or mutated binding')}; no call edge is guessed.`, node, 'info');
+      report(`Unresolved Python call: ${omitted || binding?.uncertainty || (dynamicNamespace ? 'dynamic namespace operations in file' : 'imported, member/dynamic, ambiguous, shadowed or mutated binding')}; no call edge is guessed.`, node, 'info');
       continue;
     }
     const from = owner?.id ?? `file:${relative}`, kind = candidate.kind === 'class' ? 'construct' : 'call';
