@@ -41,6 +41,9 @@ views, not vulnerability scans, test execution or coverage. See
 for the exact limits and the [Python support](#python-source-analysis-130).
 **[1.3.0](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0) was published on
 2026-11-03**; its release record links the verified archive and checksums.
+The source checkout prepares **1.3.1**, a Python binding and construct-projection
+repair. See the [candidate release record](docs/releases/1.3.1.md); source version
+numbers do not establish publication.
 Version 1.1.0 has Python inventory/text reads only.
 Existing installations do not update automatically. Additional host environments
 remain planned.
@@ -678,7 +681,8 @@ comprehension/lambda bodies and decorator effects are not inferred as call targe
 
 The source repository's [1.3.0 release record](docs/releases/1.3.0.md) records
 acceptance and rollback. The [post-release identity repair](docs/reviews/2026-11-03-python-identity-and-ui-plan.md)
-is a source candidate; the published 1.3.0 archive retains the documented private-name
+was merged in [PR #17](https://github.com/OnFiala/agent.mind/pull/17) and is included
+in the 1.3.1 source candidate; the published 1.3.0 archive retains the private-name
 limitation. The candidate applies NFKC and lexical class-private identity to supported
 bindings and import lookup while preserving raw source names, file/symbol IDs, ranges
 and hashes. Corrected import/external target IDs may differ. Generic class base and
@@ -686,6 +690,16 @@ keyword calls remain explicitly unresolved. A private-name transform exceeding 2
 Unicode code points warns and withholds all same-file call edges; imports whose
 module identity exceeds that bound are also withheld. Known containing-module
 references remain available when only an imported member/alias identity is uncertain.
+The 1.3.1 candidate also preserves `construct` / `constructs` relationships from
+file bodies and functions through file and area projections, retaining source IDs
+and evidence. Lambda default expressions affect their enclosing scope; lambda
+parameters and bodies keep a separate local scope. Lambda body calls remain unresolved.
+The target Python version is not inferred. A class-body `__annotations__()` call
+in a class containing an annotated assignment stays unresolved with an explicit
+version-sensitive note: Python 3.12/3.13 and 3.14 differ in annotation handling.
+Annotations only inside a nested function or class do not create that collision
+in the enclosing class; ordinary method lookup still skips the class namespace.
+These repairs do not turn `current` or preflight success into semantic validation.
 The [earlier Python pilot evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
 records parser selection and historical declaration-only behavior in 1.2.x.
 
