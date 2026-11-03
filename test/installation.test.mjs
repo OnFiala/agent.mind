@@ -371,7 +371,11 @@ test('purge never restores controls through a replaced root symlink', t => {
 test('installed Python source context passes strict preflight while stale, binding, parse and budget failures still reject', t => {
   const f = fixture(t);
   fs.writeFileSync(path.join(f.project, 'helper.py'), 'def answer():\n    return 42\n');
-  fs.writeFileSync(path.join(f.project, 'main.py'), 'import helper\nimport os\ndef local():\n    return 1\ndef run():\n    return local()\n');
+  fs.writeFileSync(path.join(f.project, 'main.py'), 'import helper\nimport os\nimport package.ns.worker\ndef local():\n    return 1\ndef run():\n    return local()\n');
+  fs.mkdirSync(path.join(f.project, 'package/ns'), { recursive: true });
+  fs.writeFileSync(path.join(f.project, 'package/__init__.py'), 'pass\n');
+  fs.writeFileSync(path.join(f.project, 'package/config.py'), 'value = 1\n');
+  fs.writeFileSync(path.join(f.project, 'package/ns/worker.py'), 'from ..config import value\n');
   install(f); attachInstallation(f.install);
   const cli = path.join(f.install, 'cli.mjs');
   const contextRun = selector => spawnSync(process.execPath, [cli, 'context', selector], { encoding: 'utf8', cwd: f.dir });
@@ -390,6 +394,10 @@ test('installed Python source context passes strict preflight while stale, bindi
   assert.deepEqual(main.capabilities, ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls']);
   assert.equal(main.producer.mode, 'static-source');
   assert.ok(context.edges.some(edge => edge.from === main.id && edge.to === 'file:helper.py' && edge.kind === 'import'));
+  assert.ok(context.edges.some(edge => edge.from === main.id && edge.to === 'file:package/ns/worker.py' && edge.kind === 'import'));
+  const namespaceContext = JSON.parse(contextRun('package/ns/worker.py').stdout);
+  assert.equal(namespaceContext.status, 'current');
+  assert.ok(namespaceContext.edges.some(edge => edge.from === 'file:package/ns/worker.py' && edge.to === 'file:package/config.py' && edge.kind === 'import'));
   assert.ok(context.symbolGraph.edges.some(edge => edge.from === 'symbol:main.py#run' && edge.to === 'symbol:main.py#local' && edge.kind === 'call'));
   const accepted = preflight(context);
   assert.equal(accepted.status, 0, accepted.stderr);

@@ -947,3 +947,122 @@ test('Python module lookup never normalizes filesystem paths to invent Unicode a
   for (const source of ['plain/main.py', 'plain/sub/main.py']) assert.ok(graph.diagnostics.some(item => item.path === source && item.severity === 'warning' && /Unresolved local Python module/.test(item.message)), source);
   assert.equal(graph.status, 'partial');
 });
+
+test('Python internal namespace directories resolve below a known regular-package anchor like the Flask layout', t => {
+  const root = fixture(t, {
+    'main.py': 'import flask.sansio.app\n',
+    'src/flask/__init__.py': 'pass\n',
+    'src/flask/app.py': 'from .sansio.app import App\nfrom .sansio.scaffold import Scaffold\n',
+    'src/flask/config.py': 'value = 1\n',
+    'src/flask/sansio/app.py': 'from .scaffold import Scaffold\nfrom ..config import value\n',
+    'src/flask/sansio/scaffold.py': 'class Scaffold:\n    pass\n',
+    'flask/__init__.py': 'pass\n',
+    'flask/sansio/app.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  for (const [source, target] of [
+    ['main.py', 'flask/sansio/app.py'],
+    ['src/flask/app.py', 'src/flask/sansio/app.py'],
+    ['src/flask/app.py', 'src/flask/sansio/scaffold.py'],
+    ['src/flask/sansio/app.py', 'src/flask/sansio/scaffold.py'],
+    ['src/flask/sansio/app.py', 'src/flask/config.py']
+  ]) assert.ok(edge(graph, source, `file:${target}`, 'import'), `${source} -> ${target}`);
+  assert.ok(!edge(graph, 'main.py', 'file:src/flask/sansio/app.py', 'import'));
+});
+
+test('Python namespace-only modules retain info without inventing initializer or member edges', t => {
+  const root = fixture(t, {
+    'main.py': 'import pkg.ns\nfrom pkg.ns import child\n',
+    'pkg/__init__.py': 'from .ns import child\n',
+    'pkg/ns/main.py': 'from . import child\n',
+    'pkg/ns/child.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.equal(graph.edges.length, 0);
+  for (const source of ['main.py', 'pkg/__init__.py', 'pkg/ns/main.py']) assert.ok(graph.diagnostics.some(item => item.path === source && item.severity === 'info' && /namespace module has no source file/.test(item.message)), source);
+  assert.ok(!graph.nodes.some(node => node.id === 'file:pkg/ns/__init__.py'));
+});
+
+test('Python namespace traversal requires a regular anchor and keeps missing and over-anchor relatives partial', t => {
+  const root = fixture(t, {
+    'main.py': 'import ns.worker\nimport src.pkg.worker\n',
+    'ns/worker.py': 'pass\n',
+    'src/pkg/__init__.py': 'pass\n',
+    'src/pkg/worker.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'pkg/ns/main.py': 'from .missing import value\nfrom ...outside import value\nfrom ..missingns import value\n',
+    'outside.py': 'pass\n',
+    'ns/main.py': 'from .worker import value\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  for (const name of ['ns.worker', 'src.pkg.worker']) assert.ok(edge(graph, 'main.py', `external:python:${name}`, 'import'));
+  assert.ok(!graph.edges.some(relation => ['file:pkg/ns/main.py', 'file:ns/main.py'].includes(relation.from)));
+  for (const line of [1, 2, 3]) assert.ok(graph.diagnostics.some(item => item.path === 'pkg/ns/main.py' && item.line === line && item.severity === 'warning'), line);
+  assert.ok(graph.diagnostics.some(item => item.path === 'ns/main.py' && item.severity === 'warning'));
+});
+
+test('Python module files block internal namespace traversal and intermediate package collisions stay explicit', t => {
+  const root = fixture(t, {
+    'main.py': 'import pkg.ns.child\nimport pkg.clash.child\n',
+    'pkg/__init__.py': 'from .ns.child import value\nfrom .clash.child import value\n',
+    'pkg/ns.py': 'pass\n',
+    'pkg/ns/child.py': 'pass\n',
+    'pkg/clash.py': 'pass\n',
+    'pkg/clash/__init__.py': 'pass\n',
+    'pkg/clash/child.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  assert.equal(graph.edges.length, 0);
+  for (const source of ['main.py', 'pkg/__init__.py']) {
+    assert.ok(graph.diagnostics.some(item => item.path === source && item.line === 1 && /blocks package traversal/.test(item.message) && item.severity === 'warning'));
+    assert.ok(graph.diagnostics.some(item => item.path === source && item.line === 2 && /module\/package collision/.test(item.message) && item.severity === 'warning'));
+  }
+});
+
+test('Python explicit project-root initializer anchors bounded relative namespace imports', t => {
+  const root = fixture(t, {
+    '__init__.py': 'from .sub.worker import value\n',
+    'config.py': 'value = 1\n',
+    'sub/worker.py': 'from ..config import value\nfrom . import other\n',
+    'sub/other.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.ok(edge(graph, '__init__.py', 'file:sub/worker.py', 'import'));
+  assert.ok(edge(graph, 'sub/worker.py', 'file:config.py', 'import'));
+  assert.ok(!edge(graph, 'sub/worker.py', 'file:sub/other.py', 'import'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'sub/worker.py' && item.line === 2 && /namespace module has no source file/.test(item.message)));
+  write(root, 'sub/worker.py', 'from ...outside import value\n');
+  const escaped = indexProject(root, { previous: graph });
+  assert.equal(escaped.status, 'partial');
+  assert.ok(escaped.diagnostics.some(item => item.path === 'sub/worker.py' && /leaves the indexed regular package/.test(item.message) && item.severity === 'warning'));
+});
+
+test('Python cached namespace resolution follows descendant, blocker and initializer transitions', t => {
+  const root = fixture(t, { 'pkg/__init__.py': 'from .ns import value\n' });
+  const missing = indexProject(root);
+  assert.equal(missing.status, 'partial');
+  write(root, 'pkg/ns/child.py', 'pass\n');
+  const namespace = indexProject(root, { previous: missing });
+  assert.equal(namespace.status, 'current');
+  assert.equal(namespace.edges.length, 0);
+  assert.equal(namespace.revision, indexProject(root).revision);
+  write(root, 'pkg/ns/__init__.py', 'pass\n');
+  const regular = indexProject(root, { previous: namespace });
+  assert.ok(edge(regular, 'pkg/__init__.py', 'file:pkg/ns/__init__.py', 'import'));
+  assert.equal(regular.revision, indexProject(root).revision);
+  write(root, 'pkg/ns.py', 'pass\n');
+  const collision = indexProject(root, { previous: regular });
+  assert.equal(collision.status, 'partial');
+  assert.equal(collision.revision, indexProject(root).revision);
+  assert.equal(collision.edges.length, 0);
+  fs.unlinkSync(path.join(root, 'pkg/ns.py'));
+  fs.unlinkSync(path.join(root, 'pkg/ns/__init__.py'));
+  fs.unlinkSync(path.join(root, 'pkg/ns/child.py'));
+  const removed = indexProject(root, { previous: collision });
+  assert.equal(removed.revision, missing.revision);
+});

@@ -202,7 +202,7 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
 
 // Python resolution describes one documented source layout, never sys.path or a
 // running interpreter. Only already indexed UTF-8 .py files can be candidates.
-function resolvePythonReference(relative, reference, available) {
+function resolvePythonReference(relative, reference, available, directories) {
   const specifier = reference.specifier;
   const python = reference.python;
   const identifier = /^[_\p{ID_Start}][_\p{ID_Continue}]*$/u;
@@ -214,36 +214,68 @@ function resolvePythonReference(relative, reference, available) {
       || (!parts.length && (!python.level || python.form !== 'from'))) {
     return { error: `Malformed Python module reference: ${specifier}` };
   }
-  let base = '';
+  const packageFile = directory => directory === '.' ? '__init__.py' : `${directory}/__init__.py`;
+  const regularPackage = directory => available.has(packageFile(directory));
+  const unresolved = () => python.level
+    ? { error: `Unresolved local Python module in the indexed regular package: ${specifier}` }
+    : { external: `python:${specifier}`, label: `${specifier} (external/unresolved Python)`, info: `Python import is external or unresolved in the project-root regular-package layout: ${specifier}. No environment or top-level namespace-package resolution is inferred.` };
+  let base = '', anchor = null;
+  const sourceDirectory = path.posix.dirname(relative);
   if (python.level) {
-    const packages = [];
-    let directory = path.posix.dirname(relative);
-    while (directory !== '.' && available.has(`${directory}/__init__.py`)) {
-      packages.push(directory);
+    // An indexed regular package anchors internal namespace subdirectories. The
+    // highest such ancestor is the floor; no source-root or runtime inference.
+    let directory = sourceDirectory;
+    while (true) {
+      if (regularPackage(directory)) anchor = directory;
+      if (directory === '.') break;
       directory = path.posix.dirname(directory);
     }
-    if (python.level > packages.length) return { error: `Python relative import leaves the indexed regular package: ${specifier}` };
-    base = packages[python.level - 1];
+    if (anchor === null) return { error: `Python relative import leaves the indexed regular package: ${specifier}` };
+    base = sourceDirectory;
+    for (let level = 1; level < python.level; level++) {
+      if (base === anchor) return { error: `Python relative import leaves the indexed regular package: ${specifier}` };
+      base = path.posix.dirname(base);
+    }
+  } else if (parts.length > 1) {
+    // Absolute imports still start at the project root in a regular package.
+    anchor = parts[0];
+    if (!regularPackage(anchor)) return unresolved();
   }
   const modulePath = path.posix.join(base, ...parts);
-  // A dotted source module requires indexed regular-package ancestry. Relative
-  // imports already established their base; only additional dotted dirs remain.
-  const packageDirectories = parts.slice(0, -1).map((_, index) => path.posix.join(base, ...parts.slice(0, index + 1)));
-  const missingPackage = packageDirectories.find(directory => !available.has(`${directory}/__init__.py`));
-  const candidates = parts.length ? [`${modulePath}.py`, `${modulePath}/__init__.py`] : [`${base}/__init__.py`];
-  const eligible = missingPackage ? [] : candidates.filter(candidate => available.has(candidate));
+  const traversal = new Set();
+  if (anchor !== null) for (const endpoint of [parts.length ? path.posix.dirname(modulePath) : modulePath, ...(python.level ? [sourceDirectory] : [])]) {
+    let directory = endpoint;
+    while (true) {
+      traversal.add(directory);
+      if (directory === anchor) break;
+      // Defensive boundary check; validated identifiers and the ascent floor
+      // should already guarantee that every endpoint is inside its anchor.
+      if (directory === '.') return unresolved();
+      directory = path.posix.dirname(directory);
+    }
+  }
+  for (const directory of traversal) {
+    if (directory !== '.' && available.has(`${directory}.py`)) {
+      return { error: regularPackage(directory)
+        ? `Ambiguous Python source module (module/package collision): ${specifier}`
+        : `Python source module blocks package traversal: ${specifier} (${directory}.py)` };
+    }
+    if (!directories.has(directory)) return unresolved();
+  }
+  const candidates = parts.length ? [`${modulePath}.py`, `${modulePath}/__init__.py`] : [packageFile(base)];
+  const eligible = candidates.filter(candidate => available.has(candidate));
   if (eligible.length > 1) return { error: `Ambiguous Python source module (module/package collision): ${specifier}` };
   if (!eligible.length) {
-    if (python.level) return { error: `Unresolved local Python module in the indexed regular package: ${specifier}` };
-    return { external: `python:${specifier}`, label: `${specifier} (external/unresolved Python)`, info: `Python import is external or unresolved in the project-root regular-package layout: ${specifier}. No environment or namespace-package resolution is inferred.` };
+    if (anchor !== null && directories.has(modulePath)) return { ignored: true, info: `Python namespace module has no source file; imported members remain unresolved: ${specifier}. No package initializer or member edge is inferred.` };
+    return unresolved();
   }
   const info = python.form === 'from' && !parts.length
     ? `Python from-import members remain ambiguous attributes or submodules: ${specifier}. Only the containing package is referenced.` : undefined;
   return { ...(!parts.length && eligible[0] === relative ? { ignored: true } : { target: eligible[0] }), info };
 }
 
-function resolveReference(relative, reference, available) {
-  if (reference.python) return resolvePythonReference(relative, reference, available);
+function resolveReference(relative, reference, available, directories) {
+  if (reference.python) return resolvePythonReference(relative, reference, available, directories);
   let specifier = reference.specifier;
   const resource = reference.html || ['asset', 'test-reference'].includes(reference.kind);
   if (resource) {
@@ -317,10 +349,15 @@ export function indexProject(directory, options = {}) {
   const available = new Map(nodes.map(node => [node.path, node]));
   // Inventory-only text cannot turn a previously unresolved reference into an edge.
   const resolvable = new Map([...available].filter(([relative]) => EXTENSIONS.has(path.extname(relative))));
+  const directories = new Set(['.']);
+  for (const relative of resolvable.keys()) {
+    let directory = path.posix.dirname(relative);
+    while (directory !== '.') { directories.add(directory); directory = path.posix.dirname(directory); }
+  }
   const externalNodes = new Map();
   const groupedEdges = new Map();
   for (const [relative, analysis] of analyses) for (const reference of analysis.references) {
-    const resolved = resolveReference(relative, reference, resolvable);
+    const resolved = resolveReference(relative, reference, resolvable, directories);
     if (resolved.info) {
       const diagnostic = { ...structuredClone(reference.evidence), message: resolved.info, severity: 'info' };
       diagnostics.push(diagnostic);
@@ -404,7 +441,7 @@ export function indexProject(directory, options = {}) {
       'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, and Markdown links.',
       'Inventory includes bounded regular files independently of language support. UTF-8 text without binary controls can be read by indexed hash. Binary, unreadable, oversized and unscanned entries have explicit states; excluded directories are not traversed. Hidden/sensitive paths, symlinks and configured exclusions remain excluded.',
       'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
-      ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python provides bounded declarations, literal module imports and conservative bare same-file calls (64 KiB per file), using an editor grammar rather than CPython validation. Imports map only project-root modules and indexed regular packages, or explicit relatives within contiguous indexed regular packages; namespace packages, custom source roots, sys.path and environment resolution are not inferred. From-import members are attributes or submodules, never guessed file edges. Imported/member calls, types, security, framework/runtime behavior, decorator effects, notebooks and .pyi files remain outside scope. Recovery errors and traversal limits withhold relationships; ambiguity remains explicit. Parser limits are not timeouts or a sandbox.'] : []),
+      ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python provides bounded declarations, literal module imports and conservative bare same-file calls (64 KiB per file), using an editor grammar rather than CPython validation. Imports map project-root modules and regular packages, with internal namespace subdirectories below an indexed regular-package anchor. Relative ascent stops at the highest indexed regular-package ancestor, including an explicit root initializer. Namespace-only modules have no file edge; top-level namespace packages, custom source roots, sys.path and environment resolution are not inferred. From-import members are attributes or submodules, never guessed file edges. Imported/member calls, types, security, framework/runtime behavior, decorator effects, notebooks and .pyi files remain outside scope. Recovery errors and traversal limits withhold relationships; ambiguity remains explicit. Parser limits are not timeouts or a sandbox.'] : []),
       ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides syntax and bounded named declarations only (64 KiB per file); no import/type/call/security/HTTP analysis. Both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse errors and ambiguity withhold affected symbols; traversal limits withhold all symbols from the file. Parser and traversal limits are not timeouts or a sandbox.'] : []),
       `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
