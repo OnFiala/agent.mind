@@ -162,3 +162,48 @@ test('NFKC import bindings retain raw module, alias and specifier evidence', () 
     ['K.𝓂', 'K.𝓂', [{ name: 'K', as: '𝓀' }]]
   ]);
 });
+
+test('review R1: import comments are trivia and cannot hide imported shadow bindings', () => {
+  const result = analyze('def target(): pass\ndef caller():\n    from pkg import (other, # comment\n        target)\n    target()\n'); clean(result);
+  assert.deepEqual(result.references[0].python.names, [{ name: 'other' }, { name: 'target' }]);
+  assert.deepEqual(pairs(result), []);
+  const aliases = analyze('from pkg import (first, # comment\n    second as renamed, # trailing\n)\n'); clean(aliases);
+  assert.deepEqual(aliases.references[0].python.names, [{ name: 'first' }, { name: 'second', as: 'renamed' }]);
+});
+
+test('review R2: implicit method __class__ cell suppresses module binding in methods and nested closures', () => {
+  const result = analyze('def __class__(): pass\nclass Box:\n    def caller(self):\n        __class__()\n        def nested(): __class__()\n'); clean(result);
+  assert.deepEqual(pairs(result), []);
+  assert.equal(result.diagnostics.filter(item => /Unresolved Python call/.test(item.message)).length, 2);
+});
+
+test('review R2: class body __class__ retains lexical lookup while compiler namespace strings block calls', () => {
+  const result = analyze('def __class__(): pass\ndef __module__(): pass\ndef __qualname__(): pass\ndef __doc__(): pass\nclass Box:\n    __class__()\n    __module__()\n    __qualname__()\n    __doc__()\nclass Documented:\n    "class doc"\n    __doc__()\n'); clean(result);
+  assert.deepEqual(new Set(pairs(result).map(JSON.stringify)), new Set([['Box', '__class__', 'call'], ['Box', '__doc__', 'call']].map(JSON.stringify)));
+});
+
+test('review R2: parenthesized or concatenated class docstrings bind __doc__ but bytes and f-strings do not', () => {
+  for (const doc of ['("class doc")', '"class " "doc"', 'r"raw doc"']) {
+    const result = analyze(`def __doc__(): pass\nclass Box:\n    ${doc}\n    __doc__()\n`); clean(result);
+    assert.deepEqual(pairs(result), [], doc);
+  }
+  for (const expression of ['b"bytes"', 'f"formatted"']) {
+    const result = analyze(`def __doc__(): pass\nclass Box:\n    ${expression}\n    __doc__()\n`); clean(result);
+    assert.deepEqual(pairs(result), [['Box', '__doc__', 'call']], expression);
+  }
+});
+
+test('review R3: dynamic namespace decorator callee poisons the same targets as an ordinary call', () => {
+  const result = analyze('def target(): pass\ndef keep(value): return value\n@eval("globals().__setitem__(\'target\', lambda: \'replacement\') or keep")\ndef decorated(): pass\ndef caller(): target()\n'); clean(result);
+  assert.deepEqual(pairs(result), []);
+  assert(result.diagnostics.some(item => /dynamic namespace operations/.test(item.message)));
+  const control = analyze('def target(): pass\ndef keep(): pass\n@keep()\ndef decorated(): pass\ndef caller(): target()\n'); clean(control);
+  assert.deepEqual(new Set(pairs(control).map(JSON.stringify)), new Set([['file:test/example.py', 'keep', 'call'], ['caller', 'target', 'call']].map(JSON.stringify)));
+});
+
+for (const relative of ['calc.test.py', 'calc.spec.py']) test(`review R4: ${relative} call edges carry the testing layer`, () => {
+  const source = 'def target(): pass\ndef caller(): target()\n';
+  const result = analyzePythonSource(relative, source, createHash('sha256').update(source).digest('hex')); clean(result);
+  assert.equal(result.symbolGraph.edges.length, 1);
+  assert.deepEqual(result.symbolGraph.edges[0].layers, ['project', 'testing']);
+});

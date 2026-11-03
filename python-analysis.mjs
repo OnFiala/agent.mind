@@ -10,6 +10,8 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 // Python compares identifier tokens after NFKC normalization; displayed source
 // spelling, symbol IDs, module references and ranges remain untouched.
 const bindingKey = name => name.normalize('NFKC');
+// Keep the index's test naming contract without introducing index/I/O coupling.
+const isTestSource = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py|ts|tsx|jsx)$/.test(name) || /(?:^|\/)(?:test_[^/]+|[^/]+_test)\.py$/.test(name);
 
 function sourceLocations(source) {
   const starts = [0];
@@ -134,7 +136,7 @@ export function analyzePythonSource(relative, source, hash) {
     } else if (['TupleExpression', 'ArrayExpression', 'ParenthesizedExpression', 'StarredExpression'].includes(node.name)) for (const child of node.children) target(child, scope);
   };
   const importStatement = (node, scope) => {
-    const children = node.children, from = children[0].name === 'from';
+    const children = node.children.filter(child => child.name !== 'Comment'), from = children[0].name === 'from';
     const importIndex = children.findIndex(child => child.name === 'import');
     const tail = children.slice(importIndex + 1).filter(child => !['(', ')'].includes(child.name));
     const groups = [[]];
@@ -156,6 +158,19 @@ export function analyzePythonSource(relative, source, hash) {
       bind(scope, entry.as ?? entry.name.split('.')[0]);
     }
   };
+  const isDocstring = node => {
+    if (!node) return false;
+    if (node.name === 'String') return !/^[rub]*b/i.test(text(node));
+    if (!['ExpressionStatement', 'ParenthesizedExpression', 'ContinuedString'].includes(node.name)) return false;
+    const content = node.children.filter(child => !['(', ')', 'Comment'].includes(child.name));
+    return content.length > 0 && content.every(isDocstring);
+  };
+  const callCallee = node => {
+    const parts = node.name === 'Decorator' ? node.children.filter(child => !['At', 'ArgList', 'Comment'].includes(child.name)) : [node.children[0]];
+    const callee = parts.length === 1 ? parts[0] : null;
+    const direct = callee?.name === 'VariableName' ? text(callee) : null;
+    return { direct, name: direct ?? (callee?.name === 'MemberExpression' ? text(callee.children.at(-1)) : node.name === 'Decorator' ? text(parts.at(-1)) : '') };
+  };
   function visit(node, scope, owner = null, omitted = false, conditional = false) {
     const children = node.children;
     if (node.symbol) {
@@ -168,7 +183,16 @@ export function analyzePythonSource(relative, source, hash) {
         const name = parameter.children.find(child => child.name === 'VariableName');
         if (name) bind(headerScope, text(name));
       }
-      const ownScope = makeScope(headerScope, node.name === 'ClassDefinition' ? 'class' : 'function');
+      // Methods capture a compiler-supplied __class__ cell; class bodies do
+      // not. Keep it outside the skipped class namespace for nested closures.
+      const bodyParent = node.name === 'FunctionDefinition' && scope.type === 'class' ? makeScope(headerScope, 'implicit-class-cell') : headerScope;
+      if (bodyParent !== headerScope) bind(bodyParent, '__class__');
+      const ownScope = makeScope(bodyParent, node.name === 'ClassDefinition' ? 'class' : 'function');
+      if (node.name === 'ClassDefinition') {
+        bind(ownScope, '__module__'); bind(ownScope, '__qualname__');
+        const body = children.find(child => child.name === 'Body');
+        if (isDocstring(body?.children.find(child => ![':', 'Comment'].includes(child.name)))) bind(ownScope, '__doc__');
+      }
       const params = children.find(child => child.name === 'ParamList');
       if (params) {
         // Parameter names are direct children; defaults/annotations have their
@@ -241,8 +265,7 @@ export function analyzePythonSource(relative, source, hash) {
     if (node.name === 'CallExpression' || node.name === 'Decorator' && children.some(child => child.name === 'ArgList')) {
       if (calls.length >= PYTHON_LIMITS.callSites) limited = true;
       else calls.push({ node, scope, owner, omitted });
-      const callee = children[0];
-      const name = callee?.name === 'VariableName' ? text(callee) : callee?.name === 'MemberExpression' ? text(callee.children.at(-1)) : '';
+      const { name } = callCallee(node);
       if (['exec', 'eval', 'globals', 'locals', 'vars', 'setattr', 'delattr', '__import__'].includes(bindingKey(name))) dynamicNamespace = true;
     }
     const branch = conditional || ['IfStatement', 'ForStatement', 'WhileStatement', 'TryStatement', 'WithStatement', 'MatchStatement'].includes(node.name);
@@ -269,9 +292,8 @@ export function analyzePythonSource(relative, source, hash) {
   let unresolved = 0;
   for (const record of calls) {
     const { node, scope, owner, omitted } = record;
-    const decoratorParts = node.name === 'Decorator' ? node.children.filter(child => child.name !== 'At' && child.name !== 'ArgList') : null;
-    const callee = decoratorParts ? decoratorParts.length === 1 ? decoratorParts[0] : null : node.children[0];
-    const binding = !omitted && callee?.name === 'VariableName' ? lookup(scope, text(callee)) : null;
+    const callee = callCallee(node);
+    const binding = !omitted && callee.direct ? lookup(scope, callee.direct) : null;
     const candidate = binding?.symbol;
     // Module/class bodies execute sequentially. Deferred function bodies use
     // lexical candidates; the edge is source evidence, never execution proof.
@@ -287,7 +309,7 @@ export function analyzePythonSource(relative, source, hash) {
     const key = `${from}\0${candidate.id}\0${kind}`;
     if (!edges.has(key)) {
       if (edges.size >= PYTHON_LIMITS.edges) { limited = true; continue; }
-      edges.set(key, { id: `call:${digest(key).slice(0, 24)}`, from, to: candidate.id, kind, label: kind === 'construct' ? 'constructs' : 'calls', layers: ['project', ...(/(^|\/)(test|tests)\/|(^|\/)test_[^/]+\.py$|_test\.py$/.test(relative) ? ['testing'] : [])], provenance: 'static-call', execution: 'not-observed', evidence: [] });
+      edges.set(key, { id: `call:${digest(key).slice(0, 24)}`, from, to: candidate.id, kind, label: kind === 'construct' ? 'constructs' : 'calls', layers: ['project', ...(isTestSource(relative) ? ['testing'] : [])], provenance: 'static-call', execution: 'not-observed', evidence: [] });
     }
     edges.get(key).evidence.push({ ...evidence(node), containment: 'direct-body' });
   }
