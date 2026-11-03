@@ -1,6 +1,6 @@
 # Lightweight expansion plan
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.3.0 candidate**; latest published version is recorded on Releases.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Published baseline: **[1.3.0](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0)**, 2026-11-03; [PR #16](https://github.com/OnFiala/agent.mind/pull/16) merged as `56d6c33`.
 [GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
 versions and downloads; source version numbers alone do not establish publication.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
@@ -52,7 +52,9 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
 | L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5); release preparation merged in [PR #6](https://github.com/OnFiala/agent.mind/pull/6) | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
-| L5 | **Python source-support candidate:** declarations, imports and conservative local calls extend the merged [PR #8](https://github.com/OnFiala/agent.mind/pull/8) pilot; other languages remain demand-led | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
+| L5 | **Released in 1.3.0:** [PR #16](https://github.com/OnFiala/agent.mind/pull/16) extends the merged [PR #8](https://github.com/OnFiala/agent.mind/pull/8) pilot with declarations, imports and conservative local calls; private-name follow-up below; other languages remain demand-led | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
+| AUD3-CODE-01 / PY-IDENTITY-01 | **Proposed; implementation approval PENDING:** confirmed P2 private-name binding finding; bounded same-file binding and simple private import-module repair | [Dated review/plan](docs/reviews/2026-11-03-python-identity-and-ui-plan.md) owns evidence, semantic decisions, acceptance and rollback. Targeted compiler/index evidence confirmed; no repair or regressions implemented. |
+| UI-RECONCILE-01 | **Optional proposal; approval PENDING:** extract bounded UI reconciliation ownership; maintainability opportunity, no new defect asserted | Same [plan](docs/reviews/2026-11-03-python-identity-and-ui-plan.md); separate scope/commit/PR and navigation/late-response browser acceptance if chosen. Installer split deferred. |
 | L6 | **Codex consumer evaluation started:** existing local AGENTS + CLI workflow; additional integration remains demand-led | Verify instruction activation and actual consumer behavior first. Accept Windows/WSL, container/remote, cancellation and framework depth separately; do not infer platform support from a parser. |
 
 L1 implementation commit [`9fbcb61`](https://github.com/OnFiala/agent.mind/commit/9fbcb61fb29a15e145c41f2542b8059e52a51f77) adds six production-path regressions.
@@ -110,7 +112,7 @@ PR #8 was owner-approved and merged as `f764fa9c` on 2026-11-02.
 The L5 Python pilot adds a pure synchronous `.py` declaration adapter using Lezer.
 Its [fixed contract and measurements](docs/reviews/2026-11-01-python-pilot.md)
 separate editor syntax from CPython validity, semantics and runtime behavior.
-In that historical pilot every Python file remained partial. The 1.3.0 candidate
+In that historical pilot every Python file remained partial. The published 1.3.0
 adds source relationships and removes only the unconditional language warning;
 strict preflight still rejects real errors, limits and incomplete scans.
 The separate [1.2.0 release preparation](docs/releases/1.2.0.md) covers the actual
@@ -166,7 +168,7 @@ At the time of this 1.2.1 probe, typed/Python inspection remained partial and
 strict preflight rejected it. Python completion is tracked separately below.
 Broader L6 support remains unaccepted until its own evidence exists.
 
-## Python completion and Codex workflow (1.3.0 candidate)
+## Python completion and Codex workflow (1.3.0 released)
 
 The approved practical scope is source inventory, declarations, import references
 and conservative same-file bare calls, followed by an actual installed Codex
@@ -177,7 +179,7 @@ plugin, service or global configuration is added. The strict preflight is unchan
 ordinary Python no longer receives a blanket partial warning, while actual errors,
 limits and incomplete reads still reject it. See [1.3.0 acceptance and rollback](docs/releases/1.3.0.md).
 
-The candidate now passes 273 tests, actual-bundle smoke, published-1.2.1 upgrade/
+The released implementation passed 273 tests, actual-bundle smoke, published-1.2.1 upgrade/
 rollback, and an installed Codex edit/test/refresh cycle on an authored Python
 fixture. The separate browser check preserved selection/camera and restored source.
 The pinned 24-file Flask corpus returns `current` with complete inventory; no Flask
@@ -185,8 +187,9 @@ code was executed. Relative imports may traverse namespace subdirectories beneat
 an indexed regular-package ancestor; top-level/merged namespaces and environment
 path discovery remain unresolved. Exact artifact IDs, measured bounds, independent
 review scope and unverified host/runtime claims belong to the release record and
-implementation PR. This completes the agreed practical Python source workflow;
-publication and broader L6 acceptance remain separate.
+implementation PR. This completed the agreed practical Python source workflow, with the private-name
+follow-up tracked above. Publication occurred on 2026-11-03; broader L6 acceptance
+and any real-target upgrade remain separate.
 
 
 ## Small internal boundaries
@@ -261,5 +264,12 @@ For every implementation PR:
 
 If review or required checks cannot run, retain draft/pending status with the exact
 gap. Do not mark a roadmap stage complete from code existence or a planning approval.
-Use this table and PR links as the tracking mechanism; no additional tracker service
-or duplicated roadmap is required.
+Use this table and PR links as the sole live priority/status tracker; dated reviews
+own finding evidence and proposed contracts. The implementation owner updates the
+affected row when work is approved or implemented, the independent reviewer records
+the exact reviewed head and validation before verified status, and the integrating
+agent records merge/release evidence after each separately authorized action.
+Approval alone is not implementation, verification, merge or publication. Update
+README capability limits and release records when verified behavior or publication
+changes; preserve historical evidence as dated evidence. This is work performed at
+each transition, with no recurring automation or additional tracker implied.

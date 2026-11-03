@@ -39,20 +39,18 @@ its language semantics were analyzed. Security and Testing are source-reference
 views, not vulnerability scans, test execution or coverage. See
 [What it can read](#what-it-can-read) and the [typed pilot](#typescripttsxjsx-inspection-pilot-110)
 for the exact limits and the [Python support](#python-source-analysis-130).
-The source checkout prepares **1.3.0**; only a published release with downloadable
-assets establishes availability. Version 1.1.0 has Python inventory/text reads only.
+**[1.3.0](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0) was published on
+2026-11-03**; its release record links the verified archive and checksums.
+Version 1.1.0 has Python inventory/text reads only.
 Existing installations do not update automatically. Additional host environments
 remain planned.
 
 ## Install into a project
 
-These instructions describe the **1.3.0 release line**. After publication, download
-the archive and checksum from the
+These instructions use the published **1.3.0** archive and checksum from the
 [1.3.0 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0).
-A version in source alone is not proof of publication: if those assets are not
-available, use an existing published version or build a local candidate as described
-under [Development](#development). Existing targets keep their pinned version;
-upgrades are explicit. The prior [1.2.1 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.1)
+Existing targets keep their pinned version; upgrades are explicit. A local candidate
+can be built as described under [Development](#development). The prior [1.2.1 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.1)
 remains available for rollback. It includes the earlier JavaScript repairs and
 Python declaration inspection; its Python contexts remain partial and reject preflight.
 
@@ -678,7 +676,9 @@ available within the independent inventory limits. Parser limits are not deadlin
 or a sandbox. `.pyi` and notebooks remain inventory-only; annotation evaluation,
 comprehension/lambda bodies and decorator effects are not inferred as call targets.
 
-The source repository's `docs/releases/1.3.0.md` records acceptance and rollback.
+The source repository's [1.3.0 release record](docs/releases/1.3.0.md) records
+acceptance and rollback. The [post-release identity review and proposed repair](docs/reviews/2026-11-03-python-identity-and-ui-plan.md)
+tracks private-name binding/import limitations; the repair is not implemented.
 The [earlier Python pilot evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
 records parser selection and historical declaration-only behavior in 1.2.x.
 
