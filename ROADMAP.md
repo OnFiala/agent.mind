@@ -177,6 +177,18 @@ plugin, service or global configuration is added. The strict preflight is unchan
 ordinary Python no longer receives a blanket partial warning, while actual errors,
 limits and incomplete reads still reject it. See [1.3.0 acceptance and rollback](docs/releases/1.3.0.md).
 
+The candidate now passes 273 tests, actual-bundle smoke, published-1.2.1 upgrade/
+rollback, and an installed Codex edit/test/refresh cycle on an authored Python
+fixture. The separate browser check preserved selection/camera and restored source.
+The pinned 24-file Flask corpus returns `current` with complete inventory; no Flask
+code was executed. Relative imports may traverse namespace subdirectories beneath
+an indexed regular-package ancestor; top-level/merged namespaces and environment
+path discovery remain unresolved. Exact artifact IDs, measured bounds, independent
+review scope and unverified host/runtime claims belong to the release record and
+implementation PR. This completes the agreed practical Python source workflow;
+publication and broader L6 acceptance remain separate.
+
+
 ## Small internal boundaries
 
 Start L2 by separating eligibility for safe inventory/text reads from eligibility

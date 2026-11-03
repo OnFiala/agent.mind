@@ -649,9 +649,12 @@ handled conservatively. Imported, member, aliased and dynamic call targets remai
 unresolved; no type inference or Python security/framework analysis is claimed.
 
 Imports reference source modules. Absolute names use the project root as the
-only source root; relative names use indexed regular packages with `__init__.py`.
+only source root; relative names use an indexed regular-package ancestor with
+`__init__.py` as their boundary. Internal namespace subdirectories may lead to a
+unique indexed module below that anchor; a namespace without its own source file
+creates no file edge. Intermediate module/package collisions stay explicit.
 The map does not discover `sys.path`, virtual environments, build configuration,
-namespace packages or an implicit `src` root. Unmatched absolute names are visibly
+top-level namespace packages, merged namespace portions or an implicit `src` root. Unmatched absolute names are visibly
 external/unresolved, not proof that a dependency is installed. For
 `from package import member`, the reference names the package module; whether the
 member is an attribute or submodule remains unresolved. Ambiguous paths are never
