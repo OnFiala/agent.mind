@@ -206,7 +206,9 @@ function resolvePythonReference(relative, reference, available) {
   const specifier = reference.specifier;
   const python = reference.python;
   const identifier = /^[_\p{ID_Start}][_\p{ID_Continue}]*$/u;
-  const parts = typeof python.module === 'string' && python.module ? python.module.split('.') : [];
+  // Python normalizes identifier tokens before module lookup. Normalize only
+  // source-spelled segments; inventory paths retain their exact filesystem names.
+  const parts = typeof python.module === 'string' && python.module ? python.module.split('.').map(part => part.normalize('NFKC')) : [];
   if (!Number.isSafeInteger(python.level) || python.level < 0 || !['import', 'from'].includes(python.form)
       || typeof python.module !== 'string' || parts.some(part => !identifier.test(part))
       || (!parts.length && (!python.level || python.form !== 'from'))) {

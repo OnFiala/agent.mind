@@ -907,3 +907,43 @@ test('Python module self-imports retain evidence while empty containing-package 
   assert.ok(!edge(graph, 'pkg/__init__.py', 'file:pkg/__init__.py', 'import'));
   assert.ok(graph.diagnostics.some(item => item.path === 'pkg/__init__.py' && item.line === 1 && item.severity === 'info' && /members remain ambiguous/.test(item.message)));
 });
+
+test('Python module lookup NFKC-normalizes identifiers while preserving raw import evidence', t => {
+  const root = fixture(t, {
+    'main.py': 'import K\nimport 𝓅𝓀𝓰.𝓂\nfrom 𝓅𝓀𝓰.𝓂 import value\n',
+    'K.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'pkg/m.py': 'value = 1\n',
+    'pkg/main.py': 'from .𝓂 import value\n',
+    'pkg/sub/__init__.py': 'pass\n',
+    'pkg/sub/main.py': 'from ..𝓂 import value\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  const kelvin = edge(graph, 'main.py', 'file:K.py', 'import');
+  assert.ok(kelvin);
+  assert.match(kelvin.evidence[0].snippet, /import K/);
+  const dotted = edge(graph, 'main.py', 'file:pkg/m.py', 'import');
+  assert.equal(dotted.evidence.length, 2);
+  assert.match(dotted.evidence[0].snippet, /𝓅𝓀𝓰\.𝓂/);
+  for (const source of ['pkg/main.py', 'pkg/sub/main.py']) assert.ok(edge(graph, source, 'file:pkg/m.py', 'import'), source);
+});
+
+test('Python module lookup never normalizes filesystem paths to invent Unicode aliases', t => {
+  const root = fixture(t, {
+    'main.py': 'import K\nimport 𝓅𝓀𝓰.𝓂\nimport plain.𝓂\n',
+    'K.py': 'pass\n',
+    '𝓅𝓀𝓰/__init__.py': 'pass\n',
+    '𝓅𝓀𝓰/𝓂.py': 'pass\n',
+    'plain/__init__.py': 'pass\n',
+    'plain/𝓂.py': 'pass\n',
+    'plain/main.py': 'from .𝓂 import value\n',
+    'plain/sub/__init__.py': 'pass\n',
+    'plain/sub/main.py': 'from ..𝓂 import value\n'
+  });
+  const graph = indexProject(root);
+  for (const specifier of ['K', '𝓅𝓀𝓰.𝓂', 'plain.𝓂']) assert.ok(edge(graph, 'main.py', `external:python:${specifier}`, 'import'), specifier);
+  for (const source of ['main.py', 'plain/main.py', 'plain/sub/main.py']) assert.ok(!graph.edges.some(relation => relation.from === `file:${source}` && relation.to.startsWith('file:')), source);
+  for (const source of ['plain/main.py', 'plain/sub/main.py']) assert.ok(graph.diagnostics.some(item => item.path === source && item.severity === 'warning' && /Unresolved local Python module/.test(item.message)), source);
+  assert.equal(graph.status, 'partial');
+});
