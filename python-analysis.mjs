@@ -7,6 +7,9 @@ export const PYTHON_LIMITS = Object.freeze({ bytes: 64 * 1024, symbols: 2000, as
 const PRODUCER = Object.freeze({ name: '@lezer/python', version: '1.1.19', mode: 'static-source' });
 export const isPythonSource = relative => relative.endsWith('.py');
 const digest = value => createHash('sha256').update(value).digest('hex');
+// Python compares identifier tokens after NFKC normalization; displayed source
+// spelling, symbol IDs, module references and ranges remain untouched.
+const bindingKey = name => name.normalize('NFKC');
 
 function sourceLocations(source) {
   const starts = [0];
@@ -114,8 +117,11 @@ export function analyzePythonSource(relative, source, hash) {
   const moduleScope = makeScope(null, 'module'), calls = [], poisoned = new Set();
   let dynamicNamespace = false, limited = false;
   const bind = (scope, name, symbol = null, node = null) => {
-    if (!scope.bindings.has(name)) scope.bindings.set(name, []);
-    scope.bindings.get(name).push({ symbol, node });
+    const key = bindingKey(name);
+    if (!scope.bindings.has(key)) scope.bindings.set(key, []);
+    const bindings = scope.bindings.get(key);
+    if (bindings.some(binding => binding.spelling !== name)) report(`Ambiguous normalized Python binding ${name}; colliding source spellings cannot resolve a call target.`, node, 'info');
+    bindings.push({ symbol, node, spelling: name });
   };
   const target = (node, scope) => {
     if (!node) return;
@@ -124,7 +130,7 @@ export function analyzePythonSource(relative, source, hash) {
       // Mutation of a declaration object may change construction/call behavior.
       let base = node;
       while (base?.name === 'MemberExpression') base = base.children[0];
-      if (base?.name === 'VariableName') poisoned.add(text(base));
+      if (base?.name === 'VariableName') poisoned.add(bindingKey(text(base)));
     } else if (['TupleExpression', 'ArrayExpression', 'ParenthesizedExpression', 'StarredExpression'].includes(node.name)) for (const child of node.children) target(child, scope);
   };
   const importStatement = (node, scope) => {
@@ -191,7 +197,7 @@ export function analyzePythonSource(relative, source, hash) {
       return;
     }
     if (node.name === 'ScopeStatement') {
-      for (const child of children) if (child.name === 'VariableName') { poisoned.add(text(child)); bind(scope, text(child)); }
+      for (const child of children) if (child.name === 'VariableName') { poisoned.add(bindingKey(text(child))); bind(scope, text(child)); }
       return;
     }
     if (node.name === 'LambdaExpression') {
@@ -237,13 +243,14 @@ export function analyzePythonSource(relative, source, hash) {
       else calls.push({ node, scope, owner, omitted });
       const callee = children[0];
       const name = callee?.name === 'VariableName' ? text(callee) : callee?.name === 'MemberExpression' ? text(callee.children.at(-1)) : '';
-      if (['exec', 'eval', 'globals', 'locals', 'vars', 'setattr', 'delattr', '__import__'].includes(name)) dynamicNamespace = true;
+      if (['exec', 'eval', 'globals', 'locals', 'vars', 'setattr', 'delattr', '__import__'].includes(bindingKey(name))) dynamicNamespace = true;
     }
     const branch = conditional || ['IfStatement', 'ForStatement', 'WhileStatement', 'TryStatement', 'WithStatement', 'MatchStatement'].includes(node.name);
     for (const child of children) visit(child, scope, owner, omitted, branch);
   }
   visit(root.children[0], moduleScope);
-  const lookup = (scope, name) => {
+  const lookup = (scope, spelling) => {
+    const name = bindingKey(spelling);
     if (poisoned.has(name) || dynamicNamespace) return null;
     let skipClasses = false;
     for (let current = scope; current; current = current.parent) {

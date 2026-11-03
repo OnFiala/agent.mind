@@ -121,3 +121,44 @@ test('generic type parameters shadow ordinary functions in headers, bodies and c
   assert.deepEqual(pairs(result), []);
   assert.equal(result.diagnostics.filter(item => /Unresolved Python call/.test(item.message)).length, 3);
 });
+
+test('NFKC lookup resolves Unicode spellings while preserving raw declaration identity and ranges', () => {
+  const source = 'def K(): pass\ndef owner():\n    K()\n';
+  const result = analyze(source); clean(result);
+  assert.deepEqual(pairs(result), [['owner', 'K', 'call']]);
+  const declaration = result.symbolGraph.nodes.find(node => node.name === 'K');
+  assert.equal(declaration.id, 'symbol:test/example.py#K');
+  assert.equal(declaration.qualifiedName, 'K');
+  assert.equal(source.slice(declaration.range.start, declaration.range.end), 'def K(): pass\n');
+  assert.equal(declaration.hash, createHash('sha256').update(source).digest('hex'));
+  assert.deepEqual(pairs(analyze('def K(): pass\ndef owner(): K()\n')), [['owner', 'K', 'call']]);
+});
+
+for (const [name, source] of [
+  ['assignment shadow', 'def owner():\n    K()\n    K = other\n'],
+  ['parameter', 'def owner(K): K()\n'],
+  ['global write', 'def owner():\n    global K\n    K()\n    K = other\n'],
+  ['nonlocal write', 'def outer():\n    def K(): pass\n    def owner():\n        nonlocal K\n        K()\n        K = other\n'],
+  ['mutation', 'K.__code__ = other\ndef owner(): K()\n'],
+  ['import alias', 'def owner():\n    K()\n    import module as K\n'],
+  ['from import alias', 'def owner():\n    K()\n    from module import value as K\n']
+]) test(`NFKC binding suppresses false source edge for ${name}`, () => {
+  const result = analyze('def K(): pass\n' + source); clean(result);
+  assert.equal(result.symbolGraph.edges.length, 0, JSON.stringify(pairs(result)));
+  assert(result.diagnostics.some(item => /Unresolved Python call/.test(item.message) && item.line && item.column));
+});
+
+test('NFKC declaration collisions retain raw source symbols and omit ambiguous call edges', () => {
+  const result = analyze('def K(): pass\ndef K(): pass\ndef owner():\n    K()\n    K()\n'); clean(result);
+  assert.deepEqual(result.symbolGraph.nodes.map(node => node.name), ['K', 'K', 'owner']);
+  assert.equal(result.symbolGraph.edges.length, 0);
+  assert(result.diagnostics.some(item => /Ambiguous normalized Python binding/.test(item.message)));
+});
+
+test('NFKC import bindings retain raw module, alias and specifier evidence', () => {
+  const result = analyze('import K.pkg as K\nfrom K.𝓂 import K as 𝓀\n'); clean(result);
+  assert.deepEqual(result.references.map(item => [item.specifier, item.python.module, item.python.names]), [
+    ['K.pkg', 'K.pkg', [{ name: 'K.pkg', as: 'K' }]],
+    ['K.𝓂', 'K.𝓂', [{ name: 'K', as: '𝓀' }]]
+  ]);
+});
