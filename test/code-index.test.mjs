@@ -647,8 +647,8 @@ test('capabilities describe available operations while analysis errors remain ex
   assert.ok(file(graph, 'broken.mjs').diagnostics.some(item => /parse error/.test(item.message)));
   assert.deepEqual(file(graph, 'page.html').capabilities, ['text', 'html-assets']);
   assert.deepEqual(file(graph, 'data.json').capabilities, ['text', 'json-validation']);
-  assert.deepEqual(file(graph, 'other.py').capabilities, ['text', 'python-syntax', 'named-symbols']);
-  assert(file(graph, 'other.py').diagnostics.some(item => /Syntax-only Python/.test(item.message)));
+  assert.deepEqual(file(graph, 'other.py').capabilities, ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls']);
+  assert.ok(!file(graph, 'other.py').diagnostics.some(item => item.severity === 'warning'));
   assert.deepEqual(file(graph, 'notes.md').capabilities, ['text']);
 });
 
@@ -753,4 +753,157 @@ test('an eligible wide array remains one readable text entry when symbol analysi
   assert.ok(!graph.diagnostics.some(item => /Cannot index file|call stack/.test(item.message)));
   write(root, 'wide.mjs', source + '// changed\n');
   assert.throws(() => readIndexedSource(root, node, { generic: true }), /changed/);
+});
+
+test('Python imports resolve only unique project-root modules and regular packages with source evidence', t => {
+  const root = fixture(t, {
+    'main.py': 'import helpers as h, pkg.worker\nfrom pkg import member\nfrom pkg.worker import work\nimport os\nimport fs\nimport namespace.worker\nimport src.custom\n',
+    'helpers.py': 'def helper():\n    pass\n',
+    'pkg/__init__.py': 'member = 1\n',
+    'pkg/member.py': 'pass\n',
+    'pkg/worker.py': 'def work():\n    pass\n',
+    'namespace/worker.py': 'pass\n',
+    'src/custom.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  for (const target of ['helpers.py', 'pkg/worker.py', 'pkg/__init__.py']) assert.ok(edge(graph, 'main.py', `file:${target}`, 'import'), target);
+  assert.equal(edge(graph, 'main.py', 'file:pkg/worker.py', 'import').evidence.length, 2);
+  assert.equal(edge(graph, 'main.py', 'file:helpers.py', 'import').evidence[0].line, 1);
+  assert.match(edge(graph, 'main.py', 'file:helpers.py', 'import').evidence[0].snippet, /import helpers/);
+  for (const target of ['pkg/member.py', 'namespace/worker.py', 'src/custom.py']) assert.ok(!edge(graph, 'main.py', `file:${target}`, 'import'), target);
+  for (const name of ['os', 'fs', 'namespace.worker', 'src.custom']) {
+    const relation = edge(graph, 'main.py', `external:python:${name}`, 'import');
+    assert.ok(relation, name);
+    assert.deepEqual(relation.layers, ['project']);
+    assert.match(graph.nodes.find(node => node.id === relation.to).label, /external\/unresolved Python/);
+  }
+  assert.ok(!graph.nodes.some(node => node.layers.includes('security')));
+  assert.ok(graph.diagnostics.some(item => item.path === 'main.py' && item.line === 7 && item.severity === 'info' && /project-root/.test(item.message)));
+});
+
+test('Python explicit relative imports respect contiguous regular packages and never guess members', t => {
+  const root = fixture(t, {
+    'pkg/__init__.py': 'pass\n',
+    'pkg/sibling.py': 'pass\n',
+    'pkg/sub/__init__.py': 'from . import leaf\n',
+    'pkg/sub/main.py': 'from .leaf import value\nfrom ..sibling import value\nfrom . import leaf\nfrom ...outside import value\nfrom .missing import value\n',
+    'pkg/sub/leaf.py': 'value = 1\n',
+    'outside.py': 'pass\n',
+    'lonely/main.py': 'from .leaf import value\n',
+    'lonely/leaf.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  for (const target of ['pkg/sub/leaf.py', 'pkg/sibling.py', 'pkg/sub/__init__.py']) assert.ok(edge(graph, 'pkg/sub/main.py', `file:${target}`, 'import'), target);
+  assert.ok(!edge(graph, 'pkg/sub/__init__.py', 'file:pkg/sub/__init__.py', 'import'));
+  assert.ok(!edge(graph, 'pkg/sub/__init__.py', 'file:pkg/sub/leaf.py', 'import'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'pkg/sub/__init__.py' && item.severity === 'info' && /members remain ambiguous/.test(item.message)));
+  assert.ok(!edge(graph, 'pkg/sub/main.py', 'file:outside.py', 'import'));
+  assert.ok(!edge(graph, 'lonely/main.py', 'file:lonely/leaf.py', 'import'));
+  for (const [name, line] of [['pkg/sub/main.py', 4], ['pkg/sub/main.py', 5], ['lonely/main.py', 1]]) assert.ok(graph.diagnostics.some(item => item.path === name && item.line === line && item.severity === 'warning'), `${name}:${line}`);
+});
+
+test('Python import candidates exclude absent, binary, unreadable, symlink and policy-excluded files', t => {
+  const root = fixture(t, {
+    'main.py': 'import missing\nimport binary\nimport linked\nimport blocked\nimport workspace.hidden\nimport hiddenpkg\n',
+    'binary.py': Buffer.from([0, 1, 2]),
+    'blocked.py': 'pass\n',
+    'target.py': 'pass\n',
+    'workspace/__init__.py': 'pass\n',
+    'workspace/hidden.py': 'pass\n',
+    'hiddenpkg/__init__.py': 'pass\n'
+  });
+  fs.symlinkSync(path.join(root, 'target.py'), path.join(root, 'linked.py'));
+  const open = fs.openSync;
+  fs.openSync = (name, ...args) => {
+    if (name === path.join(root, 'blocked.py')) throw new Error('synthetic denied source');
+    return open(name, ...args);
+  };
+  let graph;
+  try { graph = indexProject(root, { excludePaths: ['hiddenpkg'] }); } finally { fs.openSync = open; }
+  for (const name of ['missing', 'binary', 'linked', 'blocked', 'workspace.hidden', 'hiddenpkg']) assert.ok(edge(graph, 'main.py', `external:python:${name}`, 'import'), name);
+  assert.equal(graph.status, 'partial');
+  assert.ok(!graph.edges.some(relation => relation.from === 'file:main.py' && relation.to.startsWith('file:')));
+});
+
+test('Python module/package collision stays partial and malformed imports cannot traverse the root', t => {
+  const root = fixture(t, {
+    'main.py': 'import clash\nfrom pkg import clash\n',
+    'clash.py': 'pass\n',
+    'clash/__init__.py': 'pass\n',
+    'pkg.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'malformed.py': 'from ../../outside import x\n',
+    'outside.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  assert.ok(!graph.edges.some(relation => relation.from === 'file:main.py'));
+  assert.ok(!graph.edges.some(relation => relation.from === 'file:malformed.py'));
+  assert.equal(graph.diagnostics.filter(item => item.path === 'main.py' && /module\/package collision/.test(item.message)).length, 2);
+  assert.ok(graph.diagnostics.some(item => item.path === 'malformed.py' && ['error', 'warning'].includes(item.severity)));
+});
+
+test('Python import reconciliation re-resolves cached syntax when module targets appear or disappear', t => {
+  const root = fixture(t, { 'main.py': 'import helper\n' });
+  const initial = indexProject(root);
+  assert.equal(initial.status, 'current');
+  assert.ok(edge(initial, 'main.py', 'external:python:helper', 'import'));
+  write(root, 'helper.py', 'def help():\n    pass\n');
+  const warm = indexProject(root, { previous: initial });
+  const cold = indexProject(root);
+  assert.ok(warm.stats.cachedFiles > 0);
+  assert.equal(warm.revision, cold.revision);
+  assert.notEqual(warm.revision, initial.revision);
+  assert.ok(edge(warm, 'main.py', 'file:helper.py', 'import'));
+  fs.unlinkSync(path.join(root, 'helper.py'));
+  const removed = indexProject(root, { previous: warm });
+  assert.equal(removed.revision, initial.revision);
+  assert.equal(removed.revision, indexProject(root).revision);
+  assert.ok(edge(removed, 'main.py', 'external:python:helper', 'import'));
+});
+
+test('Python conventional test filenames and their import links share Testing without PASS or coverage claims', t => {
+  const root = fixture(t, {
+    'test_worker.py': 'import worker\n',
+    'worker_test.py': 'import worker\n',
+    'checks/test_extra.py': 'import worker\n',
+    'worker.py': 'def helper():\n    pass\ndef work():\n    return helper()\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.equal(graph.stats.tests, 3);
+  for (const name of ['test_worker.py', 'worker_test.py', 'checks/test_extra.py']) {
+    assert.equal(file(graph, name).kind, 'test');
+    assert.deepEqual(edge(graph, name, 'file:worker.py', 'import').layers, ['project', 'testing']);
+  }
+  assert.ok(file(graph, 'worker.py').layers.includes('testing'));
+  assert.ok(graph.symbolGraph.edges.some(relation => relation.kind === 'call' && relation.from === 'symbol:worker.py#work' && relation.to === 'symbol:worker.py#helper'));
+  assert.ok(!JSON.stringify(graph).includes('"coverage":'));
+  assert.ok(!JSON.stringify(graph).includes('"passed":'));
+});
+
+
+test('Python cached import resolution also invalidates when regular-package ancestry changes', t => {
+  const root = fixture(t, { 'main.py': 'import pkg.worker\n', 'pkg/worker.py': 'pass\n' });
+  const missing = indexProject(root);
+  assert.ok(edge(missing, 'main.py', 'external:python:pkg.worker', 'import'));
+  write(root, 'pkg/__init__.py', 'pass\n');
+  const packageGraph = indexProject(root, { previous: missing });
+  assert.equal(packageGraph.revision, indexProject(root).revision);
+  assert.ok(edge(packageGraph, 'main.py', 'file:pkg/worker.py', 'import'));
+  fs.unlinkSync(path.join(root, 'pkg/__init__.py'));
+  const removed = indexProject(root, { previous: packageGraph });
+  assert.equal(removed.revision, missing.revision);
+  assert.ok(edge(removed, 'main.py', 'external:python:pkg.worker', 'import'));
+});
+
+test('Python module self-imports retain evidence while empty containing-package self references stay informational', t => {
+  const root = fixture(t, { 'main.py': 'import main\n', 'pkg/__init__.py': 'from . import member\n' });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.ok(edge(graph, 'main.py', 'file:main.py', 'import'));
+  assert.ok(!edge(graph, 'pkg/__init__.py', 'file:pkg/__init__.py', 'import'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'pkg/__init__.py' && item.line === 1 && item.severity === 'info' && /members remain ambiguous/.test(item.message)));
 });

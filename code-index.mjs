@@ -18,7 +18,7 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const fileId = relative => `file:${relative}`;
 const isInside = (root, candidate) => candidate === root || candidate.startsWith(`${root}${path.sep}`);
 const posix = name => name.split(path.sep).join('/');
-const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py|ts|tsx|jsx)$/.test(name);
+const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py|ts|tsx|jsx)$/.test(name) || /(?:^|\/)(?:test_[^/]+|[^/]+_test)\.py$/.test(name);
 const sensitive = name => /(?:^|\.)env(?:[.-]|$)/i.test(name)
   || /^id_(?:rsa|dsa|ecdsa|ed25519)(?:[._-]|$)/i.test(name)
   || /(?:^|[._-])(?:secrets?|credentials?)(?:[._-]|$)/i.test(name)
@@ -43,7 +43,7 @@ function capabilitiesFor(relative) {
   const extension = path.extname(relative);
   if (extension === '.js' || extension === '.mjs') return ['text', 'javascript-syntax', 'static-references', 'named-symbols', 'local-calls', 'security-signals'];
   if (isTypedSource(relative)) return ['text', ...(extension === '.jsx' ? [] : ['typescript-syntax']), ...(extension === '.ts' ? [] : ['jsx-syntax']), 'named-symbols'];
-  if (extension === '.py') return ['text', 'python-syntax', 'named-symbols'];
+  if (extension === '.py') return ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls'];
   if (extension === '.html') return ['text', 'html-assets'];
   if (extension === '.json') return ['text', 'json-validation'];
   return ['text'];
@@ -200,7 +200,48 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
   return files.sort();
 }
 
+// Python resolution describes one documented source layout, never sys.path or a
+// running interpreter. Only already indexed UTF-8 .py files can be candidates.
+function resolvePythonReference(relative, reference, available) {
+  const specifier = reference.specifier;
+  const python = reference.python;
+  const identifier = /^[_\p{ID_Start}][_\p{ID_Continue}]*$/u;
+  const parts = typeof python.module === 'string' && python.module ? python.module.split('.') : [];
+  if (!Number.isSafeInteger(python.level) || python.level < 0 || !['import', 'from'].includes(python.form)
+      || typeof python.module !== 'string' || parts.some(part => !identifier.test(part))
+      || (!parts.length && (!python.level || python.form !== 'from'))) {
+    return { error: `Malformed Python module reference: ${specifier}` };
+  }
+  let base = '';
+  if (python.level) {
+    const packages = [];
+    let directory = path.posix.dirname(relative);
+    while (directory !== '.' && available.has(`${directory}/__init__.py`)) {
+      packages.push(directory);
+      directory = path.posix.dirname(directory);
+    }
+    if (python.level > packages.length) return { error: `Python relative import leaves the indexed regular package: ${specifier}` };
+    base = packages[python.level - 1];
+  }
+  const modulePath = path.posix.join(base, ...parts);
+  // A dotted source module requires indexed regular-package ancestry. Relative
+  // imports already established their base; only additional dotted dirs remain.
+  const packageDirectories = parts.slice(0, -1).map((_, index) => path.posix.join(base, ...parts.slice(0, index + 1)));
+  const missingPackage = packageDirectories.find(directory => !available.has(`${directory}/__init__.py`));
+  const candidates = parts.length ? [`${modulePath}.py`, `${modulePath}/__init__.py`] : [`${base}/__init__.py`];
+  const eligible = missingPackage ? [] : candidates.filter(candidate => available.has(candidate));
+  if (eligible.length > 1) return { error: `Ambiguous Python source module (module/package collision): ${specifier}` };
+  if (!eligible.length) {
+    if (python.level) return { error: `Unresolved local Python module in the indexed regular package: ${specifier}` };
+    return { external: `python:${specifier}`, label: `${specifier} (external/unresolved Python)`, info: `Python import is external or unresolved in the project-root regular-package layout: ${specifier}. No environment or namespace-package resolution is inferred.` };
+  }
+  const info = python.form === 'from' && !parts.length
+    ? `Python from-import members remain ambiguous attributes or submodules: ${specifier}. Only the containing package is referenced.` : undefined;
+  return { ...(!parts.length && eligible[0] === relative ? { ignored: true } : { target: eligible[0] }), info };
+}
+
 function resolveReference(relative, reference, available) {
+  if (reference.python) return resolvePythonReference(relative, reference, available);
   let specifier = reference.specifier;
   const resource = reference.html || ['asset', 'test-reference'].includes(reference.kind);
   if (resource) {
@@ -278,9 +319,14 @@ export function indexProject(directory, options = {}) {
   const groupedEdges = new Map();
   for (const [relative, analysis] of analyses) for (const reference of analysis.references) {
     const resolved = resolveReference(relative, reference, resolvable);
+    if (resolved.info) {
+      const diagnostic = { ...structuredClone(reference.evidence), message: resolved.info, severity: 'info' };
+      diagnostics.push(diagnostic);
+      available.get(relative).diagnostics.push(diagnostic);
+    }
     if (resolved.ignored) continue;
     if (resolved.error) {
-      const diagnostic = { path: relative, line: reference.evidence.line, message: resolved.error, severity: 'warning' };
+      const diagnostic = { ...(reference.python ? structuredClone(reference.evidence) : { path: relative, line: reference.evidence.line }), message: resolved.error, severity: 'warning' };
       diagnostics.push(diagnostic);
       available.get(relative).diagnostics.push(diagnostic);
       continue;
@@ -288,9 +334,9 @@ export function indexProject(directory, options = {}) {
     const from = fileId(relative);
     const to = resolved.target ? fileId(resolved.target) : `external:${resolved.external}`;
     const testing = isTest(relative) || (resolved.target && isTest(resolved.target));
-    const security = Boolean(resolved.external && securityModule(resolved.external));
+    const security = Boolean(!reference.python && resolved.external && securityModule(resolved.external));
     const layers = ['project', ...(testing ? ['testing'] : []), ...(security ? ['security'] : [])];
-    if (resolved.external && !externalNodes.has(to)) externalNodes.set(to, { id: to, path: null, label: resolved.external, kind: 'external', layers: ['project'], symbols: [], security: [], diagnostics: [] });
+    if (resolved.external && !externalNodes.has(to)) externalNodes.set(to, { id: to, path: null, label: resolved.label ?? resolved.external, kind: 'external', layers: ['project'], symbols: [], security: [], diagnostics: [] });
     const target = resolved.target ? available.get(resolved.target) : externalNodes.get(to);
     for (const layer of layers) if (!target.layers.includes(layer)) target.layers.push(layer);
     if (testing && !available.get(relative).layers.includes('testing')) available.get(relative).layers.push('testing');
@@ -353,10 +399,10 @@ export function indexProject(directory, options = {}) {
       'Acorn parses JavaScript modules. The map resolves literal imports, reexports, dynamic imports and new URL(literal, import.meta.url). It does not resolve CommonJS require, computed paths or aliases, or guess missing extensions.',
       'HTTP/SSE links match code on both sides of a request; they do not show requests that ran. A nonshadowed fetch/EventSource call must use a fixed same-origin /api path; query strings may be dynamic. It must match one inline handler passed to an imported http.createServer, with one unmodified new URL(request.url, base) binding and an exact pathname check. SSE also requires code that sets an event-stream response. Frameworks, indirect handlers, computed paths and multiple possible providers are unsupported. Each match states what is known about its HTTP method.',
       'Functions and classes are nested as they appear in source. Call links cover direct same-file references and known this.method calls within a class. They do not show runtime execution, callback scheduling, dynamic dispatch, coverage or control flow. Imported, aliased and computed calls, class fields and static-block bodies are omitted. Ambiguous or directly reassigned bindings and methods are excluded. Anonymous closures use the nearest named owner and carry a nested-closure marker. Per-file limits apply to symbols, calls, AST nodes and nesting depth.',
-      'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, Python dependencies and Markdown links.',
+      'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, and Markdown links.',
       'Inventory includes bounded regular files independently of language support. UTF-8 text without binary controls can be read by indexed hash. Binary, unreadable, oversized and unscanned entries have explicit states; excluded directories are not traversed. Hidden/sensitive paths, symlinks and configured exclusions remain excluded.',
       'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
-      ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python pilot provides bounded named declarations only (64 KiB per file), using an editor grammar rather than CPython validation. Every file is partial; imports, calls, types, security and framework behavior remain unanalyzed. Recovery errors and traversal limits withhold all symbols; ambiguous declarations and descendants are withheld. Decorator effects, notebooks and .pyi files are outside scope. Parser limits are not timeouts or a sandbox.'] : []),
+      ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python provides bounded declarations, literal module imports and conservative bare same-file calls (64 KiB per file), using an editor grammar rather than CPython validation. Imports map only project-root modules and indexed regular packages, or explicit relatives within contiguous indexed regular packages; namespace packages, custom source roots, sys.path and environment resolution are not inferred. From-import members are attributes or submodules, never guessed file edges. Imported/member calls, types, security, framework/runtime behavior, decorator effects, notebooks and .pyi files remain outside scope. Recovery errors and traversal limits withhold relationships; ambiguity remains explicit. Parser limits are not timeouts or a sandbox.'] : []),
       ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides syntax and bounded named declarations only (64 KiB per file); no import/type/call/security/HTTP analysis. Both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse errors and ambiguity withhold affected symbols; traversal limits withhold all symbols from the file. Parser and traversal limits are not timeouts or a sandbox.'] : []),
       `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
