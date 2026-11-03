@@ -1,6 +1,6 @@
 # Lightweight expansion plan
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.2.1**; latest published version is recorded on Releases.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Source release line: **1.3.0 candidate**; latest published version is recorded on Releases.
 [GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
 versions and downloads; source version numbers alone do not establish publication.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
@@ -52,7 +52,7 @@ stages complete. Approval of the sequence does not authorize later implementatio
 | L2 | **Merged:** [PR #3](https://github.com/OnFiala/agent.mind/pull/3), safe inventory and additive capability/freshness reporting, CORE-01/02 | Unsupported text add/edit/delete changes inventory revision; binary/oversized/excluded files have explicit states; limits and hash-bound reads hold. Existing JS graph/IDs and strict preflight remain compatible. No new dependency or target file. |
 | L3 | **Merged:** [PR #4](https://github.com/OnFiala/agent.mind/pull/4), smallest synchronous source-analysis boundary for the first additional language | Existing JS/HTML behavior matches baseline fixtures. A small internal dispatch/return shape is enough; no plugin registry or separate service. Adapter/config versions enter cache identity only when needed. |
 | L4 | **Pilot merged:** [PR #5](https://github.com/OnFiala/agent.mind/pull/5); release preparation merged in [PR #6](https://github.com/OnFiala/agent.mind/pull/6) | Measure at least two parser options before choosing. Source ranges, symbols, errors and uncertainty pass fixtures; size/latency/memory budgets are recorded before accepting the dependency. No framework-routing or complete-call-graph claim. Preserve the existing JS adapter/IDs. |
-| L5 | **Python pilot merged; 1.2.0 preparation:** [PR #8](https://github.com/OnFiala/agent.mind/pull/8), bounded Python syntax inspection; other languages remain demand-led | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
+| L5 | **Python source-support candidate:** declarations, imports and conservative local calls extend the merged [PR #8](https://github.com/OnFiala/agent.mind/pull/8) pilot; other languages remain demand-led | One adapter at a time with its own capability/version row, fixtures, scope limits and incremental footprint. Import/name resolution is a separate measured capability from syntax. |
 | L6 | **Codex consumer evaluation started:** existing local AGENTS + CLI workflow; additional integration remains demand-led | Verify instruction activation and actual consumer behavior first. Accept Windows/WSL, container/remote, cancellation and framework depth separately; do not infer platform support from a parser. |
 
 L1 implementation commit [`9fbcb61`](https://github.com/OnFiala/agent.mind/commit/9fbcb61fb29a15e145c41f2542b8059e52a51f77) adds six production-path regressions.
@@ -110,7 +110,9 @@ PR #8 was owner-approved and merged as `f764fa9c` on 2026-11-02.
 The L5 Python pilot adds a pure synchronous `.py` declaration adapter using Lezer.
 Its [fixed contract and measurements](docs/reviews/2026-11-01-python-pilot.md)
 separate editor syntax from CPython validity, semantics and runtime behavior.
-Every Python file remains partial; strict preflight does not weaken.
+In that historical pilot every Python file remained partial. The 1.3.0 candidate
+adds source relationships and removes only the unconditional language warning;
+strict preflight still rejects real errors, limits and incomplete scans.
 The separate [1.2.0 release preparation](docs/releases/1.2.0.md) covers the actual
 published-1.1.0 upgrade/rollback path and installed Python inspection. Publication,
 real-target upgrades and L6 environment expansion remain separate owner decisions.
@@ -137,7 +139,8 @@ remain unchanged. A 300,018-byte array fixture now has one readable, hash-bound
 inventory entry and an explicit symbol-budget diagnostic. Local validation passed
 204 tests, packaging and all 10 bundle smoke groups. Independent review covered
 all five code/test files, reran 75 tests and checked 24 differential cases.
-This is a source candidate; it does not change the published 1.2.1 or installed targets.
+The candidate was merged in [PR #15](https://github.com/OnFiala/agent.mind/pull/15)
+as `2b2684a`. It does not change the published 1.2.1 or installed targets.
 Rollback the wide-array commit, then the switch-scope commit.
 
 ## L6: first Codex consumer check
@@ -159,9 +162,32 @@ by this tested path. The next proposed acceptance step is an authorized edit on 
 representative real project, including stale context, refreshed source and relevant
 tests. The synthetic probe did not measure coding quality or token/time savings,
 exercise edits, cancellation, the Codex desktop app, remote hosts or other platforms.
-Typed/Python inspection remains partial and strict preflight still rejects it;
-this probe does not approve editing those projects through that contract.
+At the time of this 1.2.1 probe, typed/Python inspection remained partial and
+strict preflight rejected it. Python completion is tracked separately below.
 Broader L6 support remains unaccepted until its own evidence exists.
+
+## Python completion and Codex workflow (1.3.0 candidate)
+
+The approved practical scope is source inventory, declarations, import references
+and conservative same-file bare calls, followed by an actual installed Codex
+context/preflight/edit/test/refresh workflow. Types, imported calls, runtime import
+paths and framework behavior are outside this scope. The analyzer remains a pure
+synchronous text function; the index owns source-module resolution. No interpreter,
+plugin, service or global configuration is added. The strict preflight is unchanged:
+ordinary Python no longer receives a blanket partial warning, while actual errors,
+limits and incomplete reads still reject it. See [1.3.0 acceptance and rollback](docs/releases/1.3.0.md).
+
+The candidate now passes 273 tests, actual-bundle smoke, published-1.2.1 upgrade/
+rollback, and an installed Codex edit/test/refresh cycle on an authored Python
+fixture. The separate browser check preserved selection/camera and restored source.
+The pinned 24-file Flask corpus returns `current` with complete inventory; no Flask
+code was executed. Relative imports may traverse namespace subdirectories beneath
+an indexed regular-package ancestor; top-level/merged namespaces and environment
+path discovery remain unresolved. Exact artifact IDs, measured bounds, independent
+review scope and unverified host/runtime claims belong to the release record and
+implementation PR. This completes the agreed practical Python source workflow;
+publication and broader L6 acceptance remain separate.
+
 
 ## Small internal boundaries
 

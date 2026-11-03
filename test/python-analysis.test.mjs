@@ -52,7 +52,7 @@ test('Python declaration inspection preserves source names, native kinds, lexica
     assert.equal(node.id, `symbol:src/example.py#${node.qualifiedName}`);
     assert.equal(node.name, node.label);
     assert.equal(node.hash, hash(source));
-    assert.deepEqual(node.producer, { name: '@lezer/python', version: '1.1.19', mode: 'syntax-only' });
+    assert.deepEqual(node.producer, { name: '@lezer/python', version: '1.1.19', mode: 'static-source' });
     assert.equal(node.parentId, node.qualifiedName.includes('.') ? `symbol:src/example.py#${node.qualifiedName.slice(0, node.qualifiedName.lastIndexOf('.'))}` : null);
   }
   assert.deepEqual(result.symbols.map(node => node.name), ['outer', 'conditional']);
@@ -60,7 +60,7 @@ test('Python declaration inspection preserves source names, native kinds, lexica
   assert.equal(symbol(result, 'outer.Box.read').range.start, source.indexOf('async def read'));
   assert.deepEqual(result.references, []);
   assert.deepEqual(result.security, []);
-  assert.deepEqual(result.symbolGraph.edges, []);
+  assert.deepEqual(result.symbolGraph.edges.map(edge => [edge.from, edge.to]), [['symbol:src/example.py#outer.Box.read', 'symbol:src/example.py#outer.Box.read.inner']]);
 });
 
 for (const newline of ['\n', '\r\n', '\r']) test(`raw UTF-16 ranges retain tabs, astral text, source spelling and ${JSON.stringify(newline)}`, () => {
@@ -109,21 +109,20 @@ test('any parser recovery withholds declarations, including a valid declaration 
   }
 });
 
-test('unsupported modern syntax fails closed and accepted editor grammar is never CPython validation', t => {
-  for (const source of ['def kept(): pass\n@factory[0]\ndef decorated(): pass\n', 'def kept(): pass\ndef generic[T = int](): pass\n']) withheld(analyze(source), /parse error/i);
-  const accepted = analyze('print "Python 2 editor grammar"\nreturn 1\ndef visible(): pass\n');
+test('known unsupported modern syntax, Python 2 forms and unfinished strings fail closed', t => {
+  for (const invalid of [
+    '@factory[0]\ndef decorated(): pass\n', 'def generic[T = int](): pass\n',
+    'print "old"\n', 'raise E, value\n', 'try: pass\nexcept E, e: pass\n',
+    'x = 0755\n', 'x = 1 <> 2\n', '"unterminated\n', "x = r'undone\n", 'x = f"undone\n'
+  ]) withheld(analyze('def kept(): pass\n' + invalid), /parse error/i);
+  const accepted = analyze('def visible(): return "complete"\n');
   assert(symbol(accepted, 'visible'));
-  assert(accepted.diagnostics.some(item => /always partial/.test(item.message)));
-  assert(accepted.diagnostics.some(item => /Python 2.*malformed tokens.*CPython.*PEP 614.*PEP 696/.test(item.message)));
-  // The editor lexer accepts an unfinished string without a recovery node.
-  // Expose this limitation; a syntax tree never establishes CPython validity.
-  const lexicalTolerance = analyze('def visible(): pass\n"unterminated\n');
-  assert(symbol(lexicalTolerance, 'visible'));
-  assert(lexicalTolerance.diagnostics.some(item => /malformed tokens/.test(item.message)));
-  const graph = indexProject(fixture(t, { 'tolerated.py': 'def visible(): pass\n"unterminated\n' }));
+  assert(!accepted.diagnostics.some(item => ['warning', 'error'].includes(item.severity)));
+  assert(accepted.diagnostics.some(item => /not CPython/.test(item.message)));
+  const graph = indexProject(fixture(t, { 'malformed.py': 'def visible(): pass\n"unterminated\n' }));
   assert.equal(graph.status, 'partial');
-  assert(symbol(graph, 'visible'));
-  assert(!file(graph, 'tolerated.py').diagnostics.some(item => item.severity === 'error'));
+  assert.equal(graph.symbolGraph.nodes.length, 0);
+  assert(file(graph, 'malformed.py').diagnostics.some(item => item.severity === 'error'));
 });
 
 test('duplicate qualified names across conditionals withhold every ambiguous descendant and retain unrelated names', () => {
@@ -160,7 +159,7 @@ test('real parser depth and node-count overflow withhold an earlier valid declar
   }
 });
 
-test('index keeps Python partial, inventory-only formats text-only, and literal JS source references intact', t => {
+test('index exposes Python static evidence, inventory-only formats text-only, and literal JS source references intact', t => {
   const source = 'import os\nfrom missing import value\nraise RuntimeError("MUST NEVER EXECUTE")\ndef inspect():\n    os.system("never")\n    return value()\n';
   const root = fixture(t, {
     'src/inspect.py': source,
@@ -172,18 +171,19 @@ test('index keeps Python partial, inventory-only formats text-only, and literal 
   const graph = indexProject(root);
   assert.equal(graph.status, 'partial');
   const python = file(graph, 'src/inspect.py');
-  assert.deepEqual(python.capabilities, ['text', 'python-syntax', 'named-symbols']);
+  assert.deepEqual(python.capabilities, ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls']);
   assert.deepEqual(python.security, []);
   assert(symbol(graph, 'inspect'));
   assert.equal(readIndexedSource(root, python), source);
   for (const name of ['src/types.pyi', 'notebook.ipynb']) {
     assert.deepEqual(file(graph, name).capabilities, ['text']);
   }
-  assert.equal(graph.edges.length, 1);
-  assert.equal(graph.edges[0].kind, 'asset');
-  assert.equal(graph.edges[0].to, 'file:src/inspect.py');
+  const asset = graph.edges.find(edge => edge.kind === 'asset');
+  assert(asset);
+  assert.equal(asset.to, 'file:src/inspect.py');
+  assert.equal(graph.edges.filter(edge => edge.kind === 'import').length, 2);
   assert.deepEqual(graph.symbolGraph.edges, []);
-  assert(!graph.nodes.some(node => node.id.startsWith('external:')));
+  assert.equal(graph.nodes.filter(node => node.id.startsWith('external:python:')).length, 2);
   assert(graph.scope.limitations.some(item => /Python/.test(item)));
   const withoutPython = fixture(t, {
     'main.mjs': 'const source = new URL("./src/inspect.py", import.meta.url); export function legacy() { return 1; }',
@@ -199,7 +199,7 @@ test('cache and live reconciliation preserve IDs, refresh hashes, expose errors 
   const live = new LiveIndex(root, { intervalMs: 60000 });
   t.after(() => live.close());
   const initial = live.graph;
-  assert.equal(initial.status, 'partial');
+  assert.equal(initial.status, 'current');
   assert(symbol(initial, 'original'));
   const warm = indexProject(root, { previous: initial });
   assert.equal(warm.revision, initial.revision);

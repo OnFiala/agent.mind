@@ -42,9 +42,9 @@ async function measure(runtime, corpusRoot, receiptFile) {
     assert.equal(cold.inventory.status, 'complete');
     assert.equal(cold.stats.files, receipt.files.length);
     assert.equal(warm.stats.cachedFiles, receipt.files.length);
-    assert.equal(cold.status, 'partial');
-    assert.equal(cold.edges.length, 0);
-    assert.equal(cold.symbolGraph.edges.length, 0);
+    assert(['current', 'partial'].includes(cold.status));
+    // The original declaration pilot and later source analyzer share this
+    // input-hash/performance harness; capability evidence is recorded explicitly.
     const first = receipt.files.find(file => file.path === 'src/flask/views.py') ?? receipt.files[0];
     const filePath = path.join(fixture, first.path);
     const source = fs.readFileSync(filePath, 'utf8');
@@ -64,7 +64,7 @@ async function measure(runtime, corpusRoot, receiptFile) {
     }
     const peakRSS = process.resourceUsage().maxRSS * 1024;
     const failures = cold.diagnostics.filter(d => /parse error|limit reached|analysis limit/i.test(d.message));
-    const result = { corpus: { repository: receipt.repository, commit: receipt.commit, files: receipt.files.length, bytes: total, digest: sha(JSON.stringify(receipt.files)), omitted: receipt.omitted }, loadedMs, coldMs, unchangedMs, updateMs, liveUpdateMs, baselineRSS, peakRSS, increaseRSS: peakRSS - baselineRSS, symbols: cold.symbolGraph.nodes.length, diagnostics: cold.diagnostics.length, failures, ambiguities: cold.diagnostics.filter(d => /Ambiguous declaration/.test(d.message)) };
+    const result = { corpus: { repository: receipt.repository, commit: receipt.commit, files: receipt.files.length, bytes: total, digest: sha(JSON.stringify(receipt.files)), omitted: receipt.omitted }, loadedMs, coldMs, unchangedMs, updateMs, liveUpdateMs, baselineRSS, peakRSS, increaseRSS: peakRSS - baselineRSS, status: cold.status, sourceEdges: cold.edges.length, callEdges: cold.symbolGraph.edges.length, symbols: cold.symbolGraph.nodes.length, diagnostics: cold.diagnostics.length, failures, ambiguities: cold.diagnostics.filter(d => /Ambiguous declaration/.test(d.message)) };
     assert(coldMs <= 1000 && unchangedMs <= 100 && updateMs <= 200 && Math.max(...liveUpdateMs) <= 200, JSON.stringify(result));
     assert(peakRSS <= 256 * 1024 * 1024 && result.increaseRSS <= 160 * 1024 * 1024, JSON.stringify(result));
     return result;

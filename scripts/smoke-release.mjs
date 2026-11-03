@@ -134,17 +134,28 @@ try {
       if (path.dirname(ancestor) === ancestor) break;
     }
   }
-  fs.writeFileSync(path.join(project, 'src/python.py'), 'raise RuntimeError("Scanned source must not run")\nclass Service:\n    async def run(self):\n        return 1\n');
+  // Remove only this harness's typed fixture: its intentionally partial analysis
+  // must not mask the first-class Python context/preflight acceptance below.
+  fs.unlinkSync(path.join(project, 'src/typed.ts'));
+  fs.writeFileSync(path.join(project, 'src/__init__.py'), '');
+  fs.writeFileSync(path.join(project, 'src/helper.py'), 'def remote(): return 2\n');
+  fs.writeFileSync(path.join(project, 'src/python.py'), 'from .helper import remote\nraise RuntimeError("Scanned source must not run")\ndef helper(): return 1\nclass Service:\n    async def run(self):\n        return helper()\n');
   const pythonContext = run(cli, ['context', 'src/python.py']);
-  assert.equal(pythonContext.status, 'partial');
+  assert.equal(pythonContext.status, 'current');
   assert(pythonContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/python.py#Service.run'));
-  assert.equal(pythonContext.symbolGraph.edges.length, 0);
-  assert.match(run(cli, ['preflight', 'src/python.py', '--revision', pythonContext.revision, '--binding-id', pythonContext.binding.id, '--generation', String(pythonContext.binding.generation)], false), /partial/i);
+  assert(pythonContext.symbolGraph.edges.some(edge => edge.from === 'symbol:src/python.py#Service.run' && edge.to === 'symbol:src/python.py#helper'));
+  assert(pythonContext.edges.some(edge => edge.kind === 'import' && edge.from === 'file:src/python.py' && edge.to === 'file:src/helper.py'));
+  const pythonReceipt = ['--revision', pythonContext.revision, '--binding-id', pythonContext.binding.id, '--generation', String(pythonContext.binding.generation)];
+  assert.equal(run(cli, ['preflight', 'src/python.py', ...pythonReceipt]).preflight, 'verified-at-read');
+  fs.appendFileSync(path.join(project, 'src/python.py'), '# changed after preflight\n');
+  assert.match(run(cli, ['preflight', 'src/python.py', ...pythonReceipt], false), /revision changed/i);
   fs.writeFileSync(path.join(project, 'src/python.py'), 'def original(): pass\ndef broken(\n');
   const failedPython = run(cli, ['context', 'src/python.py']);
   assert(!failedPython.symbolGraph.nodes.some(node => node.path === 'src/python.py'));
   assert(failedPython.diagnostics.some(d => /parse error/i.test(d.message)));
-  checks.push('shipped isolated Python parser exposes declarations, rejects partial preflight and withholds recovered symbols without source execution');
+  assert.equal(failedPython.status, 'partial');
+  assert.match(run(cli, ['preflight', 'src/python.py', ...pythonReceipt], false), /partial/i);
+  checks.push('shipped Python runtime resolves source imports/local calls, passes current preflight and rejects stale/error context without source execution');
 
 
   const userNote = '\nOwner edit must survive.\n';

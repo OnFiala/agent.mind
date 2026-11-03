@@ -647,8 +647,8 @@ test('capabilities describe available operations while analysis errors remain ex
   assert.ok(file(graph, 'broken.mjs').diagnostics.some(item => /parse error/.test(item.message)));
   assert.deepEqual(file(graph, 'page.html').capabilities, ['text', 'html-assets']);
   assert.deepEqual(file(graph, 'data.json').capabilities, ['text', 'json-validation']);
-  assert.deepEqual(file(graph, 'other.py').capabilities, ['text', 'python-syntax', 'named-symbols']);
-  assert(file(graph, 'other.py').diagnostics.some(item => /Syntax-only Python/.test(item.message)));
+  assert.deepEqual(file(graph, 'other.py').capabilities, ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls']);
+  assert.ok(!file(graph, 'other.py').diagnostics.some(item => item.severity === 'warning'));
   assert.deepEqual(file(graph, 'notes.md').capabilities, ['text']);
 });
 
@@ -753,4 +753,316 @@ test('an eligible wide array remains one readable text entry when symbol analysi
   assert.ok(!graph.diagnostics.some(item => /Cannot index file|call stack/.test(item.message)));
   write(root, 'wide.mjs', source + '// changed\n');
   assert.throws(() => readIndexedSource(root, node, { generic: true }), /changed/);
+});
+
+test('Python imports resolve only unique project-root modules and regular packages with source evidence', t => {
+  const root = fixture(t, {
+    'main.py': 'import helpers as h, pkg.worker\nfrom pkg import member\nfrom pkg.worker import work\nimport os\nimport fs\nimport namespace.worker\nimport src.custom\n',
+    'helpers.py': 'def helper():\n    pass\n',
+    'pkg/__init__.py': 'member = 1\n',
+    'pkg/member.py': 'pass\n',
+    'pkg/worker.py': 'def work():\n    pass\n',
+    'namespace/worker.py': 'pass\n',
+    'src/custom.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  for (const target of ['helpers.py', 'pkg/worker.py', 'pkg/__init__.py']) assert.ok(edge(graph, 'main.py', `file:${target}`, 'import'), target);
+  assert.equal(edge(graph, 'main.py', 'file:pkg/worker.py', 'import').evidence.length, 2);
+  assert.equal(edge(graph, 'main.py', 'file:helpers.py', 'import').evidence[0].line, 1);
+  assert.match(edge(graph, 'main.py', 'file:helpers.py', 'import').evidence[0].snippet, /import helpers/);
+  for (const target of ['pkg/member.py', 'namespace/worker.py', 'src/custom.py']) assert.ok(!edge(graph, 'main.py', `file:${target}`, 'import'), target);
+  for (const name of ['os', 'fs', 'namespace.worker', 'src.custom']) {
+    const relation = edge(graph, 'main.py', `external:python:${name}`, 'import');
+    assert.ok(relation, name);
+    assert.deepEqual(relation.layers, ['project']);
+    assert.match(graph.nodes.find(node => node.id === relation.to).label, /external\/unresolved Python/);
+  }
+  assert.ok(!graph.nodes.some(node => node.layers.includes('security')));
+  assert.ok(graph.diagnostics.some(item => item.path === 'main.py' && item.line === 7 && item.severity === 'info' && /project-root/.test(item.message)));
+});
+
+test('Python explicit relative imports respect contiguous regular packages and never guess members', t => {
+  const root = fixture(t, {
+    'pkg/__init__.py': 'pass\n',
+    'pkg/sibling.py': 'pass\n',
+    'pkg/sub/__init__.py': 'from . import leaf\n',
+    'pkg/sub/main.py': 'from .leaf import value\nfrom ..sibling import value\nfrom . import leaf\nfrom ...outside import value\nfrom .missing import value\n',
+    'pkg/sub/leaf.py': 'value = 1\n',
+    'outside.py': 'pass\n',
+    'lonely/main.py': 'from .leaf import value\n',
+    'lonely/leaf.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  for (const target of ['pkg/sub/leaf.py', 'pkg/sibling.py', 'pkg/sub/__init__.py']) assert.ok(edge(graph, 'pkg/sub/main.py', `file:${target}`, 'import'), target);
+  assert.ok(!edge(graph, 'pkg/sub/__init__.py', 'file:pkg/sub/__init__.py', 'import'));
+  assert.ok(!edge(graph, 'pkg/sub/__init__.py', 'file:pkg/sub/leaf.py', 'import'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'pkg/sub/__init__.py' && item.severity === 'info' && /members remain ambiguous/.test(item.message)));
+  assert.ok(!edge(graph, 'pkg/sub/main.py', 'file:outside.py', 'import'));
+  assert.ok(!edge(graph, 'lonely/main.py', 'file:lonely/leaf.py', 'import'));
+  for (const [name, line] of [['pkg/sub/main.py', 4], ['pkg/sub/main.py', 5], ['lonely/main.py', 1]]) assert.ok(graph.diagnostics.some(item => item.path === name && item.line === line && item.severity === 'warning'), `${name}:${line}`);
+});
+
+test('Python import candidates exclude absent, binary, unreadable, symlink and policy-excluded files', t => {
+  const root = fixture(t, {
+    'main.py': 'import missing\nimport binary\nimport linked\nimport blocked\nimport workspace.hidden\nimport hiddenpkg\n',
+    'binary.py': Buffer.from([0, 1, 2]),
+    'blocked.py': 'pass\n',
+    'target.py': 'pass\n',
+    'workspace/__init__.py': 'pass\n',
+    'workspace/hidden.py': 'pass\n',
+    'hiddenpkg/__init__.py': 'pass\n'
+  });
+  fs.symlinkSync(path.join(root, 'target.py'), path.join(root, 'linked.py'));
+  const open = fs.openSync;
+  fs.openSync = (name, ...args) => {
+    if (name === path.join(root, 'blocked.py')) throw new Error('synthetic denied source');
+    return open(name, ...args);
+  };
+  let graph;
+  try { graph = indexProject(root, { excludePaths: ['hiddenpkg'] }); } finally { fs.openSync = open; }
+  for (const name of ['missing', 'binary', 'linked', 'blocked', 'workspace.hidden', 'hiddenpkg']) assert.ok(edge(graph, 'main.py', `external:python:${name}`, 'import'), name);
+  assert.equal(graph.status, 'partial');
+  assert.ok(!graph.edges.some(relation => relation.from === 'file:main.py' && relation.to.startsWith('file:')));
+});
+
+test('Python module/package collision stays partial and malformed imports cannot traverse the root', t => {
+  const root = fixture(t, {
+    'main.py': 'import clash\nfrom pkg import clash\n',
+    'clash.py': 'pass\n',
+    'clash/__init__.py': 'pass\n',
+    'pkg.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'malformed.py': 'from ../../outside import x\n',
+    'outside.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  assert.ok(!graph.edges.some(relation => relation.from === 'file:main.py'));
+  assert.ok(!graph.edges.some(relation => relation.from === 'file:malformed.py'));
+  assert.equal(graph.diagnostics.filter(item => item.path === 'main.py' && /module\/package collision/.test(item.message)).length, 2);
+  assert.ok(graph.diagnostics.some(item => item.path === 'malformed.py' && ['error', 'warning'].includes(item.severity)));
+});
+
+test('Python import reconciliation re-resolves cached syntax when module targets appear or disappear', t => {
+  const root = fixture(t, { 'main.py': 'import helper\n' });
+  const initial = indexProject(root);
+  assert.equal(initial.status, 'current');
+  assert.ok(edge(initial, 'main.py', 'external:python:helper', 'import'));
+  write(root, 'helper.py', 'def help():\n    pass\n');
+  const warm = indexProject(root, { previous: initial });
+  const cold = indexProject(root);
+  assert.ok(warm.stats.cachedFiles > 0);
+  assert.equal(warm.revision, cold.revision);
+  assert.notEqual(warm.revision, initial.revision);
+  assert.ok(edge(warm, 'main.py', 'file:helper.py', 'import'));
+  fs.unlinkSync(path.join(root, 'helper.py'));
+  const removed = indexProject(root, { previous: warm });
+  assert.equal(removed.revision, initial.revision);
+  assert.equal(removed.revision, indexProject(root).revision);
+  assert.ok(edge(removed, 'main.py', 'external:python:helper', 'import'));
+});
+
+test('Python conventional test filenames and their import links share Testing without PASS or coverage claims', t => {
+  const root = fixture(t, {
+    'test_worker.py': 'import worker\n',
+    'worker_test.py': 'import worker\n',
+    'checks/test_extra.py': 'import worker\n',
+    'worker.py': 'def helper():\n    pass\ndef work():\n    return helper()\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.equal(graph.stats.tests, 3);
+  for (const name of ['test_worker.py', 'worker_test.py', 'checks/test_extra.py']) {
+    assert.equal(file(graph, name).kind, 'test');
+    assert.deepEqual(edge(graph, name, 'file:worker.py', 'import').layers, ['project', 'testing']);
+  }
+  assert.ok(file(graph, 'worker.py').layers.includes('testing'));
+  assert.ok(graph.symbolGraph.edges.some(relation => relation.kind === 'call' && relation.from === 'symbol:worker.py#work' && relation.to === 'symbol:worker.py#helper'));
+  assert.ok(!JSON.stringify(graph).includes('"coverage":'));
+  assert.ok(!JSON.stringify(graph).includes('"passed":'));
+});
+
+
+test('Python cached import resolution also invalidates when regular-package ancestry changes', t => {
+  const root = fixture(t, { 'main.py': 'import pkg.worker\n', 'pkg/worker.py': 'pass\n' });
+  const missing = indexProject(root);
+  assert.ok(edge(missing, 'main.py', 'external:python:pkg.worker', 'import'));
+  write(root, 'pkg/__init__.py', 'pass\n');
+  const packageGraph = indexProject(root, { previous: missing });
+  assert.equal(packageGraph.revision, indexProject(root).revision);
+  assert.ok(edge(packageGraph, 'main.py', 'file:pkg/worker.py', 'import'));
+  fs.unlinkSync(path.join(root, 'pkg/__init__.py'));
+  const removed = indexProject(root, { previous: packageGraph });
+  assert.equal(removed.revision, missing.revision);
+  assert.ok(edge(removed, 'main.py', 'external:python:pkg.worker', 'import'));
+});
+
+test('Python module self-imports retain evidence while empty containing-package self references stay informational', t => {
+  const root = fixture(t, { 'main.py': 'import main\n', 'pkg/__init__.py': 'from . import member\n' });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.ok(edge(graph, 'main.py', 'file:main.py', 'import'));
+  assert.ok(!edge(graph, 'pkg/__init__.py', 'file:pkg/__init__.py', 'import'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'pkg/__init__.py' && item.line === 1 && item.severity === 'info' && /members remain ambiguous/.test(item.message)));
+});
+
+test('Python module lookup NFKC-normalizes identifiers while preserving raw import evidence', t => {
+  const root = fixture(t, {
+    'main.py': 'import K\nimport 𝓅𝓀𝓰.𝓂\nfrom 𝓅𝓀𝓰.𝓂 import value\n',
+    'K.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'pkg/m.py': 'value = 1\n',
+    'pkg/main.py': 'from .𝓂 import value\n',
+    'pkg/sub/__init__.py': 'pass\n',
+    'pkg/sub/main.py': 'from ..𝓂 import value\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  const kelvin = edge(graph, 'main.py', 'file:K.py', 'import');
+  assert.ok(kelvin);
+  assert.match(kelvin.evidence[0].snippet, /import K/);
+  const dotted = edge(graph, 'main.py', 'file:pkg/m.py', 'import');
+  assert.equal(dotted.evidence.length, 2);
+  assert.match(dotted.evidence[0].snippet, /𝓅𝓀𝓰\.𝓂/);
+  for (const source of ['pkg/main.py', 'pkg/sub/main.py']) assert.ok(edge(graph, source, 'file:pkg/m.py', 'import'), source);
+});
+
+test('Python module lookup never normalizes filesystem paths to invent Unicode aliases', t => {
+  const root = fixture(t, {
+    'main.py': 'import K\nimport 𝓅𝓀𝓰.𝓂\nimport plain.𝓂\n',
+    'K.py': 'pass\n',
+    '𝓅𝓀𝓰/__init__.py': 'pass\n',
+    '𝓅𝓀𝓰/𝓂.py': 'pass\n',
+    'plain/__init__.py': 'pass\n',
+    'plain/𝓂.py': 'pass\n',
+    'plain/main.py': 'from .𝓂 import value\n',
+    'plain/sub/__init__.py': 'pass\n',
+    'plain/sub/main.py': 'from ..𝓂 import value\n'
+  });
+  const graph = indexProject(root);
+  for (const specifier of ['K', '𝓅𝓀𝓰.𝓂', 'plain.𝓂']) assert.ok(edge(graph, 'main.py', `external:python:${specifier}`, 'import'), specifier);
+  for (const source of ['main.py', 'plain/main.py', 'plain/sub/main.py']) assert.ok(!graph.edges.some(relation => relation.from === `file:${source}` && relation.to.startsWith('file:')), source);
+  for (const source of ['plain/main.py', 'plain/sub/main.py']) assert.ok(graph.diagnostics.some(item => item.path === source && item.severity === 'warning' && /Unresolved local Python module/.test(item.message)), source);
+  assert.equal(graph.status, 'partial');
+});
+
+test('Python internal namespace directories resolve below a known regular-package anchor like the Flask layout', t => {
+  const root = fixture(t, {
+    'main.py': 'import flask.sansio.app\n',
+    'src/flask/__init__.py': 'pass\n',
+    'src/flask/app.py': 'from .sansio.app import App\nfrom .sansio.scaffold import Scaffold\n',
+    'src/flask/config.py': 'value = 1\n',
+    'src/flask/sansio/app.py': 'from .scaffold import Scaffold\nfrom ..config import value\n',
+    'src/flask/sansio/scaffold.py': 'class Scaffold:\n    pass\n',
+    'flask/__init__.py': 'pass\n',
+    'flask/sansio/app.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  for (const [source, target] of [
+    ['main.py', 'flask/sansio/app.py'],
+    ['src/flask/app.py', 'src/flask/sansio/app.py'],
+    ['src/flask/app.py', 'src/flask/sansio/scaffold.py'],
+    ['src/flask/sansio/app.py', 'src/flask/sansio/scaffold.py'],
+    ['src/flask/sansio/app.py', 'src/flask/config.py']
+  ]) assert.ok(edge(graph, source, `file:${target}`, 'import'), `${source} -> ${target}`);
+  assert.ok(!edge(graph, 'main.py', 'file:src/flask/sansio/app.py', 'import'));
+});
+
+test('Python namespace-only modules retain info without inventing initializer or member edges', t => {
+  const root = fixture(t, {
+    'main.py': 'import pkg.ns\nfrom pkg.ns import child\n',
+    'pkg/__init__.py': 'from .ns import child\n',
+    'pkg/ns/main.py': 'from . import child\n',
+    'pkg/ns/child.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.equal(graph.edges.length, 0);
+  for (const source of ['main.py', 'pkg/__init__.py', 'pkg/ns/main.py']) assert.ok(graph.diagnostics.some(item => item.path === source && item.severity === 'info' && /namespace module has no source file/.test(item.message)), source);
+  assert.ok(!graph.nodes.some(node => node.id === 'file:pkg/ns/__init__.py'));
+});
+
+test('Python namespace traversal requires a regular anchor and keeps missing and over-anchor relatives partial', t => {
+  const root = fixture(t, {
+    'main.py': 'import ns.worker\nimport src.pkg.worker\n',
+    'ns/worker.py': 'pass\n',
+    'src/pkg/__init__.py': 'pass\n',
+    'src/pkg/worker.py': 'pass\n',
+    'pkg/__init__.py': 'pass\n',
+    'pkg/ns/main.py': 'from .missing import value\nfrom ...outside import value\nfrom ..missingns import value\n',
+    'outside.py': 'pass\n',
+    'ns/main.py': 'from .worker import value\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  for (const name of ['ns.worker', 'src.pkg.worker']) assert.ok(edge(graph, 'main.py', `external:python:${name}`, 'import'));
+  assert.ok(!graph.edges.some(relation => ['file:pkg/ns/main.py', 'file:ns/main.py'].includes(relation.from)));
+  for (const line of [1, 2, 3]) assert.ok(graph.diagnostics.some(item => item.path === 'pkg/ns/main.py' && item.line === line && item.severity === 'warning'), line);
+  assert.ok(graph.diagnostics.some(item => item.path === 'ns/main.py' && item.severity === 'warning'));
+});
+
+test('Python module files block internal namespace traversal and intermediate package collisions stay explicit', t => {
+  const root = fixture(t, {
+    'main.py': 'import pkg.ns.child\nimport pkg.clash.child\n',
+    'pkg/__init__.py': 'from .ns.child import value\nfrom .clash.child import value\n',
+    'pkg/ns.py': 'pass\n',
+    'pkg/ns/child.py': 'pass\n',
+    'pkg/clash.py': 'pass\n',
+    'pkg/clash/__init__.py': 'pass\n',
+    'pkg/clash/child.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'partial');
+  assert.equal(graph.edges.length, 0);
+  for (const source of ['main.py', 'pkg/__init__.py']) {
+    assert.ok(graph.diagnostics.some(item => item.path === source && item.line === 1 && /blocks package traversal/.test(item.message) && item.severity === 'warning'));
+    assert.ok(graph.diagnostics.some(item => item.path === source && item.line === 2 && /module\/package collision/.test(item.message) && item.severity === 'warning'));
+  }
+});
+
+test('Python explicit project-root initializer anchors bounded relative namespace imports', t => {
+  const root = fixture(t, {
+    '__init__.py': 'from .sub.worker import value\n',
+    'config.py': 'value = 1\n',
+    'sub/worker.py': 'from ..config import value\nfrom . import other\n',
+    'sub/other.py': 'pass\n'
+  });
+  const graph = indexProject(root);
+  assert.equal(graph.status, 'current');
+  assert.ok(edge(graph, '__init__.py', 'file:sub/worker.py', 'import'));
+  assert.ok(edge(graph, 'sub/worker.py', 'file:config.py', 'import'));
+  assert.ok(!edge(graph, 'sub/worker.py', 'file:sub/other.py', 'import'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'sub/worker.py' && item.line === 2 && /namespace module has no source file/.test(item.message)));
+  write(root, 'sub/worker.py', 'from ...outside import value\n');
+  const escaped = indexProject(root, { previous: graph });
+  assert.equal(escaped.status, 'partial');
+  assert.ok(escaped.diagnostics.some(item => item.path === 'sub/worker.py' && /leaves the indexed regular package/.test(item.message) && item.severity === 'warning'));
+});
+
+test('Python cached namespace resolution follows descendant, blocker and initializer transitions', t => {
+  const root = fixture(t, { 'pkg/__init__.py': 'from .ns import value\n' });
+  const missing = indexProject(root);
+  assert.equal(missing.status, 'partial');
+  write(root, 'pkg/ns/child.py', 'pass\n');
+  const namespace = indexProject(root, { previous: missing });
+  assert.equal(namespace.status, 'current');
+  assert.equal(namespace.edges.length, 0);
+  assert.equal(namespace.revision, indexProject(root).revision);
+  write(root, 'pkg/ns/__init__.py', 'pass\n');
+  const regular = indexProject(root, { previous: namespace });
+  assert.ok(edge(regular, 'pkg/__init__.py', 'file:pkg/ns/__init__.py', 'import'));
+  assert.equal(regular.revision, indexProject(root).revision);
+  write(root, 'pkg/ns.py', 'pass\n');
+  const collision = indexProject(root, { previous: regular });
+  assert.equal(collision.status, 'partial');
+  assert.equal(collision.revision, indexProject(root).revision);
+  assert.equal(collision.edges.length, 0);
+  fs.unlinkSync(path.join(root, 'pkg/ns.py'));
+  fs.unlinkSync(path.join(root, 'pkg/ns/__init__.py'));
+  fs.unlinkSync(path.join(root, 'pkg/ns/child.py'));
+  const removed = indexProject(root, { previous: collision });
+  assert.equal(removed.revision, missing.revision);
 });

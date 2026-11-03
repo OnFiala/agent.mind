@@ -31,3 +31,24 @@ test('released runtime rejects direct context execution while imports and develo
   const { freshContext } = await import(pathToFileURL(script).href);
   assert.equal(freshContext(target, 'main.mjs', { generic: true }).selection.id, 'file:main.mjs');
 });
+
+test('development Python context exposes import and same-file call evidence and rejects stale source revisions', async t => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-python-context-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const main = 'import helper\ndef answer():\n    return 1\ndef run():\n    return answer()\n';
+  fs.writeFileSync(path.join(root, 'main.py'), main);
+  fs.writeFileSync(path.join(root, 'helper.py'), 'value = 1\n');
+  const result = spawnSync(process.execPath, [path.join(appRoot, 'graph-context.mjs'), 'main.py'], { encoding: 'utf8', env: { ...process.env, AGENT_MIND_PROJECT: root }, timeout: 10000 });
+  assert.equal(result.status, 0, result.stderr);
+  const context = JSON.parse(result.stdout);
+  assert.equal(context.status, 'current');
+  assert.equal(context.selection.id, 'file:main.py');
+  assert.ok(context.edges.some(edge => edge.from === 'file:main.py' && edge.to === 'file:helper.py' && edge.kind === 'import' && edge.evidence[0].line === 1));
+  assert.ok(context.symbolGraph.edges.some(edge => edge.from === 'symbol:main.py#run' && edge.to === 'symbol:main.py#answer' && edge.kind === 'call'));
+  const { freshContext } = await import('../graph-context.mjs');
+  const selected = freshContext(root, 'symbol:main.py#run', { expectedRevision: context.revision });
+  assert.equal(selected.selection.id, 'symbol:main.py#run');
+  assert.ok(selected.symbolGraph.edges.some(edge => edge.to === 'symbol:main.py#answer'));
+  fs.writeFileSync(path.join(root, 'helper.py'), 'value = 2\n');
+  assert.throws(() => freshContext(root, 'main.py', { expectedRevision: context.revision }), { code: 'STALE_REVISION' });
+});
