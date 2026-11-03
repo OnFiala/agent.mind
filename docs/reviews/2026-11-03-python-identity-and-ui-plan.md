@@ -268,6 +268,20 @@ Local candidate identity:
 - Archive SHA-256: `f35f0ec3b62a06005bac51886ffdcb7c6dd86a5e1cc965eb318eeb2941510e16`.
 - Payload: **2,787,687 B**; archive: **1,489,305 B**.
 
-Independent exact-diff review and hosted Node 22/24 CI remain pending at this
-acceptance checkpoint. The implementation PR must bind their results to its exact
-head; these local checks alone do not make the PR ready. ROADMAP owns later status.
+Independent review covered all nine changed files (**679 additions/79 deletions**)
+from `56d6c3360b66cb2ec6661df1f11ef3fe47923a84` to
+`830f7fa96a62b603cd758f262bb9768593a3c7f3`, with no supported finding. The reviewer
+independently ran 78 binding and 21 Python index tests, 11 authored adversarial
+probes and a disposable installed CLI/preflight/stale/restore scenario. All passed.
+The 40 compiler cases were independently reproduced with exact operands/tables,
+and all payload/archive bytes were independently checked. Full-suite, upgrade and
+performance results were inspected from primary evidence, not independently rerun.
+Read-only review was procedural under broader permissions; unchanged source and
+artifact hashes were verified separately.
+
+[CI run 41563726664](https://github.com/OnFiala/agent.mind/actions/runs/41563726664)
+passed on that same source head for Node 22 and 24, including tests, packaging,
+bundle smoke and all four retained upgrade paths. The integrating agent accepted
+the technical candidate. [PR #17](https://github.com/OnFiala/agent.mind/pull/17)
+records final-head checks and the review of subsequent documentation-only deltas.
+ROADMAP owns later status. No merge, release or real-target upgrade is implied.
