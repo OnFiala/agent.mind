@@ -5,7 +5,7 @@ and named declarations, inspect supported static relationships, and use the same
 project names in the canvas and agent context. Saved source changes refresh the map.
 
 agent.mind reads source files without running your project. It currently analyzes
-JavaScript (`.js`, `.mjs`) and Python (`.py`). Version 1.3.0 includes bounded text
+JavaScript (`.js`, `.mjs`) and Python (`.py`). Version 1.3.1 includes bounded text
 inventory, conservative Python source imports/local calls and TypeScript/TSX/JSX
 syntax-only inspection. Framework routing remains unsupported; typed files remain
 explicitly partial. Supported Python source can pass the ordinary context preflight.
@@ -25,7 +25,7 @@ an installation, or a contribution to agent.mind.
 
 ## Support at a glance
 
-| Source | Available in the 1.3.0 release line | Boundary |
+| Source | Available in the 1.3.1 release line | Boundary |
 |---|---|---|
 | JavaScript `.js`, `.mjs` | Named symbols, static file references, conservative same-file calls, selected security/HTTP signals | No imported-call resolution, arbitrary runtime dispatch or framework routing |
 | TypeScript `.ts`, TSX `.tsx`, JSX `.jsx` | Named declarations, source locations and parser provenance | Syntax-only inspection; every pilot file is `partial` and strict preflight rejects it |
@@ -39,23 +39,22 @@ its language semantics were analyzed. Security and Testing are source-reference
 views, not vulnerability scans, test execution or coverage. See
 [What it can read](#what-it-can-read) and the [typed pilot](#typescripttsxjsx-inspection-pilot-110)
 for the exact limits and the [Python support](#python-source-analysis-130).
-**[1.3.0](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0) was published on
-2026-11-03**; its release record links the verified archive and checksums.
-The source checkout prepares **1.3.1**, a Python binding and construct-projection
-repair. See the [candidate release record](docs/releases/1.3.1.md); source version
-numbers do not establish publication.
+**[1.3.1](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.1) was published on
+2026-11-03** with Python binding and construct-projection repairs. The
+[release record](docs/releases/1.3.1.md) binds the archive, checksums, checks and
+rollback. Source version numbers alone do not establish publication.
 Version 1.1.0 has Python inventory/text reads only.
 Existing installations do not update automatically. Additional host environments
 remain planned.
 
 ## Install into a project
 
-These instructions use the published **1.3.0** archive and checksum from the
-[1.3.0 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0).
+These instructions use the published **1.3.1** archive and checksum from the
+[1.3.1 release page](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.1).
 Existing targets keep their pinned version; upgrades are explicit. A local candidate
-can be built as described under [Development](#development). The prior [1.2.1 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.2.1)
-remains available for rollback. It includes the earlier JavaScript repairs and
-Python declaration inspection; its Python contexts remain partial and reject preflight.
+can be built as described under [Development](#development). The prior [1.3.0 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0)
+remains available for rollback. It retains Python source analysis and preflight,
+but restores the known binding and construction-projection defects repaired in 1.3.1.
 
 Requires Node.js 22 or newer on macOS or Linux. Select the published version before
 downloading; source candidates can be built locally using [Development](#development):
@@ -63,11 +62,11 @@ downloading; source candidates can be built locally using [Development](#develop
 ```sh
 mkdir agent-mind-download
 cd agent-mind-download
-curl --fail --location --output agent-mind-1.3.0.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.3.0/agent-mind-1.3.0.tar.gz
-curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.3.0/SHA256SUMS
+curl --fail --location --output agent-mind-1.3.1.tar.gz https://github.com/OnFiala/agent.mind/releases/download/v1.3.1/agent-mind-1.3.1.tar.gz
+curl --fail --location --output SHA256SUMS https://github.com/OnFiala/agent.mind/releases/download/v1.3.1/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
-tar -xzf agent-mind-1.3.0.tar.gz
-node agent-mind-1.3.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.3.0" --attach
+tar -xzf agent-mind-1.3.1.tar.gz
+node agent-mind-1.3.1/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.3.1" --attach
 ```
 
 Stop if checksum verification fails. Checksums check the downloaded bytes, so
@@ -75,7 +74,7 @@ choose the source repository deliberately. The installer also checks the full
 runtime manifest and rejects unknown files and symlinks. It will not overwrite
 an existing unowned `agent.mind/` directory.
 
-The 1.3.0 runtime includes Acorn, the bounded Babel parser and Lezer Python with
+The 1.3.1 runtime includes Acorn, the bounded Babel parser and Lezer Python with
 its three supporting packages, all inside `agent.mind/`. No Python interpreter,
 target compiler or build configuration is executed.
 It leaves your project's package.json, lockfile and node_modules alone. `--attach`
@@ -120,7 +119,7 @@ A fresh clone needs a local installation. Download the same pinned release,
 then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.3.0/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.3.0 --adopt --attach
+node /path/to/agent-mind-1.3.1/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.3.1 --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -350,8 +349,8 @@ data**, including your map and recovery copies, stop external writers, inspect
 the exact plan, then use its digest:
 
 ```sh
-node /path/to/agent-mind-1.3.0/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
-node /path/to/agent-mind-1.3.0/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
+node /path/to/agent-mind-1.3.1/cli.mjs purge-plan --install-dir /absolute/project/agent.mind
+node /path/to/agent-mind-1.3.1/cli.mjs purge --install-dir /absolute/project/agent.mind --digest "COPY_THE_REVIEWED_PLAN_DIGEST"
 ```
 
 Purge is permanent. Changed files, inventory, identity or symlinks invalidate the
@@ -679,18 +678,18 @@ available within the independent inventory limits. Parser limits are not deadlin
 or a sandbox. `.pyi` and notebooks remain inventory-only; annotation evaluation,
 comprehension/lambda bodies and decorator effects are not inferred as call targets.
 
-The source repository's [1.3.0 release record](docs/releases/1.3.0.md) records
+The source repository's [1.3.1 release record](docs/releases/1.3.1.md) records
 acceptance and rollback. The [post-release identity repair](docs/reviews/2026-11-03-python-identity-and-ui-plan.md)
 was merged in [PR #17](https://github.com/OnFiala/agent.mind/pull/17) and is included
-in the 1.3.1 source candidate; the published 1.3.0 archive retains the private-name
-limitation. The candidate applies NFKC and lexical class-private identity to supported
+in the published 1.3.1 release; the older 1.3.0 archive retains the private-name
+limitation. The release applies NFKC and lexical class-private identity to supported
 bindings and import lookup while preserving raw source names, file/symbol IDs, ranges
 and hashes. Corrected import/external target IDs may differ. Generic class base and
 keyword calls remain explicitly unresolved. A private-name transform exceeding 255
 Unicode code points warns and withholds all same-file call edges; imports whose
 module identity exceeds that bound are also withheld. Known containing-module
 references remain available when only an imported member/alias identity is uncertain.
-The 1.3.1 candidate also preserves `construct` / `constructs` relationships from
+Version 1.3.1 also preserves `construct` / `constructs` relationships from
 file bodies and functions through file and area projections, retaining source IDs
 and evidence. Lambda default expressions affect their enclosing scope; lambda
 parameters and bodies keep a separate local scope. Lambda body calls remain unresolved.
