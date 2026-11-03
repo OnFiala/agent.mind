@@ -677,8 +677,15 @@ or a sandbox. `.pyi` and notebooks remain inventory-only; annotation evaluation,
 comprehension/lambda bodies and decorator effects are not inferred as call targets.
 
 The source repository's [1.3.0 release record](docs/releases/1.3.0.md) records
-acceptance and rollback. The [post-release identity review and proposed repair](docs/reviews/2026-11-03-python-identity-and-ui-plan.md)
-tracks private-name binding/import limitations; the repair is not implemented.
+acceptance and rollback. The [post-release identity repair](docs/reviews/2026-11-03-python-identity-and-ui-plan.md)
+is a source candidate; the published 1.3.0 archive retains the documented private-name
+limitation. The candidate applies NFKC and lexical class-private identity to supported
+bindings and import lookup while preserving raw source names, file/symbol IDs, ranges
+and hashes. Corrected import/external target IDs may differ. Generic class base and
+keyword calls remain explicitly unresolved. A private-name transform exceeding 255
+Unicode code points warns and withholds all same-file call edges; imports whose
+module identity exceeds that bound are also withheld. Known containing-module
+references remain available when only an imported member/alias identity is uncertain.
 The [earlier Python pilot evidence](https://github.com/OnFiala/agent.mind/blob/ee0a97434788dd265a7dac885253368eed66b489/docs/reviews/2026-11-01-python-pilot.md)
 records parser selection and historical declaration-only behavior in 1.2.x.
 

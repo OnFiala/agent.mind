@@ -7,9 +7,10 @@ Dated evaluation: **2026-11-03**. Source baseline:
 [ROADMAP](../../ROADMAP.md) is the sole live priority/status tracker. This document
 owns the dated evidence, proposed contract, decisions and acceptance plan.
 
-The present change is documentation only. Implementation approval is **PENDING**;
-no proposed repair, regression test, refactor, package or target update is implemented
-by this plan. Existing release checks are baseline evidence, not repair acceptance.
+The original proposal below was documentation only, with implementation approval
+**PENDING** at that time. Later approval and candidate evidence are recorded in the
+[implementation addendum](#owner-approval-and-implementation-record); ROADMAP owns
+live status. Existing release checks are baseline evidence, not repair acceptance.
 
 ## Evaluation and decisions for the owner
 
@@ -205,3 +206,68 @@ Revert optional UI work independently to restore prior presentation ownership.
 Source rollback does not change installed targets. If a later authorized release
 needs installed rollback, use its verified pinned predecessor through the existing
 conflict-preserving CLI procedure and retain owner maps/recovery; no purge is implied.
+
+## Owner approval and implementation record
+
+On 2026-11-03 the owner approved the recommended Python repair first. The optional
+UI extraction remains unapproved and the installer split remains deferred. This
+addendum records the later decision without changing the dated proposal above.
+The implementation starts from the reviewed documentation commit `5a873f8` over
+published source `56d6c33`. This approval does not authorize merge, publication or
+a real-target upgrade.
+
+The bounded implementation is commit `4f5bdf7fe130a7609f8aa4fb8028fba9d8d12027`. It adds lexical class-private
+context independent of namespace lookup, a shared effective binding key and the
+optional internal import `lookupModule`. The resolver validates the effective token
+and uses it for both indexed modules and external target identity. Raw source
+spelling, file/symbol IDs, ranges and hashes remain intact. The parser/dependency
+versions are unchanged. No UI, installer, preflight policy or production dependency
+is added or changed.
+
+Generic class base/keyword calls remain unresolved. Private transformations over
+255 Unicode code points produce a warning and suppress same-file call edges; only
+imports whose module identity is uncertain are withheld. Known module references
+survive uncertainty in imported member/alias bindings. A class prefix and its length
+are computed once per lexical class context, avoiding repeated processing of long
+class names at each occurrence.
+
+Local acceptance on 2026-11-03:
+
+- 27 analyzer and four index regression cases failed on the baseline. The final
+  candidate passes **305/305 tests**, with no failures or skips. An additional index
+  contract test rejects malformed present lookup metadata through an isolated copy
+  of the actual index and its existing adapter seam; no public test API was added.
+- **40 authored snippets** compiled under CPython **3.14.3** using only `compile`,
+  `symtable` and `dis`; the oracle checks private lookup, binder and import operands.
+  No scanned Python was executed. These checks do not validate every interpreter.
+- `npm run package` and all **10 actual-bundle smoke groups** passed. The extended
+  installed Python scenario checks correct private import/call targets, absent raw
+  false targets, raw evidence, current preflight, stale/error rejection, restored
+  source and fixed binding. Four retained upgrade/rollback paths from pinned public
+  **1.0.3, 1.1.0, 1.2.0 and 1.2.1** passed on disposable targets.
+- All **47 payload files** match the candidate source, and all **48 regular archive
+  members** match that payload. This local artifact remains version 1.3.0 with a new
+  digest; it is not the published archive, a release or an authorized real upgrade.
+- On the same pinned **24-file Flask corpus**, complete base/candidate graph objects
+  agree at cold, unchanged, update and live stages after omitting only `generatedAt`
+  and `stats.parseMs`. Each has 276 source edges and 11 call edges, `current` status
+  and complete inventory. Source hashes were verified; Flask was not executed.
+- Three alternating fresh-process measurements per artifact on Node 22.23.4 gave
+  baseline/candidate maxima of **91.40/89.70 ms cold**, **9.15/9.09 ms unchanged**,
+  **13.89/12.60 ms update**, **19.90/19.27 ms live**, and **140,853,248/139,313,152 B
+  peak RSS**. This short paired comparison found no material regression; it does
+  not establish general latency, long-running memory behavior or a speedup.
+- Fresh contexts and `git diff --check` passed. Whole-repository context remains
+  partial for the pre-existing oversized wordmark asset; this is separate from the
+  complete Python fixtures and corpus. No new browser or host-model workflow was
+  run for this source-analysis repair.
+
+Local candidate identity:
+
+- Runtime digest: `fd5880fb992208a193829ece0fe5f422a73321a49507890690d7ed3370155c74`.
+- Archive SHA-256: `f35f0ec3b62a06005bac51886ffdcb7c6dd86a5e1cc965eb318eeb2941510e16`.
+- Payload: **2,787,687 B**; archive: **1,489,305 B**.
+
+Independent exact-diff review and hosted Node 22/24 CI remain pending at this
+acceptance checkpoint. The implementation PR must bind their results to its exact
+head; these local checks alone do not make the PR ready. ROADMAP owns later status.
