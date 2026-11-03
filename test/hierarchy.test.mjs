@@ -89,6 +89,92 @@ test('file scope retains proven top-level call but never assigns imports to a fu
   for (const e of scoped.edges) assert(e.sourceEdgeIds.every(id => graph.hierarchy.edges.some(source => source.id === id)));
 });
 
+test('indexed Python constructions retain their kind and source evidence through context and area projection', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mind-hierarchy-python-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'other.py'), 'value = 1\n');
+  fs.writeFileSync(path.join(root, 'app.py'), `import other
+class A: pass
+def helper(): pass
+A()
+helper()
+def maker():
+    return A()
+`);
+  const graph = attachOverview(indexProject(root));
+  const original = graph.symbolGraph.edges.filter(edge => edge.kind === 'construct');
+  assert.equal(original.length, 2);
+  const context = freshContext(root, 'file:app.py');
+  const scope = scopeGraph(graph, 'file:app.py');
+  assert.deepEqual(context.partCanvas.edges, scope.edges);
+  assert.equal(context.canvas.omittedExternalEdges, 0);
+  assert.equal(scope.omittedExternalEdges, 0);
+  assert(!scope.nodes.some(node => node.id.includes('other.py')));
+  for (const source of original) {
+    const relation = scope.edges.find(edge => edge.sourceEdgeIds.includes(source.id));
+    assert(relation, `Missing construction from ${source.from}`);
+    assert.equal(relation.from, source.from === 'file:app.py' ? 'entry:file:app.py' : source.from);
+    assert.equal(relation.to, source.to);
+    assert.equal(relation.kind, 'construct');
+    assert.equal(relation.label, 'constructs');
+    assert.deepEqual(relation.evidence, source.evidence);
+  }
+  const originalCalls = graph.symbolGraph.edges.filter(edge => edge.kind === 'call');
+  assert.equal(originalCalls.length, 1);
+  assert(scope.edges.some(edge => edge.kind === 'call' && edge.label === 'calls' && edge.sourceEdgeIds.includes(originalCalls[0].id)));
+  const collapsed = projectAreas(scope);
+  const bodyConstruction = original.find(edge => edge.from === 'file:app.py');
+  const collapsedConstruction = collapsed.edges.find(edge => edge.sourceEdgeIds.includes(bodyConstruction.id));
+  assert.equal(collapsedConstruction.kind, 'construct');
+  assert.equal(collapsedConstruction.label, 'constructs');
+  assert.deepEqual(collapsedConstruction.evidence, bodyConstruction.evidence);
+  assert(collapsed.edges.some(edge => edge.from === collapsedConstruction.from && edge.to === collapsedConstruction.to && edge.kind === 'call' && edge.sourceEdgeIds.includes(originalCalls[0].id)));
+  const makerConstruction = original.find(edge => edge.from === 'symbol:app.py#maker');
+  const internal = context.canvas.areas.find(area => area.internalSourceEdgeIds.includes(makerConstruction.id));
+  assert(internal);
+  assert(context.canvas.nodes.find(node => node.id === internal.id).internalSourceEdgeIds.includes(makerConstruction.id));
+  const details = sourceRelations(graph, { sourceEdgeIds: internal.internalSourceEdgeIds });
+  assert.deepEqual(details.unresolvedSourceEdgeIds, []);
+  const sourcePair = details.references.find(edge => edge.id === makerConstruction.id);
+  assert.equal(sourcePair.kind, 'construct');
+  assert.equal(sourcePair.execution, 'not-observed');
+  assert.equal(sourcePair.fromNode.id, makerConstruction.from);
+  assert.equal(sourcePair.toNode.id, makerConstruction.to);
+  assert.deepEqual(sourcePair.evidence, makerConstruction.evidence);
+  const accounted = [...collapsed.edges.flatMap(edge => edge.sourceEdgeIds), ...collapsed.areas.flatMap(area => area.internalSourceEdgeIds)];
+  assert.deepEqual(accounted.sort(), scope.edges.flatMap(edge => edge.sourceEdgeIds).sort());
+  const expanded = projectAreas(scope, new Set(collapsed.areas.map(area => area.id)));
+  for (const source of original) {
+    const relation = expanded.edges.find(edge => edge.sourceEdgeIds.includes(source.id));
+    assert.equal(relation.from, source.from === 'file:app.py' ? 'entry:file:app.py' : source.from);
+    assert.equal(relation.to, source.to);
+    assert.equal(relation.kind, 'construct');
+    assert.equal(relation.label, 'constructs');
+    assert.deepEqual(relation.evidence, source.evidence);
+  }
+  const nested = scopeGraph(graph, 'symbol:app.py#maker');
+  const outside = nested.nodes.find(node => node.kind === 'boundary' && node.targetId === makerConstruction.to);
+  assert(outside);
+  assert(nested.edges.some(edge => edge.from === 'entry:symbol:app.py#maker' && edge.to === outside.id && edge.kind === 'construct' && edge.sourceEdgeIds.includes(makerConstruction.id)));
+});
+
+test('file-body constructions with missing endpoints are counted without promoting file imports', () => {
+  const graph = {
+    hierarchy: {
+      nodes: [{ id: 'file:app.py', kind: 'file' }],
+      edges: [
+        { id: 'missing-construction', from: 'file:app.py', to: 'missing-class', kind: 'construct' },
+        { id: 'external-import', from: 'file:app.py', to: 'external:other', kind: 'import' }
+      ]
+    }
+  };
+  const scope = scopeGraph(graph, 'file:app.py');
+  assert.equal(scope.omittedExternalEdges, 1);
+  assert.deepEqual(scope.edges, []);
+  assert.deepEqual(scope.nodes, []);
+  assert.equal(projectAreas(scope).omittedExternalEdges, 1);
+});
+
 test('nested scope keeps direct children, scoped entry and explicit outside boundary with evidence', t => {
   const graph = fixture(t).scan();
   const scoped = scopeGraph(graph, 'symbol:app.mjs#start');

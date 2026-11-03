@@ -174,6 +174,42 @@ try {
   for (const [relative, contents] of Object.entries(privateSources)) assert.equal(fs.readFileSync(path.join(project, relative), 'utf8'), contents);
   checks.push('shipped Python runtime preserves private import/call identity and raw evidence, accepts current preflight, rejects stale/error context and preserves binding/source without execution');
 
+  const repairSource = [
+    'raise RuntimeError("Scanned source must not run")',
+    'class A: pass',
+    'A()',
+    'def maker(): return A()',
+    'def target(): pass',
+    'def replacement(): pass',
+    'factory = lambda value=(target := replacement): None',
+    'def caller(): target()',
+    'def __annotations__(): pass',
+    'class C:',
+    '    value: int',
+    '    __annotations__()',
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(project, 'src/repairs.py'), repairSource);
+  const repairs = run(cli, ['context', 'src/repairs.py']);
+  assert.equal(repairs.status, 'current');
+  const constructs = repairs.symbolGraph.edges.filter(edge => edge.to === 'symbol:src/repairs.py#A');
+  assert.deepEqual(constructs.map(edge => [edge.from, edge.kind]).sort(), [
+    ['file:src/repairs.py', 'construct'], ['symbol:src/repairs.py#maker', 'construct'],
+  ]);
+  for (const edge of constructs) {
+    const projected = repairs.partCanvas.edges.find(item => item.sourceEdgeIds.includes(edge.id));
+    assert.equal(projected?.kind, 'construct'); assert.equal(projected.label, 'constructs');
+    assert.deepEqual(projected.evidence, edge.evidence);
+    assert(repairs.canvas.edges.some(item => item.sourceEdgeIds.includes(edge.id)) ||
+      repairs.canvas.areas.some(area => area.internalSourceEdgeIds.includes(edge.id)));
+  }
+  assert(!repairs.symbolGraph.edges.some(edge => edge.from === 'symbol:src/repairs.py#caller'));
+  assert(!repairs.symbolGraph.edges.some(edge => edge.from === 'symbol:src/repairs.py#C'));
+  assert(repairs.diagnostics.some(item => /__annotations__/.test(item.message)));
+  assert.equal(run(cli, ['preflight', 'src/repairs.py', '--revision', repairs.revision, '--binding-id', repairs.binding.id, '--generation', String(repairs.binding.generation)]).preflight, 'verified-at-read');
+  assert.deepEqual(repairs.binding, pythonContext.binding);
+  assert.equal(fs.readFileSync(path.join(project, 'src/repairs.py'), 'utf8'), repairSource);
+  checks.push('shipped Python repairs retain construct kind and source IDs through file/area context and suppress lambda-default and version-sensitive class annotation false targets');
 
   const userNote = '\nOwner edit must survive.\n';
   fs.appendFileSync(path.join(installDir, 'README.md'), userNote);

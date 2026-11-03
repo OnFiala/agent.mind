@@ -72,14 +72,14 @@ export function scopeGraph(graph, parentId = null) {
     const insideTo = descendants.has(edge.to);
     if (!insideFrom && !insideTo) continue;
     // Imports at the file boundary describe the whole file, not an invented function caller.
-    if (scopeNode.kind === 'file' && edge.kind !== 'call' && (edge.from === parentId || edge.to === parentId)) continue;
+    if (scopeNode.kind === 'file' && !['call', 'construct'].includes(edge.kind) && (edge.from === parentId || edge.to === parentId)) continue;
     if (!byId.has(edge.from) || !byId.has(edge.to)) { omittedExternalEdges++; continue; }
     const from = project(edge.from);
     const to = project(edge.to);
     if (!from || !to || from === to) continue;
-    const kind = edge.kind === 'call' ? 'call' : ['http','event-stream','http-reference','contract'].includes(edge.kind) ? 'contract' : 'dependency';
+    const kind = ['call', 'construct'].includes(edge.kind) ? edge.kind : ['http','event-stream','http-reference','contract'].includes(edge.kind) ? 'contract' : 'dependency';
     const key = `${from}|${kind}|${to}`;
-    if (!grouped.has(key)) grouped.set(key, { id: `scope:${encodeURIComponent(parentId)}:${encodeURIComponent(key)}`, from, to, kind, label: kind === 'call' ? 'calls' : kind === 'contract' ? 'HTTP / SSE' : 'uses', layers: ['project'], sourceEdgeIds: [], evidence: [], provenance: kind === 'contract' ? 'static-contract' : 'source' });
+    if (!grouped.has(key)) grouped.set(key, { id: `scope:${encodeURIComponent(parentId)}:${encodeURIComponent(key)}`, from, to, kind, label: kind === 'call' ? 'calls' : kind === 'construct' ? 'constructs' : kind === 'contract' ? 'HTTP / SSE' : 'uses', layers: ['project'], sourceEdgeIds: [], evidence: [], provenance: kind === 'contract' ? 'static-contract' : 'source' });
     const relation = grouped.get(key);
     relation.sourceEdgeIds.push(edge.id);
     relation.evidence.push(...edge.evidence ?? []);

@@ -59,3 +59,12 @@ jobs:
           tar -xzf "$previous/agent-mind-1.2.1.tar.gz" -C "$previous"
           version="$(node -p "require('./package.json').version")"
           node scripts/smoke-upgrade.mjs "$previous/agent-mind-1.2.1" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
+      - name: Upgrade and rollback from published 1.3.0
+        run: |
+          previous="$RUNNER_TEMP/agent-mind-previous-1.3.0"
+          mkdir "$previous"
+          curl --fail --location --retry 2 --output "$previous/agent-mind-1.3.0.tar.gz" https://github.com/OnFiala/agent.mind/releases/download/v1.3.0/agent-mind-1.3.0.tar.gz
+          echo "13b6ac2d543f3f9bd66f2758f42b68102e5de9821281a2659a74f3576e65b14d  $previous/agent-mind-1.3.0.tar.gz" | sha256sum --check
+          tar -xzf "$previous/agent-mind-1.3.0.tar.gz" -C "$previous"
+          version="$(node -p "require('./package.json').version")"
+          node scripts/smoke-upgrade.mjs "$previous/agent-mind-1.3.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
