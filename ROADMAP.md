@@ -10,10 +10,11 @@ and L3 only separates the existing analysis from indexing.
 
 ## R01 — Locale-stable artifact digest
 
-**Source candidate; not merged or released.** The owner authorized this bounded
-repair on 2026-11-11, including tests, published-artifact compatibility checks,
+**R01 source repair; unreleased.** The owner authorized this bounded repair and
+its merge on 2026-11-11, including tests, published-artifact compatibility checks,
 independent review and [PR #20](https://github.com/OnFiala/agent.mind/pull/20).
-Further audit repairs remain separately gated.
+That PR owns merge status and subsequent CI evidence. Further audit repairs remain
+separately gated.
 The [R01 record](docs/reviews/2026-11-11-locale-digest.md) owns the contract and
 verification evidence. Published baseline remains 1.3.1.
 
@@ -25,8 +26,8 @@ Acceptance: retained published manifests keep their digests in separate `en_US`,
 and altered bytes must still reject. Distinguish digest compatibility from the
 current verifier's historical payload-shape restrictions.
 Rollback: revert the bounded R01 source commits. Existing archives and targets stay
-unchanged; reverting restores the known locale defect. No merge, release or target
-upgrade is authorized by this candidate.
+unchanged; reverting restores the known locale defect. Release and target upgrades
+remain separately authorized actions; this source repair does not perform either.
 
 ## Product and installation constraints
 

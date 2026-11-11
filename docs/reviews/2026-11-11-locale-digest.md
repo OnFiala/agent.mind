@@ -1,9 +1,10 @@
 # R01: schema-1 artifact digest and process locale
 
 Date: 2026-11-11. Base: `27af3ec857b668bac81e31a1c20f64a1c7e1f7fb`.
-Status: source candidate; no merge, release or real-target upgrade.
+Status: source repair; merge authorized by the owner on 2026-11-11, release withheld.
 [ROADMAP](../../ROADMAP.md#r01--locale-stable-artifact-digest) owns priority and
-status; the pull request records the reviewed commit, disposition and CI.
+status; [PR #20](https://github.com/OnFiala/agent.mind/pull/20) records the reviewed
+commit, merge status and pre-/post-merge CI. No real-target upgrade is included.
 
 ## Defect and bounded repair
 
