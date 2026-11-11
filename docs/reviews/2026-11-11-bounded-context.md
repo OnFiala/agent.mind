@@ -1,12 +1,12 @@
 # R02: bounded agent context
 
 Date: 2026-11-11. Base: `e20f43ef7b9d182ae0937fa2b587d9b8584c0bc7`.
-Status: source candidate; unmerged and unreleased. The owner authorized
-implementation, tests, documentation, independent review and a separate PR.
+Status: source repair; merge authorized by the owner on 2026-11-11, release withheld.
+The authorized scope includes implementation, tests, documentation and independent review.
 [ROADMAP](../../ROADMAP.md#r02--bounded-context-projection) owns priority and status;
 [PR #21](https://github.com/OnFiala/agent.mind/pull/21) records exact reviewed commits,
-review disposition and CI.
-Published 1.3.1 and existing installations do not include this candidate.
+review disposition, merge status and pre-/post-merge CI.
+Published 1.3.1 and existing installations do not include this source repair.
 
 ## Contract
 
@@ -159,5 +159,5 @@ R03 or separately approved work. No parser, resolver, UI, dependency, version or
 artifact-schema change is part of this repair.
 
 Revert the bounded R02 source commits to remove the opt-in projection. No stored
-project data is migrated. Release, merge and target upgrades remain separate owner
-actions. Tests use disposable fixtures and loopback only.
+project data is migrated. The owner approved merging PR #21; release and target
+upgrades remain separate owner actions. Tests use disposable fixtures and loopback only.
