@@ -34,7 +34,8 @@ for (const name of ['acorn', '@babel/parser', '@lezer/python', '@lezer/common', 
 fs.mkdirSync(bundle, { recursive: true });
 // Explicit runtime allowlist: never package development history or target workspaces.
 for (const relative of ARTIFACT_FILES) copy(relative);
-const orderedFiles = Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)));
+// Keep schema-1 manifest order aligned with artifactDigest across process locales.
+const orderedFiles = Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b, 'en')));
 const manifest = { schemaVersion: 1, version: pkg.version, files: orderedFiles, digest: sha(JSON.stringify(orderedFiles)) };
 fs.writeFileSync(path.join(bundle, 'artifact.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 verifyArtifact(bundle, manifest.digest);

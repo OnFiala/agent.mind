@@ -8,6 +8,27 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
+## R01 — Locale-stable artifact digest
+
+**R01 source repair; unreleased.** The owner authorized this bounded repair and
+its merge on 2026-11-11, including tests, published-artifact compatibility checks,
+independent review and [PR #20](https://github.com/OnFiala/agent.mind/pull/20).
+That PR owns merge status and subsequent CI evidence. Further audit repairs remain
+separately gated.
+The [R01 record](docs/reviews/2026-11-11-locale-digest.md) owns the contract and
+verification evidence. Published baseline remains 1.3.1.
+
+Scope: explicit English ordering in the schema-1 artifact builder and verifier,
+plus independent digest/order and cross-locale package regressions. Preserve schema,
+allowlist, dependency/runtime pins and unrelated ordering, including purge plans.
+Acceptance: retained published manifests keep their digests in separate `en_US`,
+`cs_CZ`, `sk_SK` and `C` processes; record resolved locales. Wrong expected digests
+and altered bytes must still reject. Distinguish digest compatibility from the
+current verifier's historical payload-shape restrictions.
+Rollback: revert the bounded R01 source commits. Existing archives and targets stay
+unchanged; reverting restores the known locale defect. Release and target upgrades
+remain separately authorized actions; this source repair does not perform either.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while

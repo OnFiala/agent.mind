@@ -559,6 +559,15 @@ for development inspection; installed projects should use their own CLI.
 manifest and archive checksum. It refuses to replace existing output. Use
 `npm run package -- --output /absolute/new-directory` for another build.
 
+The unreleased R01 source repair makes schema-1 artifact ordering independent of
+process locale: both the builder and verifier use explicit English path collation
+(`localeCompare(..., 'en')`). It preserves the published manifest digests; it does
+not change the schema, runtime allowlist, dependency pins or installed runtime pins.
+The published 1.3.1 archive predates this repair and still contains the locale-dependent
+implementation. The [R01 record](docs/reviews/2026-11-11-locale-digest.md) separates
+historical digest compatibility from full current-verifier acceptance. A new
+ordering/schema or an expanded path alphabet needs separate compatibility evidence.
+
 This repository's main blocks are **Map**, **Server**, **Live changes**, **Code index**
 and **Agent context**, with **Installation**, **Tests**, **Settings** and
 **Documentation**. The old builder, approval, model selection and app execution

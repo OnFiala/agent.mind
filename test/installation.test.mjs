@@ -38,6 +38,36 @@ test('verified release installs isolated runtime and never touches target depend
   assert.throws(() => resolveInstallation(f.install), /detached/);
   assert.equal(resolveInstallation(f.install, { requireAttached: false }).root, f.project);
 });
+test('schema-1 artifact digest keeps English path ordering in separate locale processes', () => {
+  // This literal order is the schema-1 compatibility oracle, independent of sorting.
+  const ordered = {
+    'cli.mjs': '1'.repeat(64),
+    'installation.mjs': '2'.repeat(64),
+    'node_modules/acorn/CHANGELOG.md': '3'.repeat(64),
+    'node_modules/acorn/dist/acorn.js': '4'.repeat(64),
+    'README.md': '5'.repeat(64),
+  };
+  const expectedDigest = sha(JSON.stringify(ordered));
+  const script = `
+    import { artifactDigest } from './installation.mjs';
+    const entries = Object.entries(JSON.parse(process.argv[1]));
+    console.log(JSON.stringify({
+      locale: Intl.DateTimeFormat().resolvedOptions().locale,
+      digest: artifactDigest(Object.fromEntries(entries.reverse())),
+      reorderedDigest: artifactDigest(Object.fromEntries(entries.reverse())),
+    }));
+  `;
+  for (const [locale, resolvedLocale] of [['en_US.UTF-8', 'en-US'], ['cs_CZ.UTF-8', 'cs-CZ'], ['sk_SK.UTF-8', 'sk-SK'], ['C', 'en-US']]) {
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, JSON.stringify(ordered)], {
+      cwd: source, env: { ...process.env, LC_ALL: locale, LANG: locale }, encoding: 'utf8', timeout: 10000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const actual = JSON.parse(result.stdout);
+    assert.equal(actual.locale, resolvedLocale, `${locale} must select the intended process locale`);
+    assert.equal(actual.digest, expectedDigest, `${locale}: English schema-1 digest`);
+    assert.equal(actual.reorderedDigest, expectedDigest, `${locale}: input insertion order must not matter`);
+  }
+});
 test('artifact fails closed for unexpected files, altered bytes, bad digest, traversal and symlinks', t => {
   const f = fixture(t); verifyArtifact(f.release);
   fs.writeFileSync(path.join(f.release, 'private.env'), 'secret'); assert.throws(() => verifyArtifact(f.release), /unknown/); fs.unlinkSync(path.join(f.release, 'private.env'));
