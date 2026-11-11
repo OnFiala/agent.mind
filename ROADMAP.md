@@ -12,7 +12,8 @@ and L3 only separates the existing analysis from indexing.
 
 **Source candidate; not merged or released.** The owner authorized this bounded
 repair on 2026-11-11, including tests, published-artifact compatibility checks,
-independent review and a separate PR. Further audit repairs remain separately gated.
+independent review and [PR #20](https://github.com/OnFiala/agent.mind/pull/20).
+Further audit repairs remain separately gated.
 The [R01 record](docs/reviews/2026-11-11-locale-digest.md) owns the contract and
 verification evidence. Published baseline remains 1.3.1.
 
