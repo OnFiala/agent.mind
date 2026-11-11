@@ -32,8 +32,8 @@ remain separately authorized actions; this source repair does not perform either
 ## R02 — Bounded context projection
 
 **Source candidate; unmerged and unreleased.** The owner authorized R02
-implementation, tests, documentation, independent review and a separate PR on
-2026-11-11. Merge, release and subsequent repairs remain separately gated.
+implementation, tests, documentation, independent review and
+[PR #21](https://github.com/OnFiala/agent.mind/pull/21) on 2026-11-11. Merge, release and subsequent repairs remain separately gated.
 The [R02 record](docs/reviews/2026-11-11-bounded-context.md) owns the response
 contract, reproducible measurements and validation evidence.
 

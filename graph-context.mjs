@@ -144,7 +144,18 @@ function agentContext(graph, selector, options) {
   const boundedError = requiredBytes => ({ schemaVersion: 1, profile: 'agent', error: { code: 'CONTEXT_BUDGET_TOO_SMALL', maxBytes, requiredBytes } });
   // Reserve an actual continuation token even before adding data. Required
   // identity/uncertainty is never removed to squeeze a successful response in.
-  if (jsonBytes(result(position.offset, position.fragment)) > maxBytes) return boundedError(jsonBytes(base));
+  const requiredBytes = jsonBytes(result(position.offset, position.fragment));
+  if (requiredBytes > maxBytes) {
+    // A terminal page needs no continuation token and can be smaller than the
+    // reserved envelope. Try that representation before rejecting the budget.
+    if (!position.fragment) {
+      base.page.items = values.slice(position.offset).map((value, index) => ({ index: position.offset + index, value }));
+    } else if (position.offset === values.length - 1) {
+      const text = canonicalJSON(values[position.offset]);
+      base.page.fragments.push({ index: position.offset, offset: position.fragment, total: text.length, encoding: 'json-text', text: text.slice(position.fragment) });
+    } else return boundedError(requiredBytes);
+    return jsonBytes(result(values.length, 0)) <= maxBytes ? base : boundedError(requiredBytes);
+  }
   let offset = position.offset;
   if (!position.fragment) {
     while (offset < values.length) {
@@ -162,18 +173,23 @@ function agentContext(graph, selector, options) {
     // so its smaller envelope cannot be missed by an incomplete-prefix search.
     fragment.text = text.slice(start);
     if (jsonBytes(result(offset + 1, 0)) <= maxBytes) return base;
-    let low = 0, high = text.length - start - 1;
+    // Search only whole code points: JSON escapes a lone surrogate to six
+    // bytes, so arbitrary UTF-16 prefix lengths are not monotonic in UTF-8.
+    const boundaries = [start];
+    for (let end = start; end < text.length;) {
+      end += text.codePointAt(end) > 65535 ? 2 : 1;
+      boundaries.push(end);
+    }
+    let low = 0, high = boundaries.length - 2;
     while (low < high) {
       const middle = Math.ceil((low + high) / 2);
-      fragment.text = text.slice(start, start + middle);
-      if (jsonBytes(result(offset, start + middle)) <= maxBytes) low = middle;
+      fragment.text = text.slice(start, boundaries[middle]);
+      if (jsonBytes(result(offset, boundaries[middle])) <= maxBytes) low = middle;
       else high = middle - 1;
     }
-    // UTF-16 offsets are explicit; never split an astral Unicode code point.
-    if (low && /[\uD800-\uDBFF]/u.test(text[start + low - 1])) low--;
-    fragment.text = text.slice(start, start + low);
-    if (!low) { fragment.text = text.slice(start, start + (text.codePointAt(start) > 65535 ? 2 : 1)); result(offset, start + fragment.text.length); return boundedError(jsonBytes(base)); }
-    const end = start + low;
+    fragment.text = text.slice(start, boundaries[low]);
+    if (!low) { fragment.text = text.slice(start, boundaries[1]); result(offset, boundaries[1]); return boundedError(jsonBytes(base)); }
+    const end = boundaries[low];
     result(end === text.length ? offset + 1 : offset, end === text.length ? 0 : end);
   } else result(offset, 0);
   return base;

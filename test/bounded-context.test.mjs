@@ -202,3 +202,46 @@ test('response and fragment boundary budgets either make progress within the exa
     }
   }
 });
+
+
+test('terminal pages and final fragments fit their exact measured UTF-8 budget', t => {
+  const root = fixture(t, { 'main.mjs': 'export function unresolved(value) { return value.member(); }\n' });
+  const graph = indexProject(root, { generic: true });
+  for (const section of ['symbolDiagnostics', 'inventory']) {
+    const complete = agent(graph, 'main.mjs', { section, maxBytes: 10000 });
+    assert.equal(complete.page.next, null);
+    assert.ok(complete.page.items.length > 0);
+    assert.deepEqual(agent(graph, 'main.mjs', { section, maxBytes: bytes(complete) }), complete);
+  }
+  // A valid cursor at the final JSON character tests suffix completion without
+  // depending on the implementation's earlier page-size choices.
+  const initial = agent(graph);
+  const position = JSON.parse(Buffer.from(contextCursor(initial, 'canvas'), 'base64url').toString('utf8'));
+  position.fragment = JSON.stringify(projectContext(graph, 'main.mjs').canvas).length - 1;
+  const cursor = Buffer.from(JSON.stringify(position)).toString('base64url');
+  const complete = agent(graph, 'main.mjs', { cursor, maxBytes: 10000 });
+  assert.equal(complete.page.next, null);
+  assert.equal(complete.page.fragments.length, 1);
+  assert.equal(complete.page.fragments[0].text, '}');
+  assert.deepEqual(agent(graph, 'main.mjs', { cursor, maxBytes: bytes(complete) }), complete);
+});
+
+
+test('a minimal astral fragment makes progress when its complete UTF-8 JSON fits', t => {
+  const root = fixture(t, { 'main.mjs': 'export function run() {}\n', 'other.mjs': 'import "./main.mjs";\n' });
+  const graph = indexProject(root, { generic: true });
+  graph.edges[0].evidence[0].snippet = '🧭'.repeat(26);
+  const initial = agent(graph, 'main.mjs', { maxBytes: 100000 });
+  const edge = initial.page.items.find(item => item.value.kind === 'edge');
+  const position = { ...JSON.parse(Buffer.from(contextCursor(initial, 'context'), 'base64url').toString('utf8')), offset: edge.index, fragment: canonical(edge.value).indexOf('🧭') };
+  const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const cursor = encode(position);
+  // Construct a valid one-codepoint wire response from the public envelope;
+  // its measured byte count is the oracle, independent of prefix search.
+  const expected = agent(graph, 'main.mjs', { cursor, maxBytes: 100000 });
+  expected.page.fragments[0].text = '🧭';
+  expected.page.next = encode({ ...position, fragment: position.fragment + 2 });
+  const actual = agent(graph, 'main.mjs', { cursor, maxBytes: bytes(expected) });
+  assert.deepEqual(actual, expected);
+  assert.equal(bytes(actual), bytes(expected));
+});

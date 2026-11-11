@@ -3,7 +3,9 @@
 Date: 2026-11-11. Base: `e20f43ef7b9d182ae0937fa2b587d9b8584c0bc7`.
 Status: source candidate; unmerged and unreleased. The owner authorized
 implementation, tests, documentation, independent review and a separate PR.
-[ROADMAP](../../ROADMAP.md#r02--bounded-context-projection) owns priority and status.
+[ROADMAP](../../ROADMAP.md#r02--bounded-context-projection) owns priority and status;
+[PR #21](https://github.com/OnFiala/agent.mind/pull/21) records exact reviewed commits,
+review disposition and CI.
 Published 1.3.1 and existing installations do not include this candidate.
 
 ## Contract
@@ -113,8 +115,8 @@ R02 neither removes it nor bypasses preflight.
 
 ## Validation
 
-- Full local `npm test`: 334/334 passed, no skipped or cancelled tests.
-- Six bounded-context tests cover the independently captured pre-change legacy
+- Full local `npm test`: 336/336 passed, no skipped or cancelled tests.
+- Eight bounded-context tests cover the independently captured pre-change legacy
   serialization oracle, generator identity/10 kB target, high fan-in and Unicode,
   every explicit section, duplicate nested evidence, complete fragment reconstruction,
   per-kind omission counts, invalid/stale/cross-selection/cross-binding cursors,
@@ -128,12 +130,22 @@ R02 neither removes it nor bypasses preflight.
   All 11 `scripts/smoke-release.mjs` groups passed against that actual bundle,
   including the unchanged installed context/preflight and loopback APIs.
 - Candidate artifact digest:
-  `294f0399e5f7efae0435c1fb5ad33abd1d9b68441030c6de92a03acca81ad53e`.
+  `83b23d7fe21e6abae747b286d84bb6f40ecf741a8403d9be41c273d1d75bd2f9`.
   Candidate archive SHA256:
-  `b8eb574fe9026c1a2ab5f053aadf48f83b67d4e56edaa5ecd91513270a7147d1`.
+  `8c12ef49bfe63c463f27deab0148e9d6e54ec163903d7cca4ee59944dae56ae5`.
   These identify local validation bytes, not published release pins.
 - `git diff --check` passed. Fresh development context retains the existing partial
   wordmark warning. No UI/browser or real-target installation claim is made.
+
+The initial independent review found two budget-boundary defects; both were
+independently reproduced before repair. R02-01 rejected a terminal page that fit
+because the precheck still reserved a continuation token. The precheck now tries
+the complete terminal page or final suffix before returning a budget error.
+R02-02 searched arbitrary UTF-16 prefixes: a split surrogate is six escaped UTF-8
+bytes while its complete emoji is four, violating binary-search monotonicity.
+The search now uses only code-point boundaries. Dedicated regressions check exact
+terminal-page budgets, final suffixes and minimal astral-fragment progress.
+All 336 tests, both measurement targets and actual-bundle smoke passed after repair.
 
 Exact independent review disposition and Linux/Node 22/24 CI belong to the pull
 request; local test completion does not establish either. Read-only review is a
