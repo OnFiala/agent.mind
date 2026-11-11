@@ -4,7 +4,8 @@ Date: 2026-11-11. Base: `7d9e4d9c2aee47527f5cb7330dba5884c7437a2f`.
 Status: source candidate; implementation, tests, documentation, independent review
 and a separate PR authorized. Merge and release are not authorized.
 [ROADMAP](../../ROADMAP.md#r03--installed-cli-profile-and-preflight-receipt) owns
-priority/status. Exact reviewed commits, review disposition and CI belong to the PR.
+priority/status. [PR #22](https://github.com/OnFiala/agent.mind/pull/22) records
+exact reviewed commits, review disposition and CI.
 Published 1.3.1 and existing installed runtimes do not include this candidate.
 
 ## Contract
