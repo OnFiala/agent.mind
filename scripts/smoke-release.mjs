@@ -63,6 +63,26 @@ try {
   run(cli, ['preflight', 'block:module-c'], false);
   checks.push('exact alias, test reference and full binding/revision preflight');
 
+  const profileRun = spawnSync(process.execPath, [cli, 'context', 'block:module-c', '--profile', 'agent'], { cwd: other, encoding: 'utf8', timeout: 15000 });
+  assert.equal(profileRun.status, 0, profileRun.stderr);
+  assert(Buffer.byteLength(profileRun.stdout, 'utf8') <= 10000);
+  assert.equal(profileRun.stdout.endsWith('\n'), false);
+  const bounded = JSON.parse(profileRun.stdout);
+  assert.equal(bounded.profile, 'agent'); assert.equal(bounded.schemaVersion, 1);
+  assert.deepEqual(bounded.binding, context.binding); assert.equal(bounded.revision, context.revision);
+  const concise = run(cli, ['preflight', 'block:module-c', '--profile', 'agent', ...receipt]);
+  assert.equal(concise.receipt, 'preflight'); assert.equal(concise.preflight, 'verified-at-read');
+  assert.equal(concise.snapshot, bounded.snapshot); assert.deepEqual(concise.coverage, bounded.coverage);
+  for (const key of ['nodes', 'edges', 'symbolGraph', 'inventory', 'vocabulary', 'page']) assert.equal(Object.hasOwn(concise, key), false);
+  const inventoryPage = run(cli, ['context', 'block:module-c', '--profile', 'agent', '--section', 'inventory', ...receipt]);
+  assert.equal(inventoryPage.page.section, 'inventory'); assert.equal(inventoryPage.snapshot, bounded.snapshot);
+  const diagnosticReference = concise.diagnostics.find(item => item.section === 'diagnostics');
+  assert.equal(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', diagnosticReference.cursor, ...receipt]).snapshot, concise.snapshot);
+  const insufficient = spawnSync(process.execPath, [cli, 'preflight', 'block:module-c', '--profile', 'agent', '--max-bytes', '256', ...receipt], { cwd: other, encoding: 'utf8', timeout: 15000 });
+  assert.equal(insufficient.status, 1); assert.equal(JSON.parse(insufficient.stdout).error.code, 'CONTEXT_BUDGET_TOO_SMALL');
+  assert(Buffer.byteLength(insufficient.stdout, 'utf8') <= 256);
+  checks.push('installed bounded profile includes binding within wire budget and returns concise gated receipt with pinned section/cursor retrieval');
+
   const clone = path.join(temporary, 'portable clone');
   fs.cpSync(project, clone, { recursive: true, filter: source => !source.startsWith(path.join(installDir, '.local')) });
   run(originCLI, ['install', '--project', clone, '--release', release], false);
@@ -110,7 +130,12 @@ try {
 
   fs.appendFileSync(path.join(project, 'src/module-c.mjs'), '// later source edit\n');
   assert.match(run(cli, ['preflight', 'block:module-c', ...receipt], false), /revision changed/i);
+  assert.match(run(cli, ['preflight', 'block:module-c', '--profile', 'agent', ...receipt], false), /revision changed/i);
+  assert.match(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', diagnosticReference.cursor, ...receipt], false), /revision changed/i);
   const current = run(cli, ['context', 'Module C']);
+  const refreshedProfile = run(cli, ['context', 'block:module-c', '--profile', 'agent']);
+  assert.equal(refreshedProfile.revision, current.revision); assert.notEqual(refreshedProfile.revision, bounded.revision);
+  assert.equal(run(cli, ['preflight', 'block:module-c', '--profile', 'agent', '--revision', refreshedProfile.revision, '--binding-id', refreshedProfile.binding.id, '--generation', String(refreshedProfile.binding.generation)]).preflight, 'verified-at-read');
   run(cli, ['detach']);
   assert.equal(fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'), agents);
   run(cli, ['context', 'Module C'], false);
@@ -121,6 +146,9 @@ try {
   fs.writeFileSync(path.join(project, 'src/typed.ts'), 'export interface Box { value: string; }\nexport function typed(value: Box): string { return value.value; }\n');
   const typedContext = run(cli, ['context', 'src/typed.ts']);
   assert.equal(typedContext.status, 'partial');
+  const partialProfile = run(cli, ['context', 'src/typed.ts', '--profile', 'agent']);
+  assert.equal(partialProfile.status, 'partial');
+  assert.match(run(cli, ['preflight', 'src/typed.ts', '--profile', 'agent', '--revision', partialProfile.revision, '--binding-id', partialProfile.binding.id, '--generation', String(partialProfile.binding.generation)], false), /partial/i);
   assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#Box'));
   assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#typed'));
   assert.match(run(cli, ['preflight', 'src/typed.ts', '--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)], false), /partial/i);

@@ -233,6 +233,133 @@ test('preflight requires a complete well-formed exact context receipt and reject
   assert.match(mixedResult.stderr, /requires current context/);
   const managed = fs.readFileSync(path.join(f.project, 'AGENTS.md'), 'utf8'); assert.match(managed, /--binding-id <returned binding.id> --generation <returned binding.generation>/);
 });
+test('installed agent profile binds bounded pages and concise preflight receipts through refresh', t => {
+  const f = fixture(t); install(f); attachInstallation(f.install);
+  const cli = path.join(f.install, 'cli.mjs');
+  fs.appendFileSync(path.join(f.project, 'main.mjs'), Array.from({ length: 35 }, (_, i) => `export function item${i}() { return "žluťoučký 🐘 ${i}"; }`).join('\n'));
+  const call = (args, expected = 0) => {
+    const run = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', timeout: 10000 });
+    assert.equal(run.status, expected, run.stderr || run.stdout); return run;
+  };
+  const firstRun = call(['context', 'main.mjs', '--profile', 'agent', '--max-bytes', '6000']);
+  assert(Buffer.byteLength(firstRun.stdout) <= 6000); assert.equal(firstRun.stdout.endsWith('\n'), false);
+  const first = JSON.parse(firstRun.stdout), full = JSON.parse(call(['context', 'main.mjs']).stdout);
+  assert.equal(first.profile, 'agent'); assert.equal(first.schemaVersion, 1);
+  assert.deepEqual(first.binding, full.binding); assert.equal(first.revision, full.revision);
+  assert.equal(first.selection.id, full.selection.id); assert(first.page.next);
+  const identity = ['--revision', first.revision, '--binding-id', first.binding.id, '--generation', String(first.binding.generation)];
+  const receipt = JSON.parse(call(['preflight', 'main.mjs', '--profile', 'agent', ...identity]).stdout);
+  assert.equal(receipt.receipt, 'preflight'); assert.equal(receipt.preflight, 'verified-at-read');
+  assert.equal(receipt.selector, 'main.mjs'); assert.equal(receipt.snapshot, first.snapshot);
+  assert.deepEqual(receipt.binding, first.binding); assert.deepEqual(receipt.coverage, first.coverage);
+  assert.deepEqual(receipt.uncertainty, first.uncertainty);
+  for (const key of ['nodes', 'edges', 'symbolGraph', 'inventory', 'vocabulary', 'page']) assert.equal(Object.hasOwn(receipt, key), false);
+  for (const reference of receipt.diagnostics) {
+    const page = JSON.parse(call(['context', 'main.mjs', '--profile', 'agent', '--cursor', reference.cursor, ...identity]).stdout);
+    assert.equal(page.page.section, reference.section); assert.equal(page.snapshot, receipt.snapshot);
+  }
+  const receiptBytes = Buffer.byteLength(JSON.stringify(receipt));
+  // A fitting receipt must never conceal an insufficient R02 evidence envelope.
+  const prerequisite = call(['preflight', 'main.mjs', '--profile', 'agent', '--max-bytes', String(receiptBytes), ...identity], 1);
+  const prerequisiteError = JSON.parse(prerequisite.stdout).error;
+  assert.equal(prerequisiteError.code, 'CONTEXT_BUDGET_TOO_SMALL'); assert(prerequisiteError.requiredBytes > receiptBytes);
+  assert(Buffer.byteLength(prerequisite.stdout) <= receiptBytes);
+  assert.match(call(['context', 'package.json', '--profile', 'agent', '--cursor', first.page.next, ...identity], 1).stderr, /snapshot changed/);
+  const actual = {};
+  for (const section of first.sections) {
+    let cursor, fragments = new Map(), values = new Map(), turns = 0;
+    do {
+      assert(++turns < 100);
+      const run = call(['context', 'main.mjs', '--profile', 'agent', '--max-bytes', '6000', '--section', section.kind, ...(cursor ? ['--cursor', cursor] : []), ...identity]);
+      assert(Buffer.byteLength(run.stdout) <= 6000);
+      const page = JSON.parse(run.stdout); assert.equal(page.snapshot, first.snapshot); assert.deepEqual(page.binding, first.binding);
+      for (const item of page.page.items) values.set(item.index, item.value);
+      for (const item of page.page.fragments) {
+        const text = fragments.get(item.index) ?? ''; assert.equal(item.offset, text.length);
+        fragments.set(item.index, text + item.text);
+        if (text.length + item.text.length === item.total) values.set(item.index, JSON.parse(text + item.text));
+      }
+      cursor = page.page.next;
+    } while (cursor);
+    assert.equal(values.size, section.total); actual[section.kind] = [...values].sort(([a], [b]) => a - b).map(([, value]) => value);
+  }
+  const canonical = value => JSON.stringify(value, (_, value) => value && !Array.isArray(value) && typeof value === 'object' ? Object.fromEntries(Object.entries(value).sort()) : value);
+  const sameValues = (actual, expected) => assert.deepEqual(actual.map(canonical).sort(), expected.map(canonical).sort());
+  for (const section of ['diagnostics', 'vocabulary']) sameValues(actual[section], full[section]);
+  sameValues(actual.inventory, full.inventory.entries);
+  sameValues(actual.selectionDetails, [full.selection]);
+  for (const section of ['canvas', 'partCanvas', 'overview', 'scope']) sameValues(actual[section], [full[section]]);
+  sameValues(actual.symbolDiagnostics, full.symbolGraph.diagnostics);
+  sameValues(actual.context.filter(item => item.kind === 'node').map(item => item.value), full.nodes);
+  sameValues(actual.context.filter(item => item.kind === 'symbol').map(item => item.value), full.symbolGraph.nodes);
+  const sourceCoverage = actual.context.find(item => item.kind === 'sourceCoverage').value;
+  assert.equal(sourceCoverage.hash, full.nodes.find(node => node.path === 'main.mjs').hash);
+  const tooSmall = call(['preflight', 'main.mjs', '--profile', 'agent', '--max-bytes', '256', ...identity], 1);
+  assert.equal(JSON.parse(tooSmall.stdout).error.code, 'CONTEXT_BUDGET_TOO_SMALL'); assert(Buffer.byteLength(tooSmall.stdout) <= 256);
+  fs.appendFileSync(path.join(f.project, 'main.mjs'), '\n// authorized fixture edit\n');
+  assert.match(call(['preflight', 'main.mjs', '--profile', 'agent', ...identity], 1).stderr, /revision changed/);
+  assert.match(call(['context', 'main.mjs', '--profile', 'agent', '--cursor', first.page.next, ...identity], 1).stderr, /revision changed/);
+  const refreshed = JSON.parse(call(['context', 'main.mjs', '--profile', 'agent']).stdout);
+  assert.notEqual(refreshed.revision, first.revision); assert.deepEqual(refreshed.binding, first.binding);
+  const currentIdentity = ['--revision', refreshed.revision, '--binding-id', refreshed.binding.id, '--generation', String(refreshed.binding.generation)];
+  assert.equal(JSON.parse(call(['preflight', 'main.mjs', '--profile', 'agent', ...currentIdentity]).stdout).preflight, 'verified-at-read');
+  assert.match(call(['context', 'main.mjs', '--profile', 'agent', '--cursor', first.page.next, ...currentIdentity], 1).stderr, /snapshot changed/);
+  detachInstallation(f.install); attachInstallation(f.install);
+  assert.match(call(['preflight', 'main.mjs', '--profile', 'agent', ...currentIdentity], 1).stderr, /binding has expired/);
+  assert.match(call(['context', 'main.mjs', '--profile', 'agent', '--section', 'inventory', ...currentIdentity], 1).stderr, /binding has expired/);
+  const rebound = JSON.parse(call(['context', 'main.mjs', '--profile', 'agent']).stdout);
+  const reboundIdentity = ['--revision', rebound.revision, '--binding-id', rebound.binding.id, '--generation', String(rebound.binding.generation)];
+  assert.match(call(['context', 'main.mjs', '--profile', 'agent', '--cursor', first.page.next, ...reboundIdentity], 1).stderr, /snapshot changed/);
+});
+test('agent profile rejects malformed flags, invalid selections and partial preflight without weakening the gate', t => {
+  const f = fixture(t); install(f); attachInstallation(f.install);
+  const cli = path.join(f.install, 'cli.mjs');
+  const run = args => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', timeout: 10000 });
+  const context = JSON.parse(run(['context', 'main.mjs', '--profile', 'agent']).stdout);
+  const identity = ['--revision', context.revision, '--binding-id', context.binding.id, '--generation', String(context.binding.generation)];
+  for (const flags of [['--profile'], ['--profile', 'wrong'], ['--profile', 'agent', '--profile', 'agent'], ['--max-bytes', '6000'], ['--profile', 'agent', '--max-bytes', '1e4'], ['--profile', 'agent', '--max-bytes', '255'], ['--profile', 'agent', '--section', 'inventory'], ['--profile', 'agent', '--cursor', 'invalid'], ['--profile', 'agent', '--wat'], ['--profile', 'agent', '--revision', context.revision, ...identity]]) {
+    const result = run(['context', 'main.mjs', ...flags]); assert.equal(result.status, 1, JSON.stringify(flags)); assert.equal(result.stdout, '');
+  }
+  for (const selector of ['missing.mjs', 'area:unknown']) { const result = run(['context', selector, '--profile', 'agent']); assert.equal(result.status, 1); assert.equal(result.stdout, ''); }
+  for (const flags of [['--section', 'missing'], ['--cursor', 'invalid']]) { const result = run(['context', 'main.mjs', '--profile', 'agent', ...identity, ...flags]); assert.equal(result.status, 1); assert.equal(result.stdout, ''); }
+  assert.equal(run(['preflight', 'main.mjs', '--profile', 'agent', ...identity, '--section', 'context']).status, 1);
+  fs.writeFileSync(path.join(f.project, 'partial.ts'), 'export const typed: number = 1;');
+  const partial = JSON.parse(run(['context', 'main.mjs', '--profile', 'agent']).stdout);
+  assert.equal(partial.status, 'partial'); assert(partial.uncertainty.global.diagnostics > 0);
+  const failed = run(['preflight', 'main.mjs', '--profile', 'agent', '--revision', partial.revision, '--binding-id', partial.binding.id, '--generation', String(partial.binding.generation)]);
+  assert.equal(failed.status, 1); assert.equal(failed.stdout, ''); assert.match(failed.stderr, /requires current context/);
+});
+test('legacy generated instructions remain unchanged and exact legacy portable clones are adoptable', t => {
+  const f = fixture(t); install(f); fs.writeFileSync(path.join(f.project, 'AGENTS.md'), '# Owner\r\n'); attachInstallation(f.install);
+  const agentsPath = path.join(f.project, 'AGENTS.md'), receiptPath = path.join(f.install, '.local/install.json');
+  const receipt = JSON.parse(fs.readFileSync(receiptPath));
+  const lines = receipt.agents.block.split('\r\n');
+  assert.match(lines[4], /--profile agent/); assert.match(lines[5], /concise receipt/);
+  lines[4] = 'Run `node agent.mind/cli.mjs context "selector"`. If more than one part matches, use its stable ID or full breadcrumb. Read the selected implementation and relevant tests before editing.';
+  lines[5] = 'Before an authorized action, run `node agent.mind/cli.mjs preflight "selector" --revision <returned revision> --binding-id <returned binding.id> --generation <returned binding.generation>` with the values from context. Compare source hashes too. After edits, get context again and run the relevant project tests.';
+  const legacyBlock = lines.join('\r\n'), text = fs.readFileSync(agentsPath, 'utf8').replace(receipt.agents.block, legacyBlock);
+  receipt.agents.block = legacyBlock; receipt.agents.afterHash = sha(text); fs.writeFileSync(agentsPath, text);
+  const readmePath = path.join(f.install, 'README.md');
+  const legacyReadme = fs.readFileSync(readmePath, 'utf8').split('\nFor bounded agent context')[0];
+  fs.writeFileSync(readmePath, legacyReadme); receipt.owned['README.md'] = sha(legacyReadme); fs.writeFileSync(receiptPath, JSON.stringify(receipt));
+  attachInstallation(f.install); assert.equal(fs.readFileSync(agentsPath, 'utf8'), text);
+  const clone = path.join(f.dir, 'legacy clone');
+  fs.cpSync(f.project, clone, { recursive: true, filter: entry => !entry.startsWith(path.join(f.install, '.local')) });
+  const cloneInstall = path.join(clone, 'agent.mind');
+  installProject({ project: clone, release: f.release, adopt: true }); attachInstallation(cloneInstall);
+  assert.equal(fs.readFileSync(path.join(clone, 'AGENTS.md'), 'utf8'), text);
+  assert.equal(fs.readFileSync(path.join(cloneInstall, 'README.md'), 'utf8'), legacyReadme);
+  detachInstallation(f.install); assert.equal(fs.readFileSync(agentsPath, 'utf8'), '# Owner\r\n');
+  // A new authorized attachment generates the profile instructions; edited old blocks still conflict.
+  attachInstallation(f.install); assert.match(fs.readFileSync(agentsPath, 'utf8'), /--profile agent/);
+  const bad = path.join(f.dir, 'edited legacy clone');
+  fs.cpSync(clone, bad, { recursive: true, filter: entry => !entry.startsWith(path.join(cloneInstall, '.local')) });
+  fs.appendFileSync(path.join(bad, 'agent.mind/README.md'), 'owner edit');
+  assert.throws(() => installProject({ project: bad, release: f.release, adopt: true }), /Unrecognized portable file/);
+  fs.writeFileSync(path.join(bad, 'agent.mind/README.md'), legacyReadme);
+  fs.writeFileSync(path.join(bad, 'AGENTS.md'), text.replace('Compare source hashes too.', 'Owner changed this instruction.'));
+  assert.throws(() => installProject({ project: bad, release: f.release, adopt: true }), /portable AGENTS block/);
+});
 test('AGENTS custody keeps concurrent owner bytes and never overwrites a recreated path', t => {
   const f = fixture(t); install(f); const agents = path.join(f.project, 'AGENTS.md'); fs.writeFileSync(agents, 'Original owner instructions\n');
   const rename = fs.renameSync; let injected = false;
