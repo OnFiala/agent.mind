@@ -68,7 +68,8 @@ function filesBelow(root, prefix = '', allowedDirectories, budget = { entries: 0
   return result.sort();
 }
 export function artifactDigest(files) {
-  return sha(JSON.stringify(Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)))));
+  // Schema 1 retains the English path order used by published manifests.
+  return sha(JSON.stringify(Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b, 'en')))));
 }
 export function verifyArtifact(directory, expectedDigest) {
   const root = fs.realpathSync(directory);
