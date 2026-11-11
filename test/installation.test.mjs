@@ -311,6 +311,57 @@ test('installed agent profile binds bounded pages and concise preflight receipts
   const reboundIdentity = ['--revision', rebound.revision, '--binding-id', rebound.binding.id, '--generation', String(rebound.binding.generation)];
   assert.match(call(['context', 'main.mjs', '--profile', 'agent', '--cursor', first.page.next, ...reboundIdentity], 1).stderr, /snapshot changed/);
 });
+test('whole-project agent profile retrieves pinned continuation and sections without a selector', t => {
+  const f = fixture(t); install(f); attachInstallation(f.install);
+  fs.appendFileSync(path.join(f.project, 'main.mjs'), Array.from({ length: 50 }, (_, i) => `export function whole${i}() { return ${i}; }`).join('\n'));
+  const cli = path.join(f.install, 'cli.mjs');
+  const call = (args, expected = 0) => {
+    const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', timeout: 10000 });
+    assert.equal(result.status, expected, result.stderr || result.stdout); return result;
+  };
+  const profile = ['--profile', 'agent', '--max-bytes', '6000'];
+  const first = JSON.parse(call(['context', ...profile]).stdout);
+  assert.equal(first.selection, null); assert(first.page.next);
+  const section = first.sections.find(item => item.kind === 'context'); assert(section.omitted > 0);
+  const identity = ['--revision', first.revision, '--binding-id', first.binding.id, '--generation', String(first.binding.generation)];
+  const values = new Map(), fragments = new Map(); let page = first, turns = 0;
+  while (true) {
+    assert(++turns < 100); assert.equal(page.snapshot, first.snapshot); assert.equal(page.selection, null); assert.deepEqual(page.binding, first.binding);
+    for (const item of page.page.items) values.set(item.index, item.value);
+    for (const item of page.page.fragments) {
+      const before = fragments.get(item.index) ?? ''; assert.equal(item.offset, before.length);
+      const text = before + item.text; fragments.set(item.index, text);
+      if (text.length === item.total) values.set(item.index, JSON.parse(text));
+    }
+    if (!page.page.next) break;
+    const next = call(['context', ...profile, '--cursor', page.page.next, ...identity]);
+    assert(Buffer.byteLength(next.stdout, 'utf8') <= 6000); assert.equal(next.stdout.endsWith('\n'), false);
+    page = JSON.parse(next.stdout);
+  }
+  assert(turns > 1); assert.equal(values.size, section.total);
+  const full = JSON.parse(call(['context']).stdout);
+  assert.deepEqual([...values.values()].filter(item => item.kind === 'symbol').map(item => item.value.id).sort(), full.symbolGraph.nodes.map(item => item.id).sort());
+  const inventory = JSON.parse(call(['context', ...profile, '--section', 'inventory', ...identity]).stdout);
+  assert.equal(inventory.selection, null); assert.equal(inventory.snapshot, first.snapshot); assert.equal(inventory.page.section, 'inventory');
+  assert(inventory.page.items.some(item => item.value.path === 'main.mjs'));
+  for (const args of [profile, [...profile, ...identity]]) {
+    const failed = call(['preflight', ...args], 1); assert.equal(failed.stdout, ''); assert.match(failed.stderr, /requires one exact selector/);
+  }
+  for (const flags of [['--cursor', first.page.next], ['--section', 'inventory']]) {
+    assert.equal(call(['context', ...profile, ...flags], 1).stdout, '');
+  }
+  assert.match(call(['context', 'main.mjs', ...profile, '--cursor', first.page.next, ...identity], 1).stderr, /snapshot changed/);
+  const selected = JSON.parse(call(['context', 'main.mjs', ...profile]).stdout); assert(selected.page.next);
+  assert.match(call(['context', ...profile, '--cursor', selected.page.next, ...identity], 1).stderr, /snapshot changed/);
+  fs.appendFileSync(path.join(f.project, 'main.mjs'), '\n// fixture revision change\n');
+  assert.match(call(['context', ...profile, '--cursor', first.page.next, ...identity], 1).stderr, /revision changed/);
+  assert.match(call(['context', ...profile, '--section', 'inventory', ...identity], 1).stderr, /revision changed/);
+  const refreshed = JSON.parse(call(['context', ...profile]).stdout);
+  const refreshedIdentity = ['--revision', refreshed.revision, '--binding-id', refreshed.binding.id, '--generation', String(refreshed.binding.generation)];
+  assert.match(call(['context', ...profile, '--cursor', first.page.next, ...refreshedIdentity], 1).stderr, /snapshot changed/);
+  detachInstallation(f.install); attachInstallation(f.install);
+  assert.match(call(['context', ...profile, '--section', 'inventory', ...refreshedIdentity], 1).stderr, /binding has expired/);
+});
 test('agent profile rejects malformed flags, invalid selections and partial preflight without weakening the gate', t => {
   const f = fixture(t); install(f); attachInstallation(f.install);
   const cli = path.join(f.install, 'cli.mjs');

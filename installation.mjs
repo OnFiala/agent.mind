@@ -621,7 +621,8 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
     if (budget !== undefined && (!/^[0-9]+$/.test(budget) || !Number.isSafeInteger(Number(budget)) || Number(budget) < 256)) throw new Error('--max-bytes must be an integer of at least 256 UTF-8 bytes.');
     if (command === 'preflight' && (section !== undefined || cursor !== undefined)) throw new Error('Preflight returns a receipt; retrieve sections or cursors with context.');
     if (command === 'preflight' || section !== undefined || cursor !== undefined) {
-      if (argv.length !== 1 || !argv[0].trim() || !revision || !bindingId || !generation) throw new Error('Preflight requires one exact selector and --revision, --binding-id, --generation from the context output. Section and cursor reads require the same identity values.');
+      const invalidSelector = command === 'preflight' ? argv.length !== 1 || !argv[0].trim() : argv.length === 1 && !argv[0].trim();
+      if (invalidSelector || !revision || !bindingId || !generation) throw new Error(command === 'preflight' ? 'Preflight requires one exact selector and --revision, --binding-id, --generation from the context output.' : 'Section and cursor reads require --revision, --binding-id, --generation from the context output. Omit the selector for whole-project context.');
       if (!HASH.test(revision) || !UUID.test(bindingId) || !/^[1-9][0-9]*$/.test(generation) || !Number.isSafeInteger(Number(generation))) throw new Error('Invalid preflight values. Use the revision, binding ID and generation returned by context.');
     }
     const { freshContext, contextCursor } = await import(pathToFileURL(path.join(resolved.runtime, 'graph-context.mjs')));

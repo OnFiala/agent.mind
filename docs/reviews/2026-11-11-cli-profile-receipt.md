@@ -33,8 +33,9 @@ establish that a host loaded or followed the instructions.
 ## CLI and wire format
 
 - `context [selector] --profile agent [--max-bytes N] [--section KIND] [--cursor TOKEN]`.
-  Section/cursor requests require one selector and all of `--revision`,
-  `--binding-id`, `--generation`. Plain profile context may omit the selector.
+  Section/cursor requests require all of `--revision`, `--binding-id`, `--generation`.
+  Retain the initial selector, or omit it again for whole-project context. Profile
+  context and its retrieval may omit the selector; preflight may not.
 - `preflight selector --profile agent [--max-bytes N] --revision REV
   --binding-id UUID --generation N`. Section/cursor options are rejected here.
 - New options require `--profile agent`. Duplicate/unknown options reject. Profile
@@ -61,11 +62,13 @@ CPU, latency or memory. Existing no-profile commands retain their old path.
 
 Validated locally on macOS / Node.js 22.23.4:
 
-- `npm test`: 339/339 passed; no failures, skips or cancellations.
-- Three new installed-CLI regression groups cover all 11 explicit sections,
+- `npm test`: 340/340 passed; no failures, skips or cancellations.
+- Four new installed-CLI regression groups cover all 11 explicit sections,
   Unicode/fragment reconstruction, binding inside the byte budget, diagnostic cursor
   retrieval, same-revision cross-selector cursors, stale source/binding, refreshed
   context, malformed options, invalid selectors and unchanged partial rejection.
+  Whole-project requests retain selector-free continuation and explicit sections;
+  preflight still requires a selected scope.
   They also cover exact legacy generated README/managed-block adoption, repeated
   attachment without rewriting, and preservation of edited-block conflicts.
 - A receipt can fit a small budget while its mandatory R02 projection cannot. The
@@ -78,9 +81,9 @@ Validated locally on macOS / Node.js 22.23.4:
   retrieval. Existing scenarios also verify source drift, profile context refresh,
   strict partial rejection, portable adoption, loopback APIs and cleanup.
 - Candidate artifact digest:
-  `c9dee73a544d2ae164c2bc0e6e45766b90c0cfe9cd05493d14e16c6d54be9e2f`.
+  `616faea736ed72b326c24805cceadb7758f84dbf5e270fe110d1a67fa82e38b6`.
   Candidate archive SHA256:
-  `78ac502fd6635372e9ee93d102d7c06baa9c8718f9be7ff93716c8f915c2cdd2`.
+  `0e52e2ef6ff7250a2932f4fd183f188d74e55dd1d10700d7425f7b39275105f2`.
   These identify local validation bytes, not published release pins.
 - Syntax checks and `git diff --check` passed. Fresh development context retains
   the existing oversized-wordmark partial warning; no gate is bypassed.
@@ -88,6 +91,20 @@ Validated locally on macOS / Node.js 22.23.4:
 Exact independent review and Linux/Node 22/24 CI disposition belong to the PR.
 Local checks do not establish either. No browser appearance or real-target host
 instruction activation was tested; the actual-bundle check uses a disposable target.
+
+## Independent review correction
+
+The first review found R03-F01 (P2) at candidate `f4aa9a4`: selector-free profile
+context returned a continuation cursor, but the installed CLI required a selector
+for every subsequent page or explicit section. Changing to a selection changed the
+snapshot, leaving the original whole-project evidence unreachable. Main reproduced
+both cursor and inventory-section rejection on the actual initial bundle.
+
+The repair separates preflight's required selector from context retrieval's required
+revision/binding values. Whole-project continuation retains the omitted selector;
+preflight still requires an exact selection. A focused regression covers complete
+root-context pagination, explicit sections and rejection controls. Exact repair
+verification and final disposition are recorded in PR #22.
 
 ## Delivery boundary and rollback
 

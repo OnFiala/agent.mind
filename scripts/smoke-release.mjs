@@ -81,6 +81,22 @@ try {
   const insufficient = spawnSync(process.execPath, [cli, 'preflight', 'block:module-c', '--profile', 'agent', '--max-bytes', '256', ...receipt], { cwd: other, encoding: 'utf8', timeout: 15000 });
   assert.equal(insufficient.status, 1); assert.equal(JSON.parse(insufficient.stdout).error.code, 'CONTEXT_BUDGET_TOO_SMALL');
   assert(Buffer.byteLength(insufficient.stdout, 'utf8') <= 256);
+  // Whole-project context is a supported initial selection and must remain retrievable.
+  const rootFixture = path.join(project, 'src/root-pagination.mjs');
+  fs.writeFileSync(rootFixture, Array.from({ length: 50 }, (_, i) => `export function whole${i}() { return ${i}; }`).join('\n'));
+  try {
+    const rootProfile = ['--profile', 'agent', '--max-bytes', '6000'];
+    const whole = run(cli, ['context', ...rootProfile]);
+    assert.equal(whole.selection, null); assert(whole.page.next);
+    const rootIdentity = ['--revision', whole.revision, '--binding-id', whole.binding.id, '--generation', String(whole.binding.generation)];
+    const continued = run(cli, ['context', ...rootProfile, '--cursor', whole.page.next, ...rootIdentity]);
+    assert.equal(continued.snapshot, whole.snapshot); assert.equal(continued.selection, null);
+    assert(continued.page.items.length || continued.page.fragments.length);
+    const rootInventory = run(cli, ['context', ...rootProfile, '--section', 'inventory', ...rootIdentity]);
+    assert.equal(rootInventory.snapshot, whole.snapshot); assert.equal(rootInventory.page.section, 'inventory');
+    assert.match(run(cli, ['preflight', ...rootProfile, ...rootIdentity], false), /requires one exact selector/);
+    assert.match(run(cli, ['context', 'block:module-c', ...rootProfile, '--cursor', whole.page.next, ...rootIdentity], false), /snapshot changed/);
+  } finally { fs.unlinkSync(rootFixture); }
   checks.push('installed bounded profile includes binding within wire budget and returns concise gated receipt with pinned section/cursor retrieval');
 
   const clone = path.join(temporary, 'portable clone');

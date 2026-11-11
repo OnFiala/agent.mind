@@ -549,7 +549,9 @@ node agent.mind/cli.mjs context "Module C" --profile agent --section diagnostics
 node agent.mind/cli.mjs context "Module C" --profile agent --cursor "RETURNED_CURSOR" --revision "RETURNED_REVISION" --binding-id "RETURNED_BINDING_ID" --generation "RETURNED_GENERATION"
 ```
 
-Section/continuation requests require one selector and all three identity values.
+Section/continuation requests require all three identity values. Keep the same
+selector as the initial request; for whole-project context requested without a
+selector, omit it on retrieval too. Preflight still requires one exact selector.
 Changed revision, binding or cursor snapshot rejects the request; obtain new context.
 `--section` and `--cursor` are context options, not preflight options. New projection
 options without `--profile agent`, duplicate options and unknown options reject.
