@@ -103,8 +103,15 @@ both cursor and inventory-section rejection on the actual initial bundle.
 The repair separates preflight's required selector from context retrieval's required
 revision/binding values. Whole-project continuation retains the omitted selector;
 preflight still requires an exact selection. A focused regression covers complete
-root-context pagination, explicit sections and rejection controls. Exact repair
-verification and final disposition are recorded in PR #22.
+root-context pagination, explicit sections and rejection controls.
+
+Independent review accepted implementation head
+[`8d20c68`](https://github.com/OnFiala/agent.mind/commit/8d20c68b8e5e3f86bf0cdcbccbbaec09e8ff1e9d)
+after one repair round, with no supported finding left open. Against the actual
+repaired bundle, the reviewer reconstructed 56 values across 19 pages including
+fragments, read the inventory section and verified missing-pin, cross-selection
+and selector-free-preflight rejection. PR #22 owns subsequent documentation-delta
+review, exact-head CI and readiness; this source record does not assert CI success.
 
 ## Delivery boundary and rollback
 
