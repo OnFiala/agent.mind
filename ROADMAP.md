@@ -29,6 +29,32 @@ Rollback: revert the bounded R01 source commits. Existing archives and targets s
 unchanged; reverting restores the known locale defect. Release and target upgrades
 remain separately authorized actions; this source repair does not perform either.
 
+## R02 — Bounded context projection
+
+**Source candidate; unmerged and unreleased.** The owner authorized R02
+implementation, tests, documentation, independent review and a separate PR on
+2026-11-11. Merge, release and subsequent repairs remain separately gated.
+The [R02 record](docs/reviews/2026-11-11-bounded-context.md) owns the response
+contract, reproducible measurements and validation evidence.
+
+Scope: an opt-in, versioned agent projection in `graph-context.mjs`, preserving
+selection, ancestry, source hashes/evidence, revision, applicable binding, coverage
+and local/global uncertainty. Retrieve vocabulary, inventory and canvas projections
+explicitly; keep the legacy full projection unchanged. Installed CLI exposure,
+managed instructions and preflight receipts belong to the later R03 stage.
+
+Acceptance: initial compact JSON is at most 10,000 UTF-8 bytes for the versioned
+1,000-file/five-function forward-chain fixture selecting `src/m10.mjs`, and 20,000
+bytes for `server.mjs` on the pinned repository snapshot. These are response-fixture
+targets, not universal evidence, indexing-memory, latency or token guarantees.
+High-fan-in and Unicode output must remain valid JSON, count omissions by kind,
+and retrieve every omitted item against the same revision. Changed revision or
+context identity rejects continuation; insufficient budget returns an explicit
+bounded error without hiding mandatory uncertainty.
+
+Rollback: revert the bounded R02 commits. No project data, binding or runtime pin
+is migrated; existing installed targets remain on their chosen release.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while

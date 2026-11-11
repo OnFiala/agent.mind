@@ -590,6 +590,67 @@ collapsed view; `partCanvas` keeps the full source members and edges.
 `public/hierarchy.mjs` supplies both browser and agent views. Agents cooperate by
 running these checks; there is no global hook enforcing them.
 
+### Bounded agent context (R02 source candidate)
+
+This opt-in source API is **unreleased**. The existing development command and
+installed CLI still return the original full context. Installed profile flags,
+managed instructions and concise preflight receipts are deferred to R03.
+
+```js
+import { freshContext, contextCursor } from './graph-context.mjs';
+
+const root = process.cwd(); // this source checkout
+const selector = 'server.mjs';
+const options = { profile: 'agent', version: 1, maxBytes: 20000 };
+const initial = freshContext(root, selector, {}, options);
+if (initial.error) throw new Error(initial.error.code);
+
+// Continue the selected evidence section against exactly this snapshot.
+const next = initial.page.next
+  ? freshContext(root, selector, {}, { ...options, cursor: initial.page.next })
+  : null;
+
+// Request a global section explicitly; it is not repeated in every page.
+const vocabulary = freshContext(root, selector, {}, {
+  ...options, cursor: contextCursor(initial, 'vocabulary')
+});
+```
+
+For an already indexed graph, use
+`projectContext(graph, selector, options)`. `freshContext` retains its existing
+third argument for index options, including `expectedRevision`; projection options
+are the fourth argument. Both APIs leave the legacy response unchanged when no
+`profile` is specified.
+
+Version 1 measures exactly `Buffer.byteLength(JSON.stringify(response), 'utf8')`.
+Pretty printing, a trailing newline and transport framing are outside that budget.
+`maxBytes` defaults to 10,000 and must be a safe integer of at least 256. Invalid
+budgets throw `INVALID_CONTEXT_BUDGET`. If mandatory identity/uncertainty or the
+next fragment cannot fit, the response is an explicit
+`error.code: "CONTEXT_BUDGET_TOO_SMALL"` with `maxBytes` and `requiredBytes`.
+Do not treat that error as successful context.
+
+Successful pages retain selection/ancestry, revision, applicable binding, analysis
+status, coverage counts and local/global uncertainty. `sections` reports available
+collections and omitted items. Omission concerns this response, not analysis
+coverage or test results. Follow `page.next` or start a named section with
+`contextCursor(response, section)`. Changed revision or context identity rejects a
+cursor with `STALE_CONTEXT_CURSOR`; malformed cursors reject with
+`INVALID_CONTEXT_CURSOR`. This is consistency checking, not authentication or a
+lock against later source edits.
+
+A page contains complete indexed `page.items` or `page.fragments`. An oversized
+item is transferred as `encoding: "json-text"` fragments: concatenate their `text`
+in `offset` order for the same section/item `index`, require the advertised `total`
+length, then `JSON.parse` the result. Fragment offsets and total lengths count
+UTF-16 code units; the enclosing JSON budget counts UTF-8 bytes. Astral Unicode
+code points are not split. Do not use a partial fragment as complete evidence.
+
+The [R02 record](docs/reviews/2026-11-11-bounded-context.md) describes available
+sections, fixed-input measurements, validation and rollback. Output limits do not
+bound indexing time or memory and do not imply token savings or complete language
+semantics. Partial analysis and the strict installed preflight remain unchanged.
+
 ### Internal analysis boundary
 
 `code-index.mjs` owns safe reads, inventory, cache, resolution and graph composition.
