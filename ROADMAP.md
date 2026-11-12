@@ -58,11 +58,13 @@ is migrated; existing installed targets remain on their chosen release.
 
 ## R03 — Installed CLI profile and preflight receipt
 
-**R03 source candidate; unreleased.** The owner authorized implementation, tests,
+**R03 source repair; unreleased.** The owner authorized implementation, tests,
 documentation, independent review and [PR #22](https://github.com/OnFiala/agent.mind/pull/22)
-on 2026-11-11. Merge and release are not authorized. The
+on 2026-11-11, then approved its merge on 2026-11-12. That PR owns actual merge
+status, exact reviewed commits and pre-/post-merge CI evidence. Release and target
+upgrades remain separately gated. The
 [R03 record](docs/reviews/2026-11-11-cli-profile-receipt.md) owns the CLI contract
-and validation; PR #22 owns exact reviewed commits and CI.
+and validation.
 
 Scope: expose the R02 agent profile through the installed CLI and newly generated
 usage/instructions. Opt-in preflight returns selector, revision, binding identity,
