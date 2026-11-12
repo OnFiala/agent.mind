@@ -82,6 +82,30 @@ budget. Generated instructions alone do not prove a host loaded or followed them
 Rollback: revert R03 before R02 and use the legacy full-context path. Preserve maps,
 bindings, installed pins and edited user blocks. No target upgrade is performed.
 
+## R04 — Explicit unsupported-reference diagnostics
+
+**R04 source candidate; unreleased.** On 2026-11-12 the owner authorized
+implementation, tests, documentation, independent review and a separate PR.
+Merge, release and real-target upgrades are not authorized. The
+[R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
+contract and validation; the PR owns exact reviewed commits and CI.
+
+Scope: additive per-file reasons for unavailable reference analysis, including
+`.cjs` and bounded recognized CommonJS-style forms in `.js`/`.mjs`. Preserve
+Python's external/unresolved information, supported ESM edges and all source IDs.
+No CommonJS resolver, source-root inference or dependency change.
+
+Acceptance: explicit CommonJS file/global/context diagnostics with source evidence
+where parsed; shadowed names and non-code text do not invent CommonJS evidence.
+Complete inventory and zero links do not claim full semantic analysis. Supported
+Python remains eligible under the current preflight; actual warning/error/limit
+states still fail. Verify the installed CLI and actual produced bundle, including
+recovery after removing an unsupported fixture.
+
+Rollback: revert the bounded R04 source commits. This removes the added disclosure
+and restores the earlier silent CommonJS limitation; it does not add resolution.
+No stored data, binding, naming map or runtime pin is migrated.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while

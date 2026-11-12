@@ -245,3 +245,56 @@ test('a minimal astral fragment makes progress when its complete UTF-8 JSON fits
   assert.deepEqual(actual, expected);
   assert.equal(bytes(actual), bytes(expected));
 });
+
+
+test('CommonJS limitations retain file evidence through full and bounded context retrieval', t => {
+  const root = fixture(t, {
+    'main.mjs': "import './dep.mjs';\nconst dependency = require('./dep.mjs');\nexport function run() { return dependency.run(); }\n",
+    'dep.mjs': 'export const value = 1;\n',
+    'legacy.cjs': "module.exports = require('./dep.mjs');\n"
+  });
+  const graph = indexProject(root, { generic: true });
+  const full = projectContext(graph, 'main.mjs'), initial = agent(graph, 'main.mjs', { maxBytes: 7000 });
+  assert.equal(full.status, 'partial');
+  assert.equal(full.inventory.status, 'complete');
+  assert.equal(initial.status, full.status);
+  assert.equal(initial.coverage.inventoryStatus, 'complete');
+  assert.equal(initial.revision, full.revision);
+  const local = full.nodes.find(node => node.path === 'main.mjs').diagnostics.find(item => item.code === 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED');
+  assert.equal(local.capability, 'static-references');
+  assert.equal(local.reason, 'commonjs-syntax');
+  assert.equal(local.form, 'require');
+  assert.equal(local.line, 2);
+  assert.ok(local.column > 0); assert.match(local.snippet, /require/);
+  const evidence = traverse(graph, 'main.mjs', initial, 'context');
+  assert.ok(evidence.values.some(item => item.kind === 'localDiagnostic' && canonical(item.value) === canonical(local)));
+  assert.deepEqual(sorted(traverse(graph, 'main.mjs', initial, 'diagnostics').values), sorted(full.diagnostics));
+  assert.ok(initial.uncertainty.local.severities.warning > 0);
+  assert.ok(initial.uncertainty.global.severities.warning > initial.uncertainty.local.severities.warning);
+  assert.ok(full.edges.some(edge => edge.kind === 'import' && edge.to === 'file:dep.mjs'));
+  assert.ok(!full.edges.some(edge => edge.kind === 'require'));
+  const cjs = projectContext(graph, 'legacy.cjs');
+  assert.deepEqual(cjs.selection.capabilities, ['text']);
+  assert.deepEqual(cjs.edges, []);
+  assert.equal(cjs.nodes.find(node => node.path === 'legacy.cjs').diagnostics[0].reason, 'cjs-extension');
+});
+
+test('Python src-layout uncertainty stays informational and lossless in bounded context', t => {
+  const root = fixture(t, {
+    'main.py': 'import pkg.worker\ndef run():\n    return pkg.worker.answer()\n',
+    'src/pkg/__init__.py': 'pass\n',
+    'src/pkg/worker.py': 'def answer():\n    return 42\n'
+  });
+  const graph = indexProject(root, { generic: true });
+  const full = projectContext(graph, 'main.py'), initial = agent(graph, 'main.py', { maxBytes: 7000 });
+  assert.equal(full.status, 'current'); assert.equal(initial.status, 'current');
+  const diagnostic = full.diagnostics.find(item => item.path === 'main.py' && /project-root/.test(item.message));
+  assert.equal(diagnostic.severity, 'info'); assert.equal(diagnostic.line, 1);
+  assert.ok(diagnostic.column > 0); assert.equal(diagnostic.snippet, 'import pkg.worker');
+  assert.ok(full.edges.some(edge => edge.from === 'file:main.py' && edge.to === 'external:python:pkg.worker'));
+  assert.ok(!full.edges.some(edge => edge.to === 'file:src/pkg/worker.py'));
+  assert.ok(full.diagnostics.some(item => item.path === 'main.py' && item.line === 3 && item.column === 12 && /Unresolved Python call/.test(item.message)));
+  assert.deepEqual(full.symbolGraph.edges, []);
+  assert.deepEqual(sorted(traverse(graph, 'main.py', initial, 'diagnostics').values), sorted(full.diagnostics));
+  assert.deepEqual(sorted(traverse(graph, 'main.py', initial, 'symbolDiagnostics').values), sorted(full.symbolGraph.diagnostics));
+});

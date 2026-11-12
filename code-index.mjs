@@ -12,7 +12,7 @@ export const INDEX_LIMITS = Object.freeze({ files: 1000, fileBytes: 512 * 1024, 
 const EXTENSIONS = new Set(['.mjs', '.js', '.json', '.html', '.css', '.md', '.py']);
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'backups', 'evidence', 'workspace', 'legacy', 'coverage']);
 const GENERIC_EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
-const UNSUPPORTED_SOURCE = /\.(?:ts|tsx|jsx|mts|cts|pyi|go|rs|java|swift|kt|c|h|cpp|cs|rb|php|vue|svelte)$/i;
+const UNSUPPORTED_SOURCE = /\.(?:cjs|ts|tsx|jsx|mts|cts|pyi|go|rs|java|swift|kt|c|h|cpp|cs|rb|php|vue|svelte)$/i;
 const CACHE = new WeakMap();
 const sha = value => createHash('sha256').update(value).digest('hex');
 const fileId = relative => `file:${relative}`;
@@ -316,7 +316,14 @@ export function indexProject(directory, options = {}) {
   const inventoryEntries = [];
   const files = inventory(root, diagnostics, excluded, policy, unsupported, inventoryEntries);
   let inventoryComplete = diagnostics.length === 0;
-  for (const name of unsupported) diagnostics.push({ path: name, message: 'Unsupported source language; file is outside source analysis.', severity: 'warning' });
+  const commonJSFiles = new Map();
+  for (const name of unsupported) {
+    const diagnostic = /\.cjs$/i.test(name)
+      ? { path: name, code: 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED', capability: 'static-references', reason: 'cjs-extension', message: 'The .cjs extension is outside supported reference analysis; readable text has no inferred symbols or dependencies.', severity: 'warning' }
+      : { path: name, message: 'Unsupported source language; file is outside source analysis.', severity: 'warning' };
+    if (diagnostic.reason === 'cjs-extension') commonJSFiles.set(name, diagnostic);
+    diagnostics.push(diagnostic);
+  }
   const metadata = namingMetadata(root, policy, diagnostics, Object.hasOwn(options, 'metadataPath'));
   const priorCache = previous?.project?.root === root ? CACHE.get(previous) : null;
   const nextCache = new Map();
@@ -341,7 +348,7 @@ export function indexProject(directory, options = {}) {
       if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) analyses.set(relative, analysis);
       const layers = ['project', ...(isTest(relative) ? ['testing'] : []), ...(analysis.security.length ? ['security'] : [])];
       // Clones prevent a consumer modifying its serialized result from poisoning the cache.
-      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone(analysis.diagnostics) });
+      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
       diagnostics.push(...structuredClone(analysis.diagnostics));
     } catch (error) {
       inventoryComplete = false;

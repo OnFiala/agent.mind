@@ -79,6 +79,59 @@ class ShadowScope {
 }
 
 const isFunction = node => /Function/.test(node.type) || node.type === 'ArrowFunctionExpression';
+
+// CommonJS disclosure needs lexical boundaries without changing the deliberately
+// conservative shadow handling used by the existing security/HTTP analysis.
+function commonJSNames(node, functionBody = false) {
+  const names = new Set();
+  const declarations = items => {
+    for (const item of items) {
+      const declaration = item.declaration ?? item;
+      if (declaration.type === 'VariableDeclaration') declaration.declarations.forEach(item => patternNames(item.id, names));
+      if (['FunctionDeclaration', 'ClassDeclaration'].includes(declaration.type) && declaration.id) names.add(declaration.id.name);
+      if (declaration.type === 'ImportDeclaration') declaration.specifiers.forEach(item => names.add(item.local.name));
+    }
+  };
+  if (node.type === 'Program' || isFunction(node) || node.type === 'StaticBlock' || functionBody) {
+    node.params?.forEach(parameter => patternNames(parameter, names));
+    if (node.id) names.add(node.id.name);
+    // var belongs to the enclosing function/program/static block; let/const and
+    // nested declarations belong only to their lexical statement container.
+    const stack = isFunction(node) ? [] : Array.isArray(node.body) ? [...node.body] : [];
+    while (stack.length) {
+      const item = stack.pop();
+      if (isFunction(item) || ['ClassDeclaration', 'ClassExpression', 'StaticBlock'].includes(item.type)) continue;
+      if (item.type === 'VariableDeclaration' && item.kind === 'var') item.declarations.forEach(item => patternNames(item.id, names));
+      for (const child of children(item)) stack.push(child);
+    }
+    if (node.type === 'Program' || node.type === 'StaticBlock' || functionBody) declarations(node.body);
+  } else if (node.type === 'BlockStatement') declarations(node.body);
+  else if (node.type === 'SwitchStatement') declarations(node.cases.flatMap(item => item.consequent));
+  else if (['ClassDeclaration', 'ClassExpression'].includes(node.type) && node.id) names.add(node.id.name);
+  else if (node.type === 'CatchClause') patternNames(node.param, names);
+  else if (['ForStatement', 'ForInStatement', 'ForOfStatement'].includes(node.type)) {
+    const declaration = node.init ?? node.left;
+    if (declaration?.type === 'VariableDeclaration') declaration.declarations.forEach(item => patternNames(item.id, names));
+  }
+  return names;
+}
+
+const staticProperty = node => node?.type === 'MemberExpression'
+  ? node.computed ? stringLiteral(node.property) : node.property.name : null;
+
+function commonJSForm(node, shadowed) {
+  const available = (target, name) => target?.type === 'Identifier' && target.name === name && !shadowed.has(name);
+  if (node.type === 'CallExpression') {
+    if (available(node.callee, 'require')) return 'require';
+    if (staticProperty(node.callee) === 'resolve' && available(node.callee.object, 'require')) return 'require.resolve';
+    if (staticProperty(node.callee) === 'require' && available(node.callee.object, 'module')) return 'module.require';
+  }
+  if (node.type === 'MemberExpression') {
+    if (staticProperty(node) === 'exports' && available(node.object, 'module')) return 'module.exports';
+    if (staticProperty(node) !== null && available(node.object, 'exports')) return 'exports-property';
+  }
+  return null;
+}
 const stringLiteral = node => node?.type === 'Literal' && typeof node.value === 'string' ? node.value : null;
 const memberOf = (node, receiver, property) => node?.type === 'MemberExpression' && !node.computed && node.object.type === 'Identifier' && node.object.name === receiver && node.property.name === property;
 
@@ -290,9 +343,17 @@ function analyzeJavaScript(relative, source, hash, testFile) {
     }
     for (const child of children(node)) mutationStack.push(child);
   }
-  const stack = [{ node: ast, shadowed: new ShadowScope(new Set()) }];
+  const stack = [{ node: ast, shadowed: new ShadowScope(new Set()), commonJSShadowed: new ShadowScope(new Set()) }];
   while (stack.length) {
-    const { node, shadowed } = stack.pop();
+    const { node, shadowed, commonJSShadowed, commonJSFunctionBody } = stack.pop();
+    const commonJSLocal = commonJSNames(node, commonJSFunctionBody);
+    const nextCommonJSShadowed = commonJSLocal.size ? new ShadowScope(commonJSLocal, commonJSShadowed) : commonJSShadowed;
+    const form = commonJSForm(node, nextCommonJSShadowed);
+    if (form) analysis.diagnostics.push({
+      ...location(relative, lines, node),
+      code: 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED', capability: 'static-references', reason: 'commonjs-syntax', form,
+      message: `CommonJS-style ${form} syntax is outside supported reference analysis; no CommonJS dependency is resolved.`, severity: 'warning'
+    });
     const localNames = scopeNames(node);
     const nextShadowed = localNames.size ? new ShadowScope(localNames, shadowed) : shadowed;
     const globalAvailable = name => !moduleBindings.has(name) && !nextShadowed.has(name);
@@ -333,7 +394,13 @@ function analyzeJavaScript(relative, source, hash, testFile) {
     }
     if (node.type === 'MemberExpression' && node.object.type === 'Identifier' && node.object.name === 'process' && globalAvailable('process') && ((!node.computed && node.property.name === 'env') || (node.computed && node.property.value === 'env'))) security('Environment access: process.env', 'environment', node);
     if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression' && ((!node.left.computed && node.left.property.name === 'innerHTML') || (node.left.computed && node.left.property.value === 'innerHTML'))) security('DOM HTML assignment: innerHTML', 'dom-html', node);
-    for (const child of children(node).reverse()) stack.push({ node: child, shadowed: nextShadowed });
+    for (const child of children(node).reverse()) stack.push({
+      node: child, shadowed: nextShadowed,
+      // Function-body var bindings do not shadow parameter defaults; a switch's
+      // case bindings do not shadow its discriminant expression.
+      commonJSShadowed: node.type === 'SwitchStatement' && child === node.discriminant ? commonJSShadowed : nextCommonJSShadowed,
+      commonJSFunctionBody: isFunction(node) && child === node.body && child.type === 'BlockStatement'
+    });
   }
   analysis.symbolGraph = analyzeSymbolGraph(relative, source, { ast, hash });
   return analysis;

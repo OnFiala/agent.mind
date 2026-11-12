@@ -275,6 +275,39 @@ or a safety verdict. Testing shows test files and their static dependencies, not
 coverage or passing results. Unsupported source files, parse failures and unresolved
 references stay visible.
 
+### Unsupported reference diagnostics (R04 source candidate)
+
+This is an **unreleased source change**; published 1.3.1 does not include these
+additional diagnostics. Existing installations keep their pinned runtime.
+
+A `.cjs` file remains inventory/text only: it gains no symbols, reference resolution
+or security analysis. Its extension produces an explicit warning even when the
+file is empty or cannot be parsed as JavaScript. In parsed `.js`/`.mjs` source,
+unshadowed `require(...)`, `require.resolve(...)`, `module.require(...)`,
+`module.exports` and statically named `exports` properties produce warnings with
+source locations. Statically named bracket notation is recognized too. Comments,
+strings, ordinary object methods and locally bound names do not establish these
+CommonJS-style forms. Dynamic computed member names, aliases, `createRequire` and
+runtime module-mode inference remain outside this bounded recognition.
+
+The machine-readable code is `COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED`, with
+`capability: "static-references"` and `reason: "cjs-extension"` or
+`"commonjs-syntax"`. Parsed forms also carry `form`, path, line, column and snippet.
+These diagnostics are available in file notes, global diagnostics and both full
+and bounded agent context. A bounded page can omit detail within its byte budget;
+its uncertainty counts and revision-bound diagnostic retrieval remain authoritative.
+The warning marks the graph `partial`, so the existing project-wide preflight
+rejects it even when a different file is selected. No CommonJS dependency edge is
+invented, and supported ESM edges remain unchanged.
+
+Python's existing external/unresolved import information is unchanged: a custom
+`src` layout is not inferred, and imported/member calls stay unresolved. Supported
+Python can remain `current` and pass preflight with informational uncertainty.
+`current` describes the supported static checks; a complete inventory or zero
+supported links does not establish complete language or runtime coverage. Consult
+file capabilities, diagnostics and scope limits. See the
+[R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) for verification and rollback.
+
 ### Scope and updates
 
 Installed projects exclude their exact agent.mind integration directory,

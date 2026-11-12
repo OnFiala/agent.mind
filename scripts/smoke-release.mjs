@@ -99,6 +99,22 @@ try {
   } finally { fs.unlinkSync(rootFixture); }
   checks.push('installed bounded profile includes binding within wire budget and returns concise gated receipt with pinned section/cursor retrieval');
 
+  const commonJSPath = path.join(project, 'src/legacy.cjs');
+  try {
+    fs.writeFileSync(commonJSPath, "module.exports = require('./module-c.mjs');\nthrow new Error('Scanned source must not run');\n");
+    const cjs = run(cli, ['context', 'src/legacy.cjs']);
+    assert.equal(cjs.status, 'partial'); assert.equal(cjs.inventory.status, 'complete');
+    assert.deepEqual(cjs.selection.capabilities, ['text']); assert.deepEqual(cjs.edges, []);
+    assert.equal(cjs.nodes.find(node => node.path === 'src/legacy.cjs').diagnostics[0].code, 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED');
+    const cjsIdentity = ['--revision', cjs.revision, '--binding-id', cjs.binding.id, '--generation', String(cjs.binding.generation)];
+    const cjsPage = run(cli, ['context', 'src/legacy.cjs', '--profile', 'agent', '--section', 'diagnostics', ...cjsIdentity]);
+    assert(cjsPage.page.items.some(item => item.value.reason === 'cjs-extension'));
+    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'src/legacy.cjs', ...flags, ...cjsIdentity], false), /requires current context/);
+  } finally { fs.rmSync(commonJSPath, { force: true }); }
+  assert.equal(run(cli, ['context', 'Module C']).revision, context.revision);
+  assert.equal(run(cli, ['preflight', 'block:module-c', ...receipt]).preflight, 'verified-at-read');
+  checks.push('unsupported CommonJS remains text-only with explicit diagnostics; strict preflight rejects and recovers after removal');
+
   const clone = path.join(temporary, 'portable clone');
   fs.cpSync(project, clone, { recursive: true, filter: source => !source.startsWith(path.join(installDir, '.local')) });
   run(originCLI, ['install', '--project', clone, '--release', release], false);
