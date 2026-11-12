@@ -42,7 +42,7 @@ Scope: an opt-in, versioned agent projection in `graph-context.mjs`, preserving
 selection, ancestry, source hashes/evidence, revision, applicable binding, coverage
 and local/global uncertainty. Retrieve vocabulary, inventory and canvas projections
 explicitly; keep the legacy full projection unchanged. Installed CLI exposure,
-managed instructions and preflight receipts belong to the later R03 stage.
+managed instructions and preflight receipts are the separate R03 stage below.
 
 Acceptance: initial compact JSON is at most 10,000 UTF-8 bytes for the versioned
 1,000-file/five-function forward-chain fixture selecting `src/m10.mjs`, and 20,000
@@ -55,6 +55,32 @@ bounded error without hiding mandatory uncertainty.
 
 Rollback: revert the bounded R02 commits. No project data, binding or runtime pin
 is migrated; existing installed targets remain on their chosen release.
+
+## R03 — Installed CLI profile and preflight receipt
+
+**R03 source repair; unreleased.** The owner authorized implementation, tests,
+documentation, independent review and [PR #22](https://github.com/OnFiala/agent.mind/pull/22)
+on 2026-11-11, then approved its merge on 2026-11-12. That PR owns actual merge
+status, exact reviewed commits and pre-/post-merge CI evidence. Release and target
+upgrades remain separately gated. The
+[R03 record](docs/reviews/2026-11-11-cli-profile-receipt.md) owns the CLI contract
+and validation.
+
+Scope: expose the R02 agent profile through the installed CLI and newly generated
+usage/instructions. Opt-in preflight returns selector, revision, binding identity,
+coverage/verdict and diagnostic references without repeating the full context.
+Keep existing argument forms and full JSON as the default. New managed instructions
+request the profile explicitly; existing blocks change only through the authorized
+attachment/update flow, preserving edited user blocks.
+
+Acceptance: an actual produced bundle on a disposable installed target completes
+context, strict preflight and context refresh with the profile. Stale revision or
+binding, invalid selectors and partial context still fail the unchanged gate.
+Pagination and explicit sections retain revision/binding identity and the response
+budget. Generated instructions alone do not prove a host loaded or followed them.
+
+Rollback: revert R03 before R02 and use the legacy full-context path. Preserve maps,
+bindings, installed pins and edited user blocks. No target upgrade is performed.
 
 ## Product and installation constraints
 

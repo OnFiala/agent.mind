@@ -150,7 +150,10 @@ function assertNoView(state) {
   if (exists(checked(state.dir, '.local/view.json', true))) throw new Error('A foreground view is recorded. Stop it first. If it crashed, use release-view with its recorded token.');
 }
 export const LAUNCHER = `#!/usr/bin/env node\nimport fs from 'node:fs';\nimport path from 'node:path';\nimport { createHash } from 'node:crypto';\nimport { fileURLToPath, pathToFileURL } from 'node:url';\nconst dir = path.dirname(fileURLToPath(import.meta.url));\ntry {\n const p = JSON.parse(fs.readFileSync(path.join(dir, 'project.json'), 'utf8'));\n const r = JSON.parse(fs.readFileSync(path.join(dir, '.local/install.json'), 'utf8'));\n const digest = p.runtime?.digest;\n if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error('Invalid runtime pin.');\n const relative = '.local/runtime/' + digest + '/installation.mjs';\n let current = dir;\n for (const part of relative.split('/')) { current = path.join(current, part); if (fs.lstatSync(current).isSymbolicLink()) throw new Error('Runtime symlink rejected.'); }\n const bytes = fs.readFileSync(current);\n if (createHash('sha256').update(bytes).digest('hex') !== r.owned?.[relative]) throw new Error('Runtime loader integrity mismatch.');\n const { runCLI } = await import(pathToFileURL(current));\n await runCLI(process.argv.slice(2), { installDir: dir });\n} catch (error) { console.error(error.message); process.exitCode = 1; }\n`;
-function portableFiles(descriptor) { return { 'cli.mjs': LAUNCHER, 'project.json': json(descriptor), '.gitignore': '.local/\n', 'README.md': '# agent.mind in this project\n\nRun `node agent.mind/cli.mjs status`, `attach`, `context "selector"`, `view`, `detach`, or `uninstall` from the project root.\n\nproject-map.json is your map. Uninstall keeps it. Stop the foreground view before attach, detach, rebind or uninstall. After attach, reload the project instructions in the main coding agent and check that it loaded them.\n\nUninstall removes active files and saves the originals in .local/recovery. It also keeps your map, changed files and unknown files.\n\nFor permanent deletion, use the original release CLI: `purge-plan --install-dir /absolute/project/agent.mind`. Review the full file list and stop other programs from writing to those files. Then run `purge --install-dir /absolute/project/agent.mind --digest <exact plan digest>`.\n\nPurge is a separate command. It permanently deletes the listed data, including your files and saved originals. Other programs can still change files while it runs; purge does not lock them out.\n' }; }
+function portableFiles(descriptor, { legacy = false } = {}) { const files = { 'cli.mjs': LAUNCHER, 'project.json': json(descriptor), '.gitignore': '.local/\n', 'README.md': '# agent.mind in this project\n\nRun `node agent.mind/cli.mjs status`, `attach`, `context "selector"`, `view`, `detach`, or `uninstall` from the project root.\n\nproject-map.json is your map. Uninstall keeps it. Stop the foreground view before attach, detach, rebind or uninstall. After attach, reload the project instructions in the main coding agent and check that it loaded them.\n\nUninstall removes active files and saves the originals in .local/recovery. It also keeps your map, changed files and unknown files.\n\nFor permanent deletion, use the original release CLI: `purge-plan --install-dir /absolute/project/agent.mind`. Review the full file list and stop other programs from writing to those files. Then run `purge --install-dir /absolute/project/agent.mind --digest <exact plan digest>`.\n\nPurge is a separate command. It permanently deletes the listed data, including your files and saved originals. Other programs can still change files while it runs; purge does not lock them out.\n' };
+  if (!legacy) files['README.md'] += '\nFor bounded agent context, run `context "selector" --profile agent` (schema 1; default 10000 UTF-8 JSON bytes). Use `--max-bytes N` for another budget. Inspect coverage, uncertainty and sections; omissions are transmission limits, not analysis completeness. Retrieve an omitted section with `context "selector" --profile agent --section KIND --revision REV --binding-id ID --generation N`; continue with `--cursor TOKEN` and the same identity flags. Each page is a fresh read; source or binding changes reject continuation.\n\nBefore an authorized action, run `preflight "selector" --profile agent --revision REV --binding-id ID --generation N` using the context identity. It returns a concise receipt after the unchanged full-context gate. After edits, refresh context and run relevant project tests. Omit `--profile agent` for the compatible full JSON response.\n';
+  return files;
+}
 export function installProject({ project, release, expectedDigest, adopt = false }) {
   if (!project || !path.isAbsolute(project)) throw new Error('Install requires an explicit absolute --project path.');
   const root = fs.realpathSync(project);
@@ -203,10 +206,11 @@ function portableReceipt(dir, root, artifact) {
   const descriptor = readJSON(dir, 'project.json');
   const expected = { schemaVersion: 1, projectRoot: '..', runtime: { version: artifact.version, digest: artifact.digest } };
   if (JSON.stringify(descriptor) !== JSON.stringify(expected)) throw new Error('project.json must pin this exact release.');
-  const generated = portableFiles(expected), owned = {};
+  const generated = portableFiles(expected), legacyGenerated = portableFiles(expected, { legacy: true }), owned = {};
   for (const [relative, bytes] of Object.entries(generated)) {
-    if (sha(read(dir, relative)) !== sha(bytes)) throw new Error(`Unrecognized portable file: ${relative}`);
-    owned[relative] = sha(bytes);
+    const actual = sha(read(dir, relative));
+    if (actual !== sha(bytes) && actual !== sha(legacyGenerated[relative])) throw new Error(`Unrecognized portable file: ${relative}`);
+    owned[relative] = actual;
   }
   read(dir, 'project-map.json'); // User-owned bytes are validated as a safe file, never rewritten.
   for (const relative of [...Object.keys(artifact.files), 'artifact.json']) owned[`.local/runtime/${artifact.digest}/${relative}`] = relative === 'artifact.json' ? sha(read(artifact.root, relative)) : artifact.files[relative];
@@ -215,7 +219,10 @@ function portableReceipt(dir, root, artifact) {
   if (/<!-- agent\.mind:/.test(text)) {
     const matches = [...text.matchAll(/<!-- agent\.mind:([a-f0-9-]{36}):start -->/g)];
     if (matches.length !== 1 || !UUID.test(matches[0][1])) throw new Error('The portable AGENTS block does not match this release. Review it before adopting.');
-    installId = matches[0][1]; const block = managedBlock(installId, text.includes('\r\n') ? '\r\n' : '\n');
+    installId = matches[0][1];
+    const eol = text.includes('\r\n') ? '\r\n' : '\n';
+    const block = [managedBlock(installId, eol), managedBlock(installId, eol, { legacy: true })].find(candidate => text.includes(candidate));
+    if (!block) throw new Error('The portable AGENTS block does not match this release. Review it before adopting.');
     agents = { installId, block, prefix: '', existed: true, beforeHash: sha(text.replace(block, '')), afterHash: sha(text) };
     checkBlock(text, agents);
     if ((text.match(/<!-- agent\.mind:/g) ?? []).length !== 2) throw new Error('Found more than one portable AGENTS block. Resolve them before adopting.');
@@ -306,8 +313,13 @@ function replaceAgents(state, root, expectedText, nextText) {
     throw new Error(`Could not replace AGENTS.md. Your text is saved${entry ? ` at ${path.join(state.dir, entry.path)}` : ' in the AGENTS.md created by another process'}. ${error.message}`);
   }
 }
-function managedBlock(installId, eol) {
-  return [`<!-- agent.mind:${installId}:start -->`, '## agent.mind source context', 'Before nontrivial source work, run `node agent.mind/cli.mjs status` and get current context.', 'Choose a name from the request (for example: "module C needs another test" -> "module C").', 'Run `node agent.mind/cli.mjs context "selector"`. If more than one part matches, use its stable ID or full breadcrumb. Read the selected implementation and relevant tests before editing.', 'Before an authorized action, run `node agent.mind/cli.mjs preflight "selector" --revision <returned revision> --binding-id <returned binding.id> --generation <returned binding.generation>` with the values from context. Compare source hashes too. After edits, get context again and run the relevant project tests.', 'The map reads supported source patterns and may be incomplete. Test imports do not show coverage or a test result. Security labels are not vulnerability findings. Ask for clarification if a name is missing or still matches more than one part.', 'The main coding agent must follow these steps; this file does not enforce them automatically. After attach or rebind, reload these instructions and check that the chat loaded them. Detached or expired bindings cannot return valid installed context.', `<!-- agent.mind:${installId}:end -->`, ''].join(eol);
+function managedBlock(installId, eol, { legacy = false } = {}) {
+  const lines = [`<!-- agent.mind:${installId}:start -->`, '## agent.mind source context', 'Before nontrivial source work, run `node agent.mind/cli.mjs status` and get current context.', 'Choose a name from the request (for example: "module C needs another test" -> "module C").', 'Run `node agent.mind/cli.mjs context "selector"`. If more than one part matches, use its stable ID or full breadcrumb. Read the selected implementation and relevant tests before editing.', 'Before an authorized action, run `node agent.mind/cli.mjs preflight "selector" --revision <returned revision> --binding-id <returned binding.id> --generation <returned binding.generation>` with the values from context. Compare source hashes too. After edits, get context again and run the relevant project tests.', 'The map reads supported source patterns and may be incomplete. Test imports do not show coverage or a test result. Security labels are not vulnerability findings. Ask for clarification if a name is missing or still matches more than one part.', 'The main coding agent must follow these steps; this file does not enforce them automatically. After attach or rebind, reload these instructions and check that the chat loaded them. Detached or expired bindings cannot return valid installed context.', `<!-- agent.mind:${installId}:end -->`, ''];
+  if (!legacy) {
+    lines[4] = 'Run `node agent.mind/cli.mjs context "selector" --profile agent`. If more than one part matches, use its stable ID or full breadcrumb. Read the selected implementation and relevant tests before editing. Inspect coverage, uncertainty and sections; retrieve omitted evidence with --section or --cursor plus the same --revision, --binding-id and --generation. The profile is schema 1; --max-bytes N sets the UTF-8 JSON budget (default 10000). Omissions do not mean complete analysis.';
+    lines[5] = 'Before an authorized action, run `node agent.mind/cli.mjs preflight "selector" --profile agent --revision <returned revision> --binding-id <returned binding.id> --generation <returned binding.generation>` with the values from context. It returns a concise receipt after the unchanged full-context gate. Compare source hashes too. After edits, get context again with --profile agent and run the relevant project tests. Omit --profile agent for full JSON.';
+  }
+  return lines.join(eol);
 }
 function readAgents(root) { return exists(checked(root, 'AGENTS.md', true)) ? read(root, 'AGENTS.md', 1024 * 1024).toString('utf8') : ''; }
 function checkBlock(text, agents) {
@@ -599,19 +611,48 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
   if (command === 'purge') { const digest = option('--digest'); if (argv.length || !HASH.test(digest ?? '')) throw new Error('Purge requires --digest from the exact purge-plan you reviewed.'); const result = purgeInstallation(installDir, digest); emit(result); if (result.state !== 'purged') process.exitCode = 1; return; }
   const resolved = resolveInstallation(installDir);
   if (command === 'context' || command === 'preflight') {
+    const names = ['--revision', '--binding-id', '--generation', '--profile', '--max-bytes', '--section', '--cursor'];
+    for (const name of names) if (argv.filter(value => value === name).length > 1) throw new Error(`Duplicate ${name} option.`);
     const revision = option('--revision'), bindingId = option('--binding-id'), generation = option('--generation');
-    if (argv.length > 1) throw new Error('Pass one exact selector.');
-    if (command === 'preflight') {
-      if (argv.length !== 1 || !argv[0].trim() || argv[0].startsWith('--') || !revision || !bindingId || !generation) throw new Error('Preflight requires one exact selector and --revision, --binding-id, --generation from the context output.');
+    const profile = option('--profile'), budget = option('--max-bytes'), section = option('--section'), cursor = option('--cursor');
+    if (argv.length > 1 || argv.some(value => value.startsWith('--'))) throw new Error('Pass one exact selector; unknown options are not selectors.');
+    if (profile !== undefined && profile !== 'agent') throw new Error('Unknown context profile. Use --profile agent.');
+    if (profile === undefined && [budget, section, cursor].some(value => value !== undefined)) throw new Error('--max-bytes, --section and --cursor require --profile agent.');
+    if (budget !== undefined && (!/^[0-9]+$/.test(budget) || !Number.isSafeInteger(Number(budget)) || Number(budget) < 256)) throw new Error('--max-bytes must be an integer of at least 256 UTF-8 bytes.');
+    if (command === 'preflight' && (section !== undefined || cursor !== undefined)) throw new Error('Preflight returns a receipt; retrieve sections or cursors with context.');
+    if (command === 'preflight' || section !== undefined || cursor !== undefined) {
+      const invalidSelector = command === 'preflight' ? argv.length !== 1 || !argv[0].trim() : argv.length === 1 && !argv[0].trim();
+      if (invalidSelector || !revision || !bindingId || !generation) throw new Error(command === 'preflight' ? 'Preflight requires one exact selector and --revision, --binding-id, --generation from the context output.' : 'Section and cursor reads require --revision, --binding-id, --generation from the context output. Omit the selector for whole-project context.');
       if (!HASH.test(revision) || !UUID.test(bindingId) || !/^[1-9][0-9]*$/.test(generation) || !Number.isSafeInteger(Number(generation))) throw new Error('Invalid preflight values. Use the revision, binding ID and generation returned by context.');
     }
-    const { freshContext } = await import(pathToFileURL(path.join(resolved.runtime, 'graph-context.mjs')));
+    const { freshContext, contextCursor } = await import(pathToFileURL(path.join(resolved.runtime, 'graph-context.mjs')));
+    // Validate the complete fresh context before producing any concise receipt.
     const context = freshContext(resolved.root, argv[0], resolved.indexOptions);
     resolved.binding.verify();
     if (command === 'preflight' && context.status !== 'current') throw new Error(`Preflight requires current context; project index is ${context.status}. Check the context diagnostics before acting.`);
     if (revision && revision !== context.revision) throw new Error('Project revision changed. Run context again.');
     if (bindingId && bindingId !== resolved.binding.id || generation && Number(generation) !== resolved.binding.generation) throw new Error('Context binding has expired. Run context again.');
-    return emit({ ...context, binding: resolved.binding, preflight: command === 'preflight' ? 'verified-at-read' : undefined });
+    if (profile === undefined) return emit({ ...context, binding: resolved.binding, preflight: command === 'preflight' ? 'verified-at-read' : undefined });
+    const maxBytes = budget === undefined ? 10000 : Number(budget);
+    const projected = freshContext(resolved.root, argv[0], { ...resolved.indexOptions, expectedRevision: context.revision, binding: resolved.binding }, { profile, version: 1, maxBytes, ...(section !== undefined ? { section } : {}), ...(cursor !== undefined ? { cursor } : {}) });
+    resolved.binding.verify();
+    if (!projected.error && command === 'preflight' && projected.status !== 'current') throw new Error(`Preflight requires current context; project index is ${projected.status}. Check the context diagnostics before acting.`);
+    let result = projected;
+    if (!projected.error && command === 'preflight') {
+      result = {
+        schemaVersion: 1, profile, receipt: 'preflight', selector: argv[0],
+        project: projected.project, snapshot: projected.snapshot, revision: projected.revision,
+        binding: projected.binding, selection: projected.selection, status: projected.status,
+        preflight: 'verified-at-read', coverage: projected.coverage, uncertainty: projected.uncertainty,
+        diagnostics: ['diagnostics', 'symbolDiagnostics', 'globalSymbolDiagnostics'].map(section => ({ section, total: projected.sections.find(item => item.kind === section).total, cursor: contextCursor(projected, section) }))
+      };
+      const requiredBytes = Buffer.byteLength(JSON.stringify(result), 'utf8');
+      if (requiredBytes > maxBytes) result = { schemaVersion: 1, profile, error: { code: 'CONTEXT_BUDGET_TOO_SMALL', maxBytes, requiredBytes } };
+    }
+    // No indentation or newline: the R02 budget is the exact serialized wire size.
+    process.stdout.write(JSON.stringify(result));
+    if (result.error) process.exitCode = 1;
+    return;
   }
   if (command === 'view') {
     const port = option('--port') ?? '0'; if (argv.length || !/^\d+$/.test(port) || Number(port) > 65535) throw new Error('Invalid view port.');

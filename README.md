@@ -517,6 +517,66 @@ source-module references and conservative bare local calls. Framework routing,
 imported calls and dynamic dispatch remain unsupported even when the map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
 
+### Installed agent profile (R03 source candidate)
+
+This is an **unreleased source candidate**. Published 1.3.1 does not accept these
+flags. Existing installations keep their pinned runtime; do not assume an update
+from a version string or this source README. Commands without a profile retain the
+legacy full JSON shown above.
+
+An installed runtime built from this candidate can request bounded context:
+
+```sh
+node agent.mind/cli.mjs context "Module C" --profile agent --max-bytes 10000
+node agent.mind/cli.mjs preflight "Module C" --profile agent --revision "RETURNED_REVISION" --binding-id "RETURNED_BINDING_ID" --generation "RETURNED_GENERATION"
+```
+
+`--profile agent` selects schema version 1. `--max-bytes` is optional (default
+10,000), must be a safe integer at least 256, and counts the exact compact UTF-8
+JSON written to stdout, without indentation or a trailing newline. A budget too
+small for the mandatory envelope returns `CONTEXT_BUDGET_TOO_SMALL` JSON and a
+nonzero exit status; do not treat it as usable context or a verified receipt.
+The budget limits output, not indexing time, memory or tokens.
+
+Context preserves the R02 `selection`, `ancestry`, `coverage`, `uncertainty`,
+`sections` manifest and `page` with source hashes/evidence. Omitted counts mean
+items absent from that response, not complete analysis. Read needed evidence before
+editing. For `page.next`, pass its value as `--cursor`; to start an explicit section,
+use `--section` with a kind from the manifest:
+
+```sh
+node agent.mind/cli.mjs context "Module C" --profile agent --section diagnostics --revision "RETURNED_REVISION" --binding-id "RETURNED_BINDING_ID" --generation "RETURNED_GENERATION"
+node agent.mind/cli.mjs context "Module C" --profile agent --cursor "RETURNED_CURSOR" --revision "RETURNED_REVISION" --binding-id "RETURNED_BINDING_ID" --generation "RETURNED_GENERATION"
+```
+
+Section/continuation requests require all three identity values. Keep the same
+selector as the initial request; for whole-project context requested without a
+selector, omit it on retrieval too. Preflight still requires one exact selector.
+Changed revision, binding or cursor snapshot rejects the request; obtain new context.
+`--section` and `--cursor` are context options, not preflight options. New projection
+options without `--profile agent`, duplicate options and unknown options reject.
+For fragmented items, follow the [R02 reconstruction contract](#bounded-agent-context-r02-source-candidate).
+
+Successful opt-in preflight returns `receipt: "preflight"` and
+`preflight: "verified-at-read"`, with selector/canonical selection, project,
+snapshot/revision, binding, status, coverage and uncertainty. Its `diagnostics`
+array contains `{ section, total, cursor }` references for global index diagnostics,
+selected symbol diagnostics and global symbol diagnostics; retrieve them with the
+same identity values. It omits the full context and page arrays. The complete
+fresh-context gate still rejects partial indexes, invalid selectors and stale
+revision/binding. A receipt neither grants edit authority nor locks the source.
+
+The opt-in path currently performs a full fresh context read followed by a second
+revision-pinned projection read. Both the projection and the final receipt must fit
+the requested budget; no latency or memory improvement is claimed. After edits,
+run relevant authorized tests and request new context without the old revision.
+
+New managed blocks and generated usage explicitly request the profile. Repeated
+attachment preserves an existing owned block; exact historical portable text stays
+recognizable and edited blocks remain conflicts. Use the existing explicit
+attachment/update lifecycle for instruction changes, then check host activation.
+This source change does not rewrite instructions in any existing target.
+
 ### View and hand back the result
 
 When a visual view is requested, run `node agent.mind/cli.mjs view` from the target.
@@ -592,9 +652,11 @@ running these checks; there is no global hook enforcing them.
 
 ### Bounded agent context (R02 source candidate)
 
-This opt-in source API is **unreleased**. The existing development command and
-installed CLI still return the original full context. Installed profile flags,
-managed instructions and concise preflight receipts are deferred to R03.
+This opt-in source API is **unreleased**. The development command and the installed
+CLI without profile flags still return the original full context. The separate R03
+source candidate adds [installed profile usage](#installed-agent-profile-r03-source-candidate),
+new managed instructions and concise preflight receipts. Published 1.3.1 includes
+neither R02 nor R03; an unchanged source version number does not make this a release.
 
 ```js
 import { freshContext, contextCursor } from './graph-context.mjs';

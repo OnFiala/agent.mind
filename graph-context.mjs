@@ -196,7 +196,7 @@ function agentContext(graph, selector, options) {
 }
 
 export function freshContext(root, relative, indexOptions = {}, projectionOptions = {}) {
-  const { expectedRevision, ...options } = indexOptions;
+  const { expectedRevision, binding, ...options } = indexOptions;
   const first = indexProject(root, options);
   const checked = indexProject(root, { ...options, previous: first });
   if (first.revision !== checked.revision) throw new Error('The project changed during the read. Repeat the context preflight.');
@@ -207,6 +207,8 @@ export function freshContext(root, relative, indexOptions = {}, projectionOption
     error.actualRevision = checked.revision;
     throw error;
   }
+  // Installed callers validate this binding before and after the source read.
+  if (binding !== undefined) checked.binding = binding;
   return projectContext(checked, relative, projectionOptions);
 }
 
