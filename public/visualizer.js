@@ -1057,7 +1057,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (graph.status === 'partial') note('Analysis is partial: some files, syntax or links are unsupported or could not be read. See the notes below.', false, body);
     if (graph.inventory) {
       section('Inventory and analysis', body);
-      body.append(element('p', 'hint', `Inventory: ${graph.inventory.status} · last reported scan: ${state.runtime?.inventoryFreshness || 'unknown'}. File capabilities describe available analysis, not successful results.`));
+      body.append(element('p', 'hint', `Inventory: ${graph.inventory.status} · last reported scan: ${state.runtime?.inventoryFreshness || 'unknown'}. Freshness and inventory describe scanned files; file notes and capabilities describe analysis coverage.`));
       const omitted = graph.inventory.entries.filter(entry => !['text', 'excluded'].includes(entry.state));
       if (omitted.length) {
         const details = element('details');
@@ -1069,7 +1069,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     }
     const facts = element('div', 'fact-grid');
     fact(graph.stats?.files ?? graph.nodes.filter(node => node.kind !== 'external').length, 'indexed files', facts);
-    fact(graph.edges.length, 'links in code', facts);
+    fact(graph.edges.length, 'supported links', facts);
     fact(graph.stats?.tests ?? graph.nodes.filter(node => node.kind === 'test').length, 'test files', facts);
     fact(graph.stats?.security ?? graph.nodes.filter(node => node.security?.length).length, 'files with security signals', facts);
     body.append(facts);
@@ -1281,7 +1281,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
 
   function renderRelations(title, edges, direction, body) {
     section(`${title} (${edges.length})`, body);
-    if (!edges.length) body.append(element('p', 'hint', 'No links found in the code.'));
+    if (!edges.length) body.append(element('p', 'hint', 'No supported links found. Check file notes for unsupported or unresolved references.'));
     for (const edge of edges) {
       const target = state.graph.nodes.find(node => node.id === edge[direction]);
       button(target?.path || target?.label || edge[direction], () => selectEdge(edge.id), edge.label || edge.kind, body);
