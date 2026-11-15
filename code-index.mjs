@@ -167,14 +167,6 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
       }
       for (const entry of directoryEntries.sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
         const name = posix(path.join(relative, entry.name));
-        if (files.length >= INDEX_LIMITS.files) {
-          if (!exhausted) {
-            records.push({ path: relative || '.', state: 'unscanned', reason: 'file-limit' });
-            diagnostics.push({ path: name, message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
-          }
-          exhausted = true;
-          return;
-        }
         if (entry.isSymbolicLink()) {
           excluded.add(`${name} (symlink)`);
           records.push({ path: name, state: 'excluded', reason: 'symlink' });
@@ -187,6 +179,14 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
         }
         if (entry.isDirectory()) visit(name, depth + 1);
         else if (entry.isFile()) {
+          if (files.length >= INDEX_LIMITS.files) {
+            if (!exhausted) {
+              records.push({ path: relative || '.', state: 'unscanned', reason: 'file-limit' });
+              diagnostics.push({ path: name, message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+            }
+            exhausted = true;
+            return;
+          }
           files.push(name);
           if (UNSUPPORTED_SOURCE.test(entry.name) && !isTypedSource(name)) unsupported.add(name);
         } else records.push({ path: name, state: 'excluded', reason: 'special-file' });
