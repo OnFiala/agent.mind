@@ -70,7 +70,10 @@ export function nodeSize(node) {
 
 export function selectedDisplayId(selection, display) {
   if (!selection || selection.type === 'edge') return null;
-  if (selection.partId) return display.nodes.find(node => node.id === selection.partId || node.isArea && node.memberIds?.includes(selection.partId))?.id || null;
+  if (selection.partId) {
+    const part = display.nodes.find(node => node.id === selection.partId) || display.nodes.find(node => node.isArea && node.memberIds?.includes(selection.partId));
+    if (part) return part.id;
+  }
   return display.nodes.find(node => node.id === selection.id)?.id || display.nodes.find(node => (!node.hierarchyKind || node.hierarchyKind === 'block') && node.fileIds?.includes(selection.id))?.id || null;
 }
 

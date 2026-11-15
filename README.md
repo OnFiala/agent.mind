@@ -151,6 +151,13 @@ A selected symbol follows its current source range after an update, including
 when restored with Back. A source line chosen manually remains a numeric cursor;
 the symbol's displayed range still follows the current source.
 
+The unreleased UI-NEW-01 source repair keeps a selected symbol highlighted when
+switching to **Files**: its owning file is selected while the inspector retains
+the symbol and source range. A visible symbol or its collapsed area takes
+precedence; otherwise the visible owning file or overview block is highlighted.
+See the [selection projection record](docs/reviews/2026-11-15-selection-projection.md)
+for validation and release limits.
+
 Lines between areas combine the underlying connections of the same type and
 origin. Opposite directions and different types stay separate. Connections inside
 an area appear when you expand it. The counts show both displayed lines and
