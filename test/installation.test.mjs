@@ -640,3 +640,51 @@ test('installed Python source context passes strict preflight while stale, bindi
   const rejectedInventory = preflight(incomplete);
   assert.equal(rejectedInventory.status, 1); assert.match(rejectedInventory.stderr, /requires current context/);
 });
+
+
+test('installed reference diagnostics reject CommonJS partial context without reclassifying Python src uncertainty', t => {
+  const f = fixture(t); install(f); attachInstallation(f.install);
+  const cli = path.join(f.install, 'cli.mjs');
+  const call = (args, expected = 0) => {
+    const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8', cwd: f.dir, timeout: 10000 });
+    assert.equal(result.status, expected, result.stderr || result.stdout); return result;
+  };
+  const context = (selector, profile = []) => JSON.parse(call(['context', selector, ...profile]).stdout);
+  const identity = value => ['--revision', value.revision, '--binding-id', value.binding.id, '--generation', String(value.binding.generation)];
+  const original = context('main.mjs');
+  for (const [name, text, reason] of [
+    ['legacy.cjs', "module.exports = require('./main.mjs');\nthrow new Error('Scanned code must not run');\n", 'cjs-extension'],
+    ['legacy.js', "const dependency = require('./main.mjs');\nmodule.exports = dependency;\n", 'commonjs-syntax']
+  ]) {
+    fs.writeFileSync(path.join(f.project, name), text);
+    const full = context(name), profile = context(name, ['--profile', 'agent']);
+    assert.equal(full.status, 'partial'); assert.equal(full.inventory.status, 'complete');
+    assert.equal(profile.status, 'partial'); assert.equal(profile.revision, full.revision);
+    assert.ok(full.nodes.find(node => node.path === name).diagnostics.some(item => item.code === 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED' && item.reason === reason));
+    assert.deepEqual(full.edges, []);
+    const page = JSON.parse(call(['context', name, '--profile', 'agent', '--section', 'diagnostics', ...identity(full)]).stdout);
+    assert.ok(page.page.items.some(item => item.value.code === 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED'));
+    for (const flags of [[], ['--profile', 'agent']]) {
+      const rejected = call(['preflight', name, ...flags, ...identity(full)], 1);
+      assert.equal(rejected.stdout, ''); assert.match(rejected.stderr, /requires current context/);
+    }
+    // The gate is project-wide; selecting unaffected ESM does not hide the warning.
+    const esm = context('main.mjs');
+    assert.match(call(['preflight', 'main.mjs', ...identity(esm)], 1).stderr, /requires current context/);
+    fs.unlinkSync(path.join(f.project, name));
+  }
+  const restored = context('main.mjs');
+  assert.equal(restored.revision, original.revision);
+  assert.equal(JSON.parse(call(['preflight', 'main.mjs', ...identity(restored)]).stdout).preflight, 'verified-at-read');
+  fs.mkdirSync(path.join(f.project, 'src/pkg'), { recursive: true });
+  fs.writeFileSync(path.join(f.project, 'src/pkg/__init__.py'), 'pass\n');
+  fs.writeFileSync(path.join(f.project, 'src/pkg/worker.py'), 'def answer():\n    return 42\n');
+  fs.writeFileSync(path.join(f.project, 'main.py'), 'import pkg.worker\ndef run():\n    return pkg.worker.answer()\n');
+  const python = context('main.py');
+  assert.equal(python.status, 'current');
+  assert.ok(python.diagnostics.some(item => item.path === 'main.py' && item.line === 1 && item.severity === 'info' && /project-root/.test(item.message)));
+  assert.ok(python.edges.some(edge => edge.to === 'external:python:pkg.worker'));
+  assert.ok(!python.edges.some(edge => edge.to === 'file:src/pkg/worker.py'));
+  assert.ok(python.diagnostics.some(item => item.path === 'main.py' && item.line === 3 && item.column === 12 && /Unresolved Python call/.test(item.message)));
+  for (const flags of [[], ['--profile', 'agent']]) assert.equal(JSON.parse(call(['preflight', 'main.py', ...flags, ...identity(python)]).stdout).preflight, 'verified-at-read');
+});

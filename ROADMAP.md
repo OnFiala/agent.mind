@@ -144,6 +144,37 @@ budget. Generated instructions alone do not prove a host loaded or followed them
 Rollback: revert R03 before R02 and use the legacy full-context path. Preserve maps,
 bindings, installed pins and edited user blocks. No target upgrade is performed.
 
+## R04 — Explicit unsupported-reference diagnostics
+
+**R04 source candidate; unreleased.** On 2026-11-12 the owner authorized
+implementation, tests, documentation, independent review and
+[PR #23](https://github.com/OnFiala/agent.mind/pull/23). On 2026-11-15 the owner
+requested completion against current main, preserving the PR #24–#27 repairs.
+Main `e312ff13` is integrated into the candidate branch. The owner subsequently
+approved merging PR #23 and verifying CI on the actual merge commit. That PR owns
+the merge status, exact merge commit and subsequent CI receipts. Release and
+real-target upgrades remain separately authorized actions. The
+[R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
+contract and dated validation.
+
+Scope: additive per-file reasons for unavailable reference analysis, including
+`.cjs` and bounded recognized CommonJS-style forms in `.js`/`.mjs`. Preserve
+Python's external/unresolved information, supported ESM edges and all source IDs.
+No CommonJS resolver, source-root inference or dependency change.
+
+Acceptance: explicit CommonJS file/global/context diagnostics with source evidence
+where parsed; shadowed names and non-code text do not invent CommonJS evidence.
+Complete inventory and zero links do not claim full semantic analysis. Supported
+Python remains eligible under the current preflight; actual warning/error/limit
+states still fail. Verify the installed CLI and actual produced bundle, including
+recovery after removing an unsupported fixture.
+
+Rollback before merge: withdraw the candidate; main and installed targets stay
+unchanged. After a separately authorized merge, revert only the R04 change through
+review using the actual merge and verified mainline, preserving PR #24–#27. This
+removes the disclosure and restores the earlier silent CommonJS limitation; it
+does not add resolution. No stored data, binding, naming map or runtime pin is migrated.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while
