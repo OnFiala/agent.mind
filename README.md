@@ -269,6 +269,13 @@ locations and hashes; they do not establish that a request happened.
 Named class expressions shadow matching API names within that class, including
 its superclass expression, without hiding calls outside it.
 
+The unreleased CORE-01 source repair also checks direct writes in nested functions
+to the handler's captured request, response and URL bindings. Such a write suppresses
+the affected provider even when the function is never called; local shadowed bindings
+do not count as writes to the outer value. Nested functions still contribute no
+handler routes or response evidence. This is conservative source inspection, not
+alias, call-order or side-effect analysis. Published 1.3.1 does not contain this repair.
+
 Security highlights recognized sensitive Node imports, supported callsites and
 some browser inputs/outputs. These are places to review, not vulnerability findings
 or a safety verdict. Testing shows test files and their static dependencies, not

@@ -390,6 +390,106 @@ test('only imported HTTP factory callbacks with a unique request URL binding pro
   }
 });
 
+test('nested closure writes invalidate captured HTTP URL, request and response bindings', t => {
+  const mutations = [
+    target => `${target} = replacement;`,
+    target => `${target}++;`,
+    target => `({value: ${target}} = replacement);`,
+    target => `[${target}] = replacement;`,
+    target => `({value: ${target} = replacement} = other);`,
+    target => `[...${target}] = replacement;`,
+    target => `({...${target}} = replacement);`,
+    target => `for (${target} of values) {}`,
+    target => `for (${target} in values) {}`
+  ];
+  const bodies = [];
+  for (const target of ['url', 'url.pathname', 'req', 'res']) for (const mutation of mutations) {
+    bodies.push(`function alter() { ${mutation(target)} } alter();`);
+    bodies.push(`const alter = () => { ${mutation(target)} };`);
+  }
+  bodies.push(
+    'function alter() { delete url.pathname; }',
+    'function alter() { req.url = "/wrong"; res.end = replacement; }',
+    'function alter() { function deeper() { url.pathname = "/wrong"; } }',
+    'function alter() { { let url; } url.pathname = "/wrong"; }',
+    'function alter() { try {} catch (url) {} url.pathname = "/wrong"; }',
+    'function alter() { for (let url of values) {} url.pathname = "/wrong"; }',
+    'function alter(value = (url.pathname = "/wrong")) { var url; }',
+    'function alter(value = (() => { req = replacement; })) { var req; }',
+    'const alter = () => url.pathname++;',
+    'function alter() { switch (url.pathname = "/wrong") {case 0: let url;} }',
+    'function alter() { class Other { static { url.pathname = "/wrong"; } } }',
+    'function alter() { { let url; } function deeper() { url.pathname = "/wrong"; } }'
+  );
+  for (const body of bodies) {
+    const root = fixture(t, {
+      'client.js': 'fetch("/api/graph");',
+      'server.mjs': handler(`${body} if (url.pathname === "/api/graph") return res.end();`)
+    });
+    const graph = indexProject(root);
+    assert.ok(!graph.diagnostics.some(item => item.message.includes('parse error')), body);
+    assert.equal(transportEdges(graph).length, 0, body);
+    assert.equal(graph.status, 'partial', body);
+    assert.ok(graph.diagnostics.some(item => item.path === 'client.js' && item.message.includes('No supported')), body);
+  }
+});
+
+test('nested local shadows preserve independent HTTP contracts and their evidence', t => {
+  const shadows = [
+    'function alter(url, req, res) { url.pathname = "/wrong"; req = replacement; res++; }',
+    'const alter = ({url}, [req], ...res) => { url.pathname = "/wrong"; req = replacement; res++; };',
+    'function alter() { url.pathname = "/wrong"; var url; }',
+    'function alter() { { var req; } req = replacement; }',
+    'function alter() { let url; url.pathname = "/wrong"; const req = {}; req.url = "/wrong"; }',
+    'function alter() { { let url; url.pathname = "/wrong"; } }',
+    'function alter() { try {} catch ({url}) { url.pathname = "/wrong"; } }',
+    'function alter() { for (let url of values) { url.pathname = "/wrong"; } }',
+    'function alter() { for (let req in values) { req = replacement; } }',
+    'function alter() { switch (value) {case 0: let url; url.pathname = "/wrong";} }',
+    'const alter = function url() { url.pathname = "/wrong"; };',
+    'function alter() { function url() {} url.pathname = "/wrong"; }',
+    'function alter() { class url {} url.pathname = "/wrong"; }',
+    'const alter = class url { method() { url.pathname = "/wrong"; } };',
+    'function alter(url = (url.pathname = "/wrong")) {}',
+    'function alter(url) { function deeper() { url.pathname = "/wrong"; } }',
+    'function alter() { { let url; function deeper() { url.pathname = "/wrong"; } } }',
+    'function alter() { var {url, req, res} = other; url.pathname = "/wrong"; req++; res++; }',
+    'function alter() { class Other { static { var url; url.pathname = "/wrong"; } } }'
+  ];
+  for (const body of shadows) {
+    const root = fixture(t, {
+      'client.js': 'fetch("/api/graph");',
+      'server.mjs': handler(`${body} if (url.pathname === "/api/graph") return res.end();`)
+    });
+    const graph = indexProject(root);
+    assert.equal(transportEdges(graph).length, 1, body);
+    assert.equal(graph.status, 'current', body);
+    const contract = transportEdges(graph)[0];
+    assert.equal(contract.provenance, 'static-contract');
+    for (const evidence of contract.evidence) assert.equal(evidence.hash, file(graph, evidence.path).hash);
+    assert.equal(indexProject(root, { previous: graph }).revision, graph.revision);
+  }
+});
+
+test('nested functions supply no route, response or stream-header evidence to an outer HTTP handler', t => {
+  const bodies = [
+    'function unrelated() { if (url.pathname === "/api/graph") res.end(); }',
+    'if (url.pathname === "/api/graph") { function respond() { res.end(); } }',
+    'if (url.pathname === "/api/graph") { const respond = () => res.end(); }'
+  ];
+  for (const body of bodies) {
+    const root = fixture(t, { 'client.js': 'fetch("/api/graph");', 'server.mjs': handler(body) });
+    assert.equal(transportEdges(indexProject(root)).length, 0, body);
+  }
+  const root = fixture(t, {
+    'client.js': 'fetch("/api/graph"); new EventSource("/api/graph");',
+    'server.mjs': handler('if (url.pathname === "/api/graph") { function unrelated() {res.setHeader("Content-Type", "text/event-stream");} res.end(); }')
+  });
+  const graph = indexProject(root);
+  assert.deepEqual(transportEdges(graph).map(item => item.kind), ['http']);
+  assert.ok(graph.diagnostics.some(item => item.message.includes('No static text/event-stream')));
+});
+
 test('ambiguous providers and incompatible HTTP methods never invent a selected target', t => {
   const root = fixture(t, {
     'client.js': 'fetch("/api/graph"); fetch("/api/write");',
