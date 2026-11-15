@@ -8,6 +8,18 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
+## UI-NEW-02 — Keyboard movement without a Back conflict
+
+**UI-NEW-02 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regressions, documentation, independent review and a
+separate PR. Merge, release and real-target upgrades are not authorized.
+
+Scope: Shift plus any arrow moves a focused card by 20 canvas units; plain arrows
+retain spatial focus navigation, while Alt plus left arrow retains Back. The
+[keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md) owns the
+contract, validation and rollback. No new graph or platform support is claimed;
+the published baseline remains 1.3.1.
+
 ## UI-NEW-01 — Symbol selection across views
 
 **UI-NEW-01 source repair; unreleased.** On 2026-11-15 the owner authorized
