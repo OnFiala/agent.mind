@@ -191,11 +191,14 @@ configuration migration is needed.
 
 ## R06 — Project exclusions
 
-**Implemented source candidate; unmerged and unreleased.** On 2026-11-15 the owner
+**Implemented source; merge approved, unreleased.** On 2026-11-15 the owner
 separately authorized implementation under R05, tests, documentation, CORTEX and a
-standalone PR with independent review, explicitly without merge or release.
+standalone PR with independent review, then explicitly approved merging
+[PR #29](https://github.com/OnFiala/agent.mind/pull/29) and verifying CI on the actual
+merge commit. Release and real-target changes remain separately gated.
 The [R06 record](docs/reviews/2026-11-15-project-exclusions.md) owns implementation,
-checks and limitations; the PR owns exact reviewed commits and CI evidence.
+checks and limitations; PR #29 owns the actual merge status/commit, exact reviewed
+commits and separate pre-/post-merge CI receipts.
 
 Root-only bounded ignore/default exclusions, policy identity, safe source-read
 revalidation, metadata filtering and live/browser revocation preserve managed

@@ -1,11 +1,15 @@
 # R06: bounded project exclusions
 
 Date: 2026-11-15. Base: `73e892d0d8f36bcb19b1b789931de9e4d2edc291`
-(the merged R05 contract). Status: **source candidate, unmerged and unreleased**.
+(the merged R05 contract). Status: **implemented source; merge approved, unreleased**.
 The owner authorized implementation, tests, documentation, CORTEX and a standalone
-PR with independent review. Merge, release and real-target changes are excluded.
-[ROADMAP](../../ROADMAP.md#r06--project-exclusions) owns stage status; [PR #29](https://github.com/OnFiala/agent.mind/pull/29) owns
-exact reviewed commit/disposition and CI receipts. Published 1.3.1 is unchanged.
+PR with independent review, then explicitly approved merging PR #29 on 2026-11-15
+and verifying CI on the actual merge commit. Release and real-target changes remain
+excluded. [ROADMAP](../../ROADMAP.md#r06--project-exclusions) owns stage status;
+[PR #29](https://github.com/OnFiala/agent.mind/pull/29) owns the actual merge status,
+exact merge/reviewed commits, review disposition and separate pre-/post-merge CI
+receipts. Approval is not evidence that merge or CI succeeded. Published 1.3.1 is
+unchanged.
 
 ## Result and boundaries
 
