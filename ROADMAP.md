@@ -216,8 +216,8 @@ naming maps, descriptors and all project contents. See the R06 record for detail
 separately authorized source prioritization after R06 filtering, agent swarm,
 tests, documentation, CORTEX and a standalone PR with independent review, explicitly
 without merge or release. The [R07 record](docs/reviews/2026-11-15-source-priority.md)
-owns behavior, checks and limitations; the PR owns exact reviewed commits,
-review disposition and CI receipts.
+owns behavior, checks and limitations; [PR #30](https://github.com/OnFiala/agent.mind/pull/30)
+owns exact reviewed commits, review disposition and CI receipts.
 
 Eligible observed paths are ranked by recognized source suffix before allocating
 file slots and byte reads. Equal ranks use ordinal full-path ordering. All R06

@@ -5,7 +5,8 @@ Date: 2026-11-15. Base: `b9eb09adbcfdfcb2e7fbc92e79b98076ba1a3677`
 and unreleased**. The owner authorized R07, tests, documentation, CORTEX and a
 standalone PR with independent review. Merge, release and real-target changes are
 excluded. [ROADMAP](../../ROADMAP.md#r07--source-priority-within-existing-budgets)
-owns stage status; the PR owns exact reviewed commits, disposition and CI receipts.
+owns stage status; [PR #30](https://github.com/OnFiala/agent.mind/pull/30) owns exact
+reviewed commits, disposition and CI receipts.
 Published 1.3.1 is unchanged.
 
 ## Problem and behavior
