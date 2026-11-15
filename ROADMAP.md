@@ -175,6 +175,24 @@ review using the actual merge and verified mainline, preserving PR #24–#27. Th
 removes the disclosure and restores the earlier silent CommonJS limitation; it
 does not add resolution. No stored data, binding, naming map or runtime pin is migrated.
 
+## R05 — Input policy and sensitive-file protection
+
+**R05 documentation candidate; no runtime implementation.** On 2026-11-15 the
+owner authorized a standalone input-policy/privacy contract, independent review
+and a documentation PR. The [R05 contract](docs/reviews/2026-11-15-input-policy.md)
+owns the proposed precedence, bounded root-ignore dialect, failure behavior,
+sensitive-file rules, revision/cache/source-read invalidation and future acceptance
+matrix. The PR records its exact reviewed commits and validation. Merge, runtime
+implementation, release and target upgrades remain separately authorized actions.
+
+The next proposed implementation is **R06: project exclusions**, using the reviewed
+contract without changing managed `project.json` or relaxing sensitive-name guards.
+**R07: budget ordering** follows R06; filtering does not itself prioritize source.
+Neither stage is implemented or authorized by this documentation candidate.
+Published baseline remains 1.3.1; existing installations retain their pinned behavior.
+Rollback: withdraw or separately revert the R05 documentation only; no data or
+configuration migration is needed.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while
