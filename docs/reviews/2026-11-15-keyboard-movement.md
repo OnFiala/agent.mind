@@ -1,9 +1,12 @@
 # UI-NEW-02 — Keyboard movement without a Back conflict
 
-Date: 2026-11-15. Status: source candidate, unreleased.
-The owner authorized this isolated repair, regression tests, documentation,
-independent review and a separate PR. Merge and release are not authorized.
-Published 1.3.1 and existing installations remain unchanged.
+Date: 2026-11-15. Status: source repair, unreleased.
+The owner authorized this isolated repair, regression tests, documentation and
+independent review, then separately approved merging
+[PR #27](https://github.com/OnFiala/agent.mind/pull/27) on 2026-11-15, verification
+of the actual post-merge CI and documentation updates. That PR owns the actual
+merge commit and subsequent CI receipts. Release and real-target upgrades remain
+outside this change. Published 1.3.1 and existing installations remain unchanged.
 
 ## Problem and contract
 
@@ -81,8 +84,8 @@ and the repository's oversized-wordmark partial context diagnostic remain; no ga
 is bypassed. Reviewer read-only conduct is procedural under inherited permissions,
 not independently OS-enforced.
 
-Before merge, reject the isolated candidate if necessary. After a separately
-approved merge, revert the repair commit or actual merge with a verified mainline
-through normal review. This restores the known conflicting Alt-left behavior.
+If rollback is separately authorized after merge, revert the actual PR #27 merge
+commit with mainline 1 as recorded in the PR. This restores the known conflicting
+Alt-left behavior.
 No data migration or target cleanup is needed; published archives and pinned
 installations remain unchanged.

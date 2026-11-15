@@ -11,8 +11,11 @@ and L3 only separates the existing analysis from indexing.
 ## UI-NEW-02 — Keyboard movement without a Back conflict
 
 **UI-NEW-02 source repair; unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regressions, documentation, independent review and a
-separate PR. Merge, release and real-target upgrades are not authorized.
+this isolated repair, regressions, documentation, independent review and
+[PR #27](https://github.com/OnFiala/agent.mind/pull/27), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
 
 Scope: Shift plus any arrow moves a focused card by 20 canvas units; plain arrows
 retain spatial focus navigation, while Alt plus left arrow retains Back. The
