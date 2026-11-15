@@ -175,6 +175,13 @@ show nearby connections. Hidden lines cannot receive pointer or keyboard focus.
 Search finds members inside collapsed areas, including original function names,
 and expands their area before opening them. Fit includes the whole current map.
 
+The unreleased UI-NEW-02 source repair separates keyboard movement from Back:
+focus a card and use **Shift + arrow keys** to move it by 20 canvas units in any
+direction. Plain arrows move focus between cards. **Alt + left arrow** and
+**Backspace** retain scope navigation; typing in input fields does not navigate
+back. See the [keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md)
+for verification and release limits.
+
 ## Use the same names with your coding agent
 
 Set block names, stable IDs and aliases in `agent.mind/project-map.json`. The

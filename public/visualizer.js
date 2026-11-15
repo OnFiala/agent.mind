@@ -68,6 +68,24 @@ export function nodeSize(node) {
   return node?.kind === 'block' ? { width: 260, height: node.group === 'core' ? 136 : 116 } : CARD;
 }
 
+export function handleCardKeydown(event, id, state, cards, { placeCard, drawEdges, revealNode }) {
+  if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  event.preventDefault();
+  if (event.shiftKey) {
+    const position = state.positions.get(id);
+    position.x += event.key === 'ArrowLeft' ? -20 : event.key === 'ArrowRight' ? 20 : 0;
+    position.y += event.key === 'ArrowUp' ? -20 : event.key === 'ArrowDown' ? 20 : 0;
+    placeCard(id); drawEdges();
+  } else {
+    const origin = state.positions.get(id);
+    const horizontal = ['ArrowLeft', 'ArrowRight'].includes(event.key);
+    const forward = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : -1;
+    const candidates = state.display.nodes.filter(item => item.id !== id).map(item => ({ id: item.id, point: state.positions.get(item.id) })).filter(item => ((horizontal ? item.point.x - origin.x : item.point.y - origin.y) * forward) > 0);
+    candidates.sort((a, b) => Math.hypot(a.point.x - origin.x, a.point.y - origin.y) - Math.hypot(b.point.x - origin.x, b.point.y - origin.y));
+    if (candidates[0]) { cards.get(candidates[0].id)?.focus({ preventScroll: true }); revealNode(candidates[0].id); }
+  }
+}
+
 export function selectedDisplayId(selection, display) {
   if (!selection || selection.type === 'edge') return null;
   if (selection.partId) {
@@ -897,24 +915,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         // Pointer selection happens on pointerup (also after pointer capture).
         // Native keyboard and assistive-technology clicks have detail === 0.
         card.addEventListener('click', event => { if (event.detail === 0) selectNode(node.id); });
-        card.addEventListener('keydown', event => {
-          if (event.altKey && event.key === 'ArrowLeft') return;
-          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-          event.preventDefault();
-          if (event.altKey) {
-            const position = state.positions.get(node.id);
-            position.x += event.key === 'ArrowLeft' ? -20 : event.key === 'ArrowRight' ? 20 : 0;
-            position.y += event.key === 'ArrowUp' ? -20 : event.key === 'ArrowDown' ? 20 : 0;
-            placeCard(node.id); drawEdges();
-          } else {
-            const origin = state.positions.get(node.id);
-            const horizontal = ['ArrowLeft', 'ArrowRight'].includes(event.key);
-            const forward = ['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : -1;
-            const candidates = state.display.nodes.filter(item => item.id !== node.id).map(item => ({ id: item.id, point: state.positions.get(item.id) })).filter(item => ((horizontal ? item.point.x - origin.x : item.point.y - origin.y) * forward) > 0);
-            candidates.sort((a, b) => Math.hypot(a.point.x - origin.x, a.point.y - origin.y) - Math.hypot(b.point.x - origin.x, b.point.y - origin.y));
-            if (candidates[0]) { cards.get(candidates[0].id)?.focus({ preventScroll: true }); revealNode(candidates[0].id); }
-          }
-        });
+        card.addEventListener('keydown', event => handleCardKeydown(event, node.id, state, cards, { placeCard, drawEdges, revealNode }));
         cards.set(node.id, card);
         $('nodes').append(card);
       }
@@ -937,7 +938,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         detail.setAttribute('aria-label', node.isArea ? `Select area: ${node.label}` : `Detail: ${node.label}`);
         detail.title = node.isArea ? `Select area: ${node.label}` : `Detail: ${node.label}`;
       }
-      card.title = `${node.label || node.path} · ${node.kind === 'block' ? BLOCK_TYPES[node.type] || 'Module' : KIND[node.kind] || node.kind}\n${node.isArea ? 'Click to expand this area' : node.hasChildren ? 'Click to see its parts' : 'Click to open source'}; Alt + arrows move the card.`;
+      card.title = `${node.label || node.path} · ${node.kind === 'block' ? BLOCK_TYPES[node.type] || 'Module' : KIND[node.kind] || node.kind}\n${node.isArea ? 'Click to expand this area' : node.hasChildren ? 'Click to see its parts' : 'Click to open source'}; Shift + arrows move the card.`;
       card.setAttribute('aria-label', `${node.label || node.path}, ${node.kind === 'block' ? BLOCK_TYPES[node.type] : KIND[node.kind] || node.kind}, ${node.isArea ? 'expand area' : node.hasChildren ? 'open smaller parts' : 'source details'}`);
       placeCard(node.id);
     }
