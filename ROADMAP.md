@@ -11,8 +11,11 @@ and L3 only separates the existing analysis from indexing.
 ## UI-NEW-01 — Symbol selection across views
 
 **UI-NEW-01 source repair; unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regression tests, documentation, independent review and a
-separate PR. Merge, release and real-target upgrades are not authorized.
+this isolated repair, regression tests, documentation, independent review and
+[PR #26](https://github.com/OnFiala/agent.mind/pull/26), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
 
 Scope: retain the precise symbol selection and project it onto the visible owning
 file or overview block when the symbol or its containing area is not visible.

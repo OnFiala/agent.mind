@@ -1,9 +1,12 @@
 # UI-NEW-01 — Symbol selection across views
 
-Date: 2026-11-15. Status: source candidate, unreleased.
-The owner authorized this isolated repair, regression tests, documentation,
-independent review and a separate PR. Merge and release are not authorized.
-Published 1.3.1 and existing installations remain unchanged.
+Date: 2026-11-15. Status: source repair, unreleased.
+The owner authorized this isolated repair, regression tests, documentation and
+independent review, then separately approved merging
+[PR #26](https://github.com/OnFiala/agent.mind/pull/26) on 2026-11-15, verification
+of the actual post-merge CI and documentation updates. That PR owns the actual
+merge commit and subsequent CI receipts. Release and real-target upgrades remain
+outside this change. Published 1.3.1 and existing installations remain unchanged.
 
 ## Problem and contract
 
@@ -83,8 +86,7 @@ The existing oversized-wordmark context diagnostic remains; no gate is bypassed.
 Safari, mobile layouts, assistive-technology behavior and real-target installation
 are not verified by this repair.
 
-Before merge, discard the isolated repair branch if the candidate is rejected.
-After a separately authorized merge, revert its source commit (or the actual merge
-commit with the verified mainline) through the normal review path. This restores
+If rollback is separately authorized after merge, revert the actual PR #26 merge
+commit with mainline 1 as recorded in the PR. This restores
 the known missing file highlight; no data migration or target cleanup is required.
 Existing runtime pins, maps, source files, bindings and recovery data are unchanged.
