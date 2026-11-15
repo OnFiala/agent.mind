@@ -239,8 +239,8 @@ by [UI-NEW-02 / PR #27](https://github.com/OnFiala/agent.mind/pull/27), not a se
 shortcut design. On 2026-11-15 the owner authorized R08 with agent swarm, tests,
 documentation, CORTEX and a standalone PR with independent review, without merge
 or release. The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md) owns
-current acceptance, limitations and rollback; the follow-up PR owns exact reviewed
-commits and CI receipts.
+current acceptance, limitations and rollback; [PR #31](https://github.com/OnFiala/agent.mind/pull/31)
+owns exact reviewed commits and CI receipts.
 
 This follow-up exposes the unchanged document key handler to direct tests and
 adds permanent Back/input/bubbling regressions beside existing four-direction

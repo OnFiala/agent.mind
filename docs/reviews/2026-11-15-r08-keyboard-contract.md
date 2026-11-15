@@ -5,7 +5,8 @@ Status: **acceptance follow-up candidate, unmerged and unreleased**. The owner
 requested R08, agent swarm, tests, documentation, CORTEX and a standalone PR with
 independent review, explicitly without merge or release.
 [ROADMAP](../../ROADMAP.md#r08--keyboard-contract) owns stage status; the follow-up
-PR owns exact reviewed commits, independent disposition and CI receipts.
+[PR #31](https://github.com/OnFiala/agent.mind/pull/31) owns exact reviewed commits,
+independent disposition and CI receipts.
 
 ## Existing implementation and remaining acceptance
 
