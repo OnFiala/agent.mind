@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleCardKeydown, selectedEdge, refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
+import { handleDocumentKeydown, handleCardKeydown, selectedEdge, refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
 import { projectAreas } from '../public/hierarchy.mjs';
 
 const nodes = [
@@ -22,11 +22,11 @@ function keyboardFixture(key, modifiers = {}) {
   const calls = [];
   const state = { positions, display: { nodes: [...positions.keys()].map(id => ({ id })) } };
   const cards = new Map([...positions.keys()].map(id => [id, { focus: options => calls.push(['focus', id, options]) }]));
-  const event = { key, ...modifiers, preventDefault: () => calls.push(['preventDefault']), stopPropagation: () => calls.push(['stopPropagation']) };
+  const event = { key, target: { closest: () => null }, ...modifiers, preventDefault: () => calls.push(['preventDefault']), stopPropagation: () => calls.push(['stopPropagation']) };
   handleCardKeydown(event, 'origin', state, cards, {
     placeCard: id => calls.push(['placeCard', id]), drawEdges: () => calls.push(['drawEdges']), revealNode: id => calls.push(['revealNode', id]),
   });
-  return { point: positions.get('origin'), calls };
+  return { point: positions.get('origin'), calls, event, state };
 }
 
 for (const [key, delta, target] of [
@@ -49,6 +49,76 @@ for (const [key, delta, target] of [
     }
   });
 }
+
+function documentKeyboardFixture(key, modifiers = {}, { editor = null, panel = null } = {}) {
+  const calls = [];
+  const event = {
+    key, ...modifiers,
+    target: { closest: selector => { assert.equal(selector, 'input,textarea,select'); return editor; } },
+    preventDefault: () => calls.push(['preventDefault']),
+    stopPropagation: () => calls.push(['stopPropagation']),
+  };
+  const state = { panel };
+  handleDocumentKeydown(event, state, documentCallbacks(calls));
+  return { calls, state };
+}
+function documentCallbacks(calls) {
+  return {
+    closePanel: () => calls.push(['closePanel']), goBack: () => calls.push(['goBack']),
+    focusSearch: () => calls.push(['focusSearch']), fit: () => calls.push(['fit']),
+    zoom: factor => calls.push(['zoom', factor]),
+  };
+}
+
+for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
+  test(`${key}: card movement and focus can bubble to document without invoking navigation`, () => {
+    for (const modifiers of [{}, { shiftKey: true }]) {
+      const result = keyboardFixture(key, modifiers);
+      const cardCalls = structuredClone(result.calls);
+      const point = { ...result.point };
+      handleDocumentKeydown(result.event, result.state, documentCallbacks(result.calls));
+      assert.deepEqual(result.calls, cardCalls);
+      assert.deepEqual(result.point, point);
+    }
+  });
+}
+
+test('Alt-left and Backspace bubble from the focused card to exactly one document Back action', () => {
+  for (const [key, modifiers] of [['ArrowLeft', { altKey: true }], ['Backspace', {}]]) {
+    const result = keyboardFixture(key, modifiers);
+    assert.deepEqual(result.calls, []);
+    handleDocumentKeydown(result.event, result.state, documentCallbacks(result.calls));
+    assert.deepEqual(result.calls, [['preventDefault'], ['goBack']]);
+    assert.deepEqual(result.point, { x: 100, y: 100 });
+  }
+});
+
+for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT']) {
+  test(`${tagName}: native editing and document shortcut exclusions remain intact`, () => {
+    for (const [key, modifiers] of [['ArrowLeft', { altKey: true }], ['Backspace', {}], ['ArrowLeft', { shiftKey: true }], ['/', {}], ['0', {}], ['+', {}], ['-', {}]]) {
+      const result = documentKeyboardFixture(key, modifiers, { editor: { tagName } });
+      assert.deepEqual(result.calls, [], key);
+    }
+  });
+}
+
+test('Escape retains panel-close precedence and only navigates outside editing controls', () => {
+  for (const editor of [null, { tagName: 'INPUT' }, { tagName: 'TEXTAREA' }, { tagName: 'SELECT' }]) {
+    assert.deepEqual(documentKeyboardFixture('Escape', {}, { editor, panel: 'selection' }).calls, [['closePanel']]);
+    assert.deepEqual(documentKeyboardFixture('Escape', {}, { editor }).calls, editor ? [] : [['goBack']]);
+  }
+});
+
+test('document search, fit and zoom shortcuts retain their modifier and default-prevention contract', () => {
+  for (const [key, expected] of [
+    ['/', [['preventDefault'], ['focusSearch']]], ['0', [['preventDefault'], ['fit']]],
+    ['+', [['zoom', 1.2]]], ['=', [['zoom', 1.2]]], ['-', [['zoom', 1 / 1.2]]],
+  ]) {
+    assert.deepEqual(documentKeyboardFixture(key).calls, expected, key);
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }]) assert.deepEqual(documentKeyboardFixture(key, modifiers).calls, [], key);
+  }
+  for (const key of ['Enter', 'a', 'Tab']) assert.deepEqual(documentKeyboardFixture(key).calls, [], key);
+});
 
 test('layers retain the complete structure and emphasize real link endpoints', () => {
   const all = layerMembership(graph, 'project');

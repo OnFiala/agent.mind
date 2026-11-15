@@ -175,12 +175,15 @@ show nearby connections. Hidden lines cannot receive pointer or keyboard focus.
 Search finds members inside collapsed areas, including original function names,
 and expands their area before opening them. Fit includes the whole current map.
 
-The unreleased UI-NEW-02 source repair separates keyboard movement from Back:
+The unreleased UI-NEW-02 source repair implements the R08 keyboard contract:
 focus a card and use **Shift + arrow keys** to move it by 20 canvas units in any
 direction. Plain arrows move focus between cards. **Alt + left arrow** and
 **Backspace** retain scope navigation; typing in input fields does not navigate
 back. See the [keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md)
-for verification and release limits.
+for the original repair and release limits, and the
+[R08 acceptance record](docs/reviews/2026-11-15-r08-keyboard-contract.md) for current
+regression and browser checks. Existing search, fit, zoom and Escape behavior is
+unchanged; Escape closes an open panel before navigating back.
 
 ## Use the same names with your coding agent
 
