@@ -70,8 +70,8 @@ Validated locally on macOS / Node.js 22.23.4:
   cleanup checks.
 - Syntax checks and `git diff --check` pass.
 
-The PR owns the exact independently reviewed commit, review disposition and CI
-results. Local checks do not establish Linux/Node 24 CI success. Candidate artifact
+[PR #24](https://github.com/OnFiala/agent.mind/pull/24) owns the final reviewed
+commit, documentation-delta disposition and CI results. Local checks do not establish Linux/Node 24 CI success. Candidate artifact
 digest is `c8fc579466e0b025b88bd2de9ebd5ea0040fe3f18c8e5c8505182563ec475778`;
 archive SHA256 is `b0d1c875359454b2528ed46981db86982bc7215923d4b13716f817f3df4efedd`.
 These identify local validation bytes, not a published release or target upgrade.
@@ -80,6 +80,23 @@ Development context retains the repository's existing oversized-wordmark partial
 warning. This source repair does not bypass preflight or alter inventory policy.
 No browser appearance, real-target host instruction activation or performance
 improvement is claimed by this analyzer change.
+
+## Independent review and source CI
+
+Independent review accepted implementation commit
+[`5a95c115`](https://github.com/OnFiala/agent.mind/commit/5a95c1156854b811c9aae6ad5c59e48d9cdc3656)
+against the stated base with no supported actionable finding. All five changed
+files and every changed hunk were reviewed. The reviewer reran the 75 focused checks,
+derived a separate 33-case differential corpus with no mismatches, and independently
+matched all 47 bundle payloads and the archive hash to this candidate. A wide
+nested-closure probe also completed within the existing tested resource boundary;
+this is not a general throughput or latency guarantee.
+
+[CI run 43710561942](https://github.com/OnFiala/agent.mind/actions/runs/43710561942)
+passed on that exact implementation commit for Linux / Node 22 and 24, including
+full tests, package smoke and upgrade/rollback from five published versions.
+This run does not establish CI for a later commit; the PR records the final-head
+run and review of any subsequent documentation-only delta.
 
 ## Rollback
 
