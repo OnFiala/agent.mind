@@ -1,8 +1,10 @@
 # CORE-01: captured HTTP handler writes
 
-Date: 2026-11-15. Status: source candidate, unmerged and unreleased.
+Date: 2026-11-15. Status: source repair, unreleased.
 The owner authorized this repair, regression tests, documentation, independent
-review and a separate PR. Merge, release and real-target upgrades remain outside
+review and a separate PR, then separately approved merge on 2026-11-15, verification
+of the actual post-merge CI and documentation updates. PR #24 owns the actual merge
+commit and post-merge CI receipt. Release and real-target upgrades remain outside
 this change. Published 1.3.1 is unchanged.
 
 ## Problem and contract
@@ -100,8 +102,9 @@ run and review of any subsequent documentation-only delta.
 
 ## Rollback
 
-Revert the bounded CORE-01 source commits before any future release. This restores
-the known false-provider behavior; it does not change existing installations,
+If rollback is separately authorized after merge, revert the actual PR #24 merge
+commit with mainline 1 as recorded in the PR. This restores the known false-provider
+behavior; it does not change existing installations,
 runtime pins, user maps, bindings or recovery data. No dependency, version,
 installation format, UI state or persistent project data migration is involved.
 Read-only review is procedural under the session's inherited permissions, not proof

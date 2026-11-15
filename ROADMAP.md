@@ -10,10 +10,13 @@ and L3 only separates the existing analysis from indexing.
 
 ## CORE-01 — Captured HTTP handler writes
 
-**Source candidate; unmerged and unreleased.** On 2026-11-15 the owner authorized
+**CORE-01 source repair; unreleased.** On 2026-11-15 the owner authorized
 this isolated repair, regression tests, documentation, independent review and
-[PR #24](https://github.com/OnFiala/agent.mind/pull/24). Merge and release are not authorized. This repair does not include
-other November 15 audit findings or the separate R04 work.
+[PR #24](https://github.com/OnFiala/agent.mind/pull/24), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions. This repair does not include other November 15
+audit findings or the separate R04 work.
 
 Scope: suppress unsupported HTTP/SSE provider evidence when a nested function
 directly writes the handler's captured request, response or URL binding, while
