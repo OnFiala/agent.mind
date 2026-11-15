@@ -89,11 +89,13 @@ The subset follows the stated anchoring and negation concepts in the
   and CRLF, with no implicit final newline; reject bare CR. Empty lines and lines
   starting with `#` are ignored. Leading spaces are literal; remove trailing ASCII
   spaces as Git does. Tabs and escapes are unsupported.
-- An optional initial `!` negates a rule. A leading `/` anchors to root; a slash
-  in the remaining pattern also anchors to root. Without either, match basenames
-  at any traversed depth. A trailing `/` matches directories only; otherwise a rule
-  matches regular files or directories. Match case-sensitively, preserving Unicode
-  code points and filenames without normalization or host case-folding.
+- An optional initial `!` negates a rule. First remove a trailing `/` as the
+  directory-only marker; without it a rule matches regular files or directories.
+  Then a leading `/` or an interior slash anchors the remaining pattern to root.
+  Without either, match basenames at any traversed depth: `generated/` matches
+  directories at root and below, while `/generated/` matches only at root.
+  Match case-sensitively, preserving Unicode code points and filenames without
+  normalization or host case-folding.
 - Support literal components, `*` (zero or more non-slash code points) and `?`
   (one non-slash code point). For v1, reject `**`, any backslash, `[` or `]` in an
   active pattern. No character classes, escapes, globstar, regex or brace expansion
@@ -183,11 +185,16 @@ the encountered project-relative path, entry kind and fixed exclusion reason.
 These names are not anonymized. Do not read excluded bytes to obtain hashes,
 sizes, symbols, imports, snippets or inferred metadata; directory-entry facts are
 sufficient. Do not enumerate descendants or follow links to describe their target.
-Naming-map labels/membership must not resurrect excluded entries or disclose
-stored labels for them. Apply this to raw `metadata.configuration` in graph/SSE
-as well as the visible overview; do not merely hide cards in the UI. Included source may itself mention an excluded name or
-contain secrets; this policy does not redact otherwise eligible source text.
-No new telemetry or upload surface is introduced.
+Derived naming projections must not resurrect excluded entries or disclose their
+stored labels through overview/context or `metadata.configuration` in graph/SSE;
+filter serialized metadata as well as visible cards. This is not a confidentiality
+guarantee for independently eligible source text. In source mode, an eligible
+`project-map.json` remains directly readable as text or an excerpt and may disclose
+its own stored labels and references to excluded paths. The installed map remains
+control-plane-only because the integration exclusion still denies general source
+reads. Other included source may likewise mention excluded names or contain secrets;
+this policy does not redact eligible source text. No new telemetry/upload surface
+or source-mode map-reading restriction is introduced.
 
 ## Identity, caching and revocation
 
@@ -236,13 +243,14 @@ spies and negative controls. Do not read real credentials to validate the policy
 | Case | Required result / evidence for later R06 |
 |---|---|
 | No root ignore; empty root ignore | Defaults active in both; distinct identity; root control input never appears as readable source |
-| `/generated/` vs `generated/`; `a/b` vs `b` | Root-relative versus basename-any-depth behavior, with file/directory and case controls |
+| `/generated/` vs `generated/`; `a/b` vs `b` | Root-relative versus basename-any-depth behavior: `generated/` excludes root and deep directories, not regular files of that name; `/generated/` excludes only the root directory; retain case controls |
 | `*.log`, `file?.js`, literal Unicode | Defined wildcard behavior and no normalization; deterministic positive and negative matches |
 | Default `dist/`, `build/`, `venv/`; `src/build/` | Root directories pruned without content reads; nested legitimate directory remains eligible |
 | `!/build/`; `/build/*`; `!/build/keep.js` | Parent re-inclusion works; child-only negation below excluded parent does not |
 | `!.env`, `!env.mjs`, `!credentials.mjs`, `!secret_manager.mjs` | Hard guards win, including case variants and sensitive ancestor; spies prove no open/read, no derived bytes/hashes/snippets |
 | Installed `agent.mind/`, `agent.mind-copy/`, nested names | Exact integration subtree excluded; unrelated names eligible under ordinary policy; only exact installed naming map has the documented control-plane exception |
-| Excluded map or map member; ignored control input | No fallback map, fabricated excluded node/label or general source access; map exclusion is visible |
+| Excluded map or map member; ignored control input | No fallback map or excluded node/label in derived metadata/graph/SSE; no source access to an excluded map or installed control map; map exclusion is visible |
+| Eligible source-mode map naming an excluded member | Derived projection withholds that member/label; direct text and excerpt reads still return the eligible map's own bytes unredacted, including the stored label |
 | Symlink root/input/file/ancestor; FIFO/device | No target-byte reads, no blocking special-file open; fixed reason and safe boundary information |
 | Nested ignores; tracked path named by root pattern | Nested contents never opened; root-only limitation visible; tracked status grants no exception |
 | Unsupported `**`, brackets, escape; malformed/invalid encoding | Entire policy invalid, no prefix fallback or raw-rule echo; no source/map reads or old-data response |
