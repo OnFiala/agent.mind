@@ -204,11 +204,29 @@ Root-only bounded ignore/default exclusions, policy identity, safe source-read
 revalidation, metadata filtering and live/browser revocation preserve managed
 `project.json`, runtime pins and sensitive-name guards. Invalid policy fails closed.
 No stored settings, dependencies, CLI overrides or target changes are introduced.
-**R07: budget ordering** remains proposed and separately authorized: filtering does
-not prioritize source or increase caps. Published baseline remains 1.3.1; existing
-installations retain their pinned behavior. Rollback before merge is withdrawal;
+R06 filtering alone does not prioritize source or increase caps; the separately
+authorized R07 candidate below adds ordering. Published baseline remains 1.3.1;
+existing installations retain their pinned behavior. Rollback before merge is withdrawal;
 a later authorized revert changes runtime code only, preserving target ignore files,
 naming maps, descriptors and all project contents. See the R06 record for details.
+
+## R07 — Source priority within existing budgets
+
+**Implemented source candidate; unmerged and unreleased.** On 2026-11-15 the owner
+separately authorized source prioritization after R06 filtering, agent swarm,
+tests, documentation, CORTEX and a standalone PR with independent review, explicitly
+without merge or release. The [R07 record](docs/reviews/2026-11-15-source-priority.md)
+owns behavior, checks and limitations; the PR owns exact reviewed commits,
+review disposition and CI receipts.
+
+Eligible observed paths are ranked by recognized source suffix before allocating
+file slots and byte reads. Equal ranks use ordinal full-path ordering. All R06
+privacy/ignore guards and existing file, byte, entry, depth and matching-work caps
+remain. Known omitted paths are explicit; incomplete scope remains partial and
+fails strict preflight. No new language support, settings, dependencies or target
+changes are introduced. Published 1.3.1 and pinned installations are unchanged.
+Rollback before merge is withdrawal; a later authorized revert restores previous
+allocation order while preserving R06, target data and configuration.
 
 ## Product and installation constraints
 

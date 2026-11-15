@@ -118,6 +118,35 @@ try {
   assert.equal(run(cli, ['preflight', 'block:module-c', ...receipt]).preflight, 'verified-at-read');
   checks.push('unsupported CommonJS remains text-only with explicit diagnostics; strict preflight rejects and recovers after removal');
 
+  // R07 competes for the real installed runtime's file budget. Do not run the
+  // fixture project; inspect its source-derived context and strict preflight.
+  const priorityAssets = path.join(project, 'r07-assets');
+  const prioritySource = path.join(project, 'src/r07-priority.mjs');
+  const priorityPreserved = ['.gitignore', 'package.json', 'src/module-c.mjs', 'agent.mind/project-map.json', 'agent.mind/project.json']
+    .map(name => [name, fs.readFileSync(path.join(project, name))]);
+  fs.mkdirSync(priorityAssets);
+  try {
+    for (let i = 0; i < 1005; i++) fs.writeFileSync(path.join(priorityAssets, String(i).padStart(4, '0') + '.json'), '{}');
+    fs.writeFileSync(prioritySource, "import { normalizeCount } from './module-c.mjs';\nexport function priorityCount(value) { return normalizeCount(value); }\nthrow new Error('R07_SOURCE_MUST_NOT_EXECUTE');\n");
+    const prioritized = run(cli, ['context', 'src/r07-priority.mjs']);
+    assert.equal(prioritized.project.root, project);
+    assert.equal(prioritized.status, 'partial');
+    assert.equal(prioritized.inventory.status, 'partial');
+    const priorityNode = prioritized.nodes.find(node => node.path === 'src/r07-priority.mjs');
+    assert(priorityNode?.symbols.some(symbol => symbol.name === 'priorityCount'));
+    assert(prioritized.edges.some(edge => edge.from === priorityNode.id && edge.to === 'file:src/module-c.mjs' && edge.kind === 'import'));
+    assert(prioritized.inventory.entries.some(entry => entry.path.startsWith('r07-assets/') && entry.state === 'unscanned' && entry.reason === 'file-limit'));
+    const priorityReceipt = ['--revision', prioritized.revision, '--binding-id', prioritized.binding.id, '--generation', String(prioritized.binding.generation)];
+    // A readable selected source cannot grant a complete-project preflight.
+    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'src/r07-priority.mjs', ...flags, ...priorityReceipt], false), /requires current context/);
+    for (const [name, bytes] of priorityPreserved) assert.deepEqual(fs.readFileSync(path.join(project, name)), bytes, name);
+  } finally {
+    fs.rmSync(priorityAssets, { recursive: true, force: true });
+    fs.rmSync(prioritySource, { force: true });
+  }
+  assert.equal(run(cli, ['context', 'Module C']).revision, context.revision);
+  checks.push('installed source priority survives 1005 JSON candidates while incomplete global scope rejects full and agent preflight and preserves owner bytes');
+
   const clone = path.join(temporary, 'portable clone');
   fs.cpSync(project, clone, { recursive: true, filter: source => !source.startsWith(path.join(installDir, '.local')) });
   run(originCLI, ['install', '--project', clone, '--release', release], false);

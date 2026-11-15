@@ -368,9 +368,32 @@ continuations and source reads. Even comment-only policy edits invalidate old
 receipts; readers check policy before and after source bytes, independently of
 polling. Observed changes clear retained graph/UI/source data and reject late
 responses. This does not lock the filesystem, guarantee revocation latency or erase
-already delivered data. R07 source-priority ordering remains separate; unchanged
-file/entry/depth/byte caps can still omit later source behind many eligible assets.
-See the [R06 implementation record](docs/reviews/2026-11-15-project-exclusions.md).
+already delivered data. See the
+[R06 implementation record](docs/reviews/2026-11-15-project-exclusions.md).
+
+### Source priority within existing budgets (unreleased R07)
+
+After input filtering, the source candidate gives recognized source suffixes
+priority over other eligible files when allocating the 1,000 file slots and
+16 MiB read budget. JavaScript, Python, typed pilot files and the existing known
+unsupported source suffixes share that priority. Unsupported languages retain
+all their existing diagnostics and capabilities; priority adds no analysis.
+Within each priority, paths use case-sensitive UTF-16 code-unit order, independent
+of locale. Directory names and naming-map labels do not determine priority.
+
+The inventory first discovers eligible paths within the same 10,000-entry,
+depth-20 and policy-work bounds. Priority applies only to observed candidates:
+source behind an unvisited entry/depth boundary can still be omitted. Each
+observed file beyond the 1,000 selected paths is recorded as `unscanned` with
+`reason: "file-limit"`, without an ordinary inventory/source read or hash.
+The selected naming map retains its separate bounded control-input read even when
+it has no ordinary file slot; R06 ignore/privacy checks still apply.
+Binary and oversized files still consume a selected slot. Per-file and total-byte
+limits are unchanged, and incomplete inventory still rejects strict preflight.
+This can enumerate more eligible names than the earlier first-1,000 traversal;
+it promises no latency or memory improvement. Published 1.3.1 and existing pinned
+installations are unchanged. See the
+[R07 record](docs/reviews/2026-11-15-source-priority.md) for checks and rollback.
 
 ### Scope and updates
 
