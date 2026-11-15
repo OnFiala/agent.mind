@@ -151,6 +151,13 @@ A selected symbol follows its current source range after an update, including
 when restored with Back. A source line chosen manually remains a numeric cursor;
 the symbol's displayed range still follows the current source.
 
+The unreleased UI-NEW-01 source repair keeps a selected symbol highlighted when
+switching to **Files**: its owning file is selected while the inspector retains
+the symbol and source range. A visible symbol or its collapsed area takes
+precedence; otherwise the visible owning file or overview block is highlighted.
+See the [selection projection record](docs/reviews/2026-11-15-selection-projection.md)
+for validation and release limits.
+
 Lines between areas combine the underlying connections of the same type and
 origin. Opposite directions and different types stay separate. Connections inside
 an area appear when you expand it. The counts show both displayed lines and
@@ -167,6 +174,13 @@ Compact maps show their lines by default. Dense expanded maps offer
 show nearby connections. Hidden lines cannot receive pointer or keyboard focus.
 Search finds members inside collapsed areas, including original function names,
 and expands their area before opening them. Fit includes the whole current map.
+
+The unreleased UI-NEW-02 source repair separates keyboard movement from Back:
+focus a card and use **Shift + arrow keys** to move it by 20 canvas units in any
+direction. Plain arrows move focus between cards. **Alt + left arrow** and
+**Backspace** retain scope navigation; typing in input fields does not navigate
+back. See the [keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md)
+for verification and release limits.
 
 ## Use the same names with your coding agent
 
@@ -269,6 +283,13 @@ locations and hashes; they do not establish that a request happened.
 Named class expressions shadow matching API names within that class, including
 its superclass expression, without hiding calls outside it.
 
+The unreleased CORE-01 source repair also checks direct writes in nested functions
+to the handler's captured request, response and URL bindings. Such a write suppresses
+the affected provider even when the function is never called; local shadowed bindings
+do not count as writes to the outer value. Nested functions still contribute no
+handler routes or response evidence. This is conservative source inspection, not
+alias, call-order or side-effect analysis. Published 1.3.1 does not contain this repair.
+
 Security highlights recognized sensitive Node imports, supported callsites and
 some browser inputs/outputs. These are places to review, not vulnerability findings
 or a safety verdict. Testing shows test files and their static dependencies, not
@@ -318,6 +339,14 @@ repository's legacy/, backups/, evidence/ and workspace/ directories. The index
 limits are 1000 regular files, 512 KiB per file, 16 MiB total bytes read, 10000 directory entries and
 depth 20. Scope and limitations are available in the UI and context JSON. Large
 projects may hit these limits or pause during synchronous indexing.
+
+The unreleased CORE-02 source repair counts only otherwise eligible regular files
+against the 1000-file inventory limit. At exactly that limit, excluded paths and
+empty directories do not by themselves make the inventory partial. Directories
+are still traversed within the separate entry/depth budgets; an additional eligible
+regular file still marks the inventory partial. Content is classified after this
+count, so binary and oversized regular files also consume a file slot. Published
+1.3.1 does not contain this repair.
 
 `live-index.mjs` checks inventory and contents every 900 ms, reusing parsed data
 when content is unchanged. Two scans must agree before a new revision is published.

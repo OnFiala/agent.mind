@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectedEdge, refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
+import { handleCardKeydown, selectedEdge, refreshSymbolSelection, layoutGraph, layerMembership, findNodes, fitCamera, shouldAcceptRuntime, displayGraph, layoutOverview, overviewCamera, selectedDisplayId, routeEdge, nodeSize, segmentCrossesRect, edgePresentation, sharedSegmentLength, createNavigationState, navigateScope, backScope, reconcileNavigation, decorateScope, layoutScope, sectionGroups, relationFocus, fitScopeCamera, layoutAreas, areaSearch, expandForPart, areaDirections, connectorLabel } from '../public/visualizer.js';
 import { projectAreas } from '../public/hierarchy.mjs';
 
 const nodes = [
@@ -16,6 +16,39 @@ const edges = [
   { id: 'security-context', from: 'server', to: 'external', layers: ['project', 'security'] },
 ];
 const graph = { nodes, edges };
+
+function keyboardFixture(key, modifiers = {}) {
+  const positions = new Map([['origin', { x: 100, y: 100 }], ['left', { x: 50, y: 100 }], ['right', { x: 150, y: 100 }], ['up', { x: 100, y: 50 }], ['down', { x: 100, y: 150 }]]);
+  const calls = [];
+  const state = { positions, display: { nodes: [...positions.keys()].map(id => ({ id })) } };
+  const cards = new Map([...positions.keys()].map(id => [id, { focus: options => calls.push(['focus', id, options]) }]));
+  const event = { key, ...modifiers, preventDefault: () => calls.push(['preventDefault']), stopPropagation: () => calls.push(['stopPropagation']) };
+  handleCardKeydown(event, 'origin', state, cards, {
+    placeCard: id => calls.push(['placeCard', id]), drawEdges: () => calls.push(['drawEdges']), revealNode: id => calls.push(['revealNode', id]),
+  });
+  return { point: positions.get('origin'), calls };
+}
+
+for (const [key, delta, target] of [
+  ['ArrowLeft', { x: -20, y: 0 }, 'left'], ['ArrowRight', { x: 20, y: 0 }, 'right'],
+  ['ArrowUp', { x: 0, y: -20 }, 'up'], ['ArrowDown', { x: 0, y: 20 }, 'down'],
+]) {
+  test(`${key}: shift moves the card while plain arrow moves focus`, () => {
+    const moved = keyboardFixture(key, { shiftKey: true });
+    assert.deepEqual(moved.point, { x: 100 + delta.x, y: 100 + delta.y });
+    assert.deepEqual(moved.calls, [['preventDefault'], ['placeCard', 'origin'], ['drawEdges']]);
+    const focused = keyboardFixture(key);
+    assert.deepEqual(focused.point, { x: 100, y: 100 });
+    assert.deepEqual(focused.calls, [['preventDefault'], ['focus', target, { preventScroll: true }], ['revealNode', target]]);
+  });
+  test(`${key}: other modifiers do not move the card, redirect focus, or consume the event`, () => {
+    for (const modifiers of [{ altKey: true }, { ctrlKey: true }, { metaKey: true }, { shiftKey: true, altKey: true }, { shiftKey: true, ctrlKey: true }, { shiftKey: true, metaKey: true }]) {
+      const result = keyboardFixture(key, modifiers);
+      assert.deepEqual(result.point, { x: 100, y: 100 });
+      assert.deepEqual(result.calls, []);
+    }
+  });
+}
 
 test('layers retain the complete structure and emphasize real link endpoints', () => {
   const all = layerMembership(graph, 'project');
@@ -139,6 +172,37 @@ test('raw source selection remains associated with its overview block across lay
     assert.equal(selectedDisplayId({ type: 'node', id: 'view' }, display), 'block:canvas');
   }
   assert.equal(selectedDisplayId({ type: 'node', id: 'deleted' }, display), null);
+});
+
+test('symbol selection projects across files and blocks without selecting unrelated parts or relations', () => {
+  const selection = { type: 'node', id: 'view', partId: 'symbol:draw', line: 12, endLine: 19 };
+  const original = { ...selection };
+  const files = { ...displayGraph(overviewGraph, 'files'), edges: [
+    { id: 'view-import', from: 'view', to: 'server' },
+    { id: 'unrelated-import', from: 'server', to: 'index' },
+  ] };
+  const blocks = displayGraph(overviewGraph, 'blocks');
+  assert.equal(selectedDisplayId(selection, files), 'view');
+  assert.equal(selectedDisplayId(selection, blocks), 'block:canvas');
+  const focus = relationFocus(files, { mode: 'focus', selection });
+  assert.deepEqual([...focus.targets], ['view']);
+  assert.deepEqual([...focus.visible], ['view-import']);
+  assert.deepEqual(selection, original);
+  const parts = { nodes: [
+    { id: 'area:draw', isArea: true, memberIds: ['symbol:draw'] },
+    { id: 'symbol:draw', hierarchyKind: 'symbol', fileIds: ['view'] },
+    { id: 'view' },
+    { id: 'symbol:other', hierarchyKind: 'symbol', fileIds: ['view'] },
+  ], edges: [] };
+  assert.equal(selectedDisplayId(selection, parts), 'symbol:draw');
+  assert.equal(selectedDisplayId(selection, { ...parts, nodes: [parts.nodes[0], parts.nodes[2]] }), 'area:draw');
+  assert.equal(selectedDisplayId(selection, { ...parts, nodes: [parts.nodes[3]] }), null);
+  assert.equal(selectedDisplayId(null, files), null);
+  assert.equal(selectedDisplayId({ type: 'edge', id: 'view', partId: selection.partId }, files), null);
+  assert.equal(selectedDisplayId({ ...selection, id: 'deleted', partId: 'missing' }, files), null);
+  const edgeFocus = relationFocus(files, { mode: 'focus', selection: { type: 'edge', id: files.edges[0].id, partId: selection.partId } });
+  assert.deepEqual([...edgeFocus.targets], []);
+  assert.deepEqual([...edgeFocus.visible], [files.edges[0].id]);
 });
 
 test('overview starts readable on a narrow canvas and retains manual positions on reconciliation', () => {

@@ -8,6 +8,68 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
+## UI-NEW-02 — Keyboard movement without a Back conflict
+
+**UI-NEW-02 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regressions, documentation, independent review and
+[PR #27](https://github.com/OnFiala/agent.mind/pull/27), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
+
+Scope: Shift plus any arrow moves a focused card by 20 canvas units; plain arrows
+retain spatial focus navigation, while Alt plus left arrow retains Back. The
+[keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md) owns the
+contract, validation and rollback. No new graph or platform support is claimed;
+the published baseline remains 1.3.1.
+
+## UI-NEW-01 — Symbol selection across views
+
+**UI-NEW-01 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regression tests, documentation, independent review and
+[PR #26](https://github.com/OnFiala/agent.mind/pull/26), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
+
+Scope: retain the precise symbol selection and project it onto the visible owning
+file or overview block when the symbol or its containing area is not visible.
+The [selection projection record](docs/reviews/2026-11-15-selection-projection.md)
+owns the contract, validation and rollback. UI-NEW-02 and separate R04 work remain
+outside this repair; the published baseline remains 1.3.1.
+
+## CORE-02 — Exact inventory file boundary
+
+**CORE-02 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regression tests, documentation, independent review and
+[PR #25](https://github.com/OnFiala/agent.mind/pull/25), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
+
+Scope: enforce the file-count limit when admitting an otherwise eligible regular
+file. Preserve excluded-path classification, traversal within the separate entry
+and depth budgets, and partial status for actual file overflow. The
+[CORE-02 record](docs/reviews/2026-11-15-inventory-file-limit.md) owns the contract,
+validation and rollback. This repair includes no other audit findings or R04 work;
+the published baseline remains 1.3.1.
+
+## CORE-01 — Captured HTTP handler writes
+
+**CORE-01 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regression tests, documentation, independent review and
+[PR #24](https://github.com/OnFiala/agent.mind/pull/24), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions. This repair does not include other November 15
+audit findings or the separate R04 work.
+
+Scope: suppress unsupported HTTP/SSE provider evidence when a nested function
+directly writes the handler's captured request, response or URL binding, while
+preserving lexical shadowing and excluding nested routes/response evidence.
+The [CORE-01 record](docs/reviews/2026-11-15-http-closure-writes.md) owns the contract,
+validation and rollback. Published baseline remains 1.3.1; no target is upgraded.
+
 ## R01 — Locale-stable artifact digest
 
 **R01 source repair; unreleased.** The owner authorized this bounded repair and
