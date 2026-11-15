@@ -123,6 +123,65 @@ function fetchMethod(options) {
   return method && ['DELETE', 'GET', 'HEAD', 'OPTIONS', 'POST', 'PUT'].includes(method.toUpperCase()) ? method.toUpperCase() : method;
 }
 
+// Only nested writes escape this walk. Local bindings suppress writes to their
+// own names; routes, response calls and headers remain in the outer-handler walk.
+function capturedHandlerWrites(root, inheritedShadows, noteWrite) {
+  const varNames = body => {
+    const names = new Set();
+    const pending = [body];
+    while (pending.length) {
+      const node = pending.pop();
+      if (isFunction(node) || ['ClassDeclaration', 'ClassExpression', 'StaticBlock'].includes(node.type)) continue;
+      if (node.type === 'VariableDeclaration' && node.kind === 'var') for (const declaration of node.declarations) patternNames(declaration.id, names);
+      for (const child of children(node)) pending.push(child);
+    }
+    return names;
+  };
+  const pending = [{ node: root, shadows: inheritedShadows }];
+  while (pending.length) {
+    const { node, shadows: parent } = pending.pop();
+    if (isFunction(node)) {
+      const names = new Set();
+      node.params.forEach(parameter => patternNames(parameter, names));
+      if (node.id) names.add(node.id.name);
+      if (node.type !== 'ArrowFunctionExpression') names.add('arguments');
+      const parameters = new ShadowScope(names, parent);
+      // Parameter defaults cannot see declarations hoisted from the body.
+      for (const parameter of node.params) pending.push({ node: parameter, shadows: parameters });
+      pending.push({ node: node.body, shadows: new ShadowScope(varNames(node.body), parameters) });
+      continue;
+    }
+    const names = new Set();
+    const statements = node.type === 'BlockStatement' || node.type === 'StaticBlock' ? node.body
+      : node.type === 'SwitchStatement' ? node.cases.flatMap(item => item.consequent) : [];
+    for (const statement of statements) {
+      if (statement.type === 'VariableDeclaration' && statement.kind !== 'var') for (const declaration of statement.declarations) patternNames(declaration.id, names);
+      if (['FunctionDeclaration', 'ClassDeclaration'].includes(statement.type) && statement.id) names.add(statement.id.name);
+    }
+    if (node.type === 'StaticBlock') {
+      // Class static-block var declarations belong to that block, not a method.
+      for (const statement of node.body) for (const name of varNames(statement)) names.add(name);
+    }
+    if (node.type === 'CatchClause') patternNames(node.param, names);
+    if (['ClassDeclaration', 'ClassExpression'].includes(node.type) && node.id) names.add(node.id.name);
+    if (['ForStatement', 'ForInStatement', 'ForOfStatement'].includes(node.type)) {
+      const declaration = node.init ?? node.left;
+      if (declaration?.type === 'VariableDeclaration' && declaration.kind !== 'var') for (const item of declaration.declarations) patternNames(item.id, names);
+    }
+    const shadows = names.size ? new ShadowScope(names, parent) : parent;
+    let targets = [];
+    if (node.type === 'AssignmentExpression' || node.type === 'UpdateExpression') targets = assignmentTargets(node.left ?? node.argument);
+    if (['ForInStatement', 'ForOfStatement'].includes(node.type) && node.left.type !== 'VariableDeclaration') targets = assignmentTargets(node.left);
+    if (node.type === 'UnaryExpression' && node.operator === 'delete' && node.argument.type === 'MemberExpression' && node.argument.object.type === 'Identifier') targets = [node.argument];
+    for (let target of targets) {
+      while (target.type === 'MemberExpression') target = target.object;
+      if (target.type === 'Identifier' && !shadows?.has(target.name)) noteWrite(target.name, node);
+    }
+    // A switch discriminant runs before the case block's lexical environment.
+    for (const child of children(node)) pending.push({ node: child, shadows: node.type === 'SwitchStatement' && child === node.discriminant ? parent : shadows });
+  }
+}
+
 /** Narrow handler recognition: inline imported http.createServer + exact request URL binding. */
 function serverContracts(callback, factory, relative, lines, globalURLAvailable) {
   const providers = [];
@@ -135,11 +194,12 @@ function serverContracts(callback, factory, relative, lines, globalURLAvailable)
     if (!writes.has(name)) writes.set(name, []);
     writes.get(name).push({ value, ...record });
   };
-  const pending = [{ node: callback.body, scopes: [] }];
+  const pending = [{ node: callback.body, scopes: [], classShadows: null }];
   while (pending.length) {
     const record = pending.pop();
     const { node } = record;
     if (isFunction(node)) {
+      capturedHandlerWrites(node, record.classShadows, (name, write) => noteWrite(name, null, { node: write, scopes: record.scopes }));
       if (node.type === 'FunctionDeclaration' && node.id) {
         if (!declarations.has(node.id.name)) declarations.set(node.id.name, []);
         declarations.get(node.id.name).push({ node, scopes: record.scopes });
@@ -173,7 +233,8 @@ function serverContracts(callback, factory, relative, lines, globalURLAvailable)
       if (target.type === 'Identifier') noteWrite(target.name, null, current);
     }
     if (node.type === 'UnaryExpression' && node.operator === 'delete' && node.argument.type === 'MemberExpression' && node.argument.object.type === 'Identifier') noteWrite(node.argument.object.name, null, current);
-    for (const child of children(node).reverse()) pending.push({ node: child, scopes });
+    const classShadows = node.type === 'ClassExpression' && node.id ? new ShadowScope(new Set([node.id.name]), record.classShadows) : record.classShadows;
+    for (const child of children(node).reverse()) pending.push({ node: child, scopes, classShadows });
   }
   // Refuse ambiguous lexical bindings, receiver mutation, and URL constructor shadowing.
   if (!globalURLAvailable || declarations.has('URL') || callback.params.some(parameter => parameter.name === 'URL') || declarations.has(request) || declarations.has(response) || writes.has(request) || writes.has(response)) return providers;
