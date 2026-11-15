@@ -147,10 +147,13 @@ bindings, installed pins and edited user blocks. No target upgrade is performed.
 ## R04 — Explicit unsupported-reference diagnostics
 
 **R04 source candidate; unreleased.** On 2026-11-12 the owner authorized
-implementation, tests, documentation, independent review and a separate PR.
-Merge, release and real-target upgrades are not authorized. The
+implementation, tests, documentation, independent review and
+[PR #23](https://github.com/OnFiala/agent.mind/pull/23). On 2026-11-15 the owner
+requested completion against current main, preserving the PR #24–#27 repairs.
+Main `e312ff13` is integrated into the candidate branch; this does not merge R04
+into main. Merge, release and real-target upgrades remain unauthorized. The
 [R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
-contract and validation; the PR owns exact reviewed commits and CI.
+contract and dated validation; PR #23 owns the exact final head, review and CI.
 
 Scope: additive per-file reasons for unavailable reference analysis, including
 `.cjs` and bounded recognized CommonJS-style forms in `.js`/`.mjs`. Preserve
@@ -164,9 +167,11 @@ Python remains eligible under the current preflight; actual warning/error/limit
 states still fail. Verify the installed CLI and actual produced bundle, including
 recovery after removing an unsupported fixture.
 
-Rollback: revert the bounded R04 source commits. This removes the added disclosure
-and restores the earlier silent CommonJS limitation; it does not add resolution.
-No stored data, binding, naming map or runtime pin is migrated.
+Rollback before merge: withdraw the candidate; main and installed targets stay
+unchanged. After a separately authorized merge, revert only the R04 change through
+review using the actual merge and verified mainline, preserving PR #24–#27. This
+removes the disclosure and restores the earlier silent CommonJS limitation; it
+does not add resolution. No stored data, binding, naming map or runtime pin is migrated.
 
 ## Product and installation constraints
 
