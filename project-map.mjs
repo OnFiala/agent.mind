@@ -118,6 +118,12 @@ export function buildOverview(graph, configuration = null) {
   };
 }
 
+function validPartName(part, targets) {
+  return !(!part || typeof part.target !== 'string' || targets.has(part.target) || typeof part.label !== 'string' || !part.label.trim() || part.label.length > 80 || part.label.includes('/') || typeof part.description !== 'string' || part.description.length > 300 || (part.section !== undefined && (typeof part.section !== 'string' || !part.section.trim() || part.section.length > 48)) || !Array.isArray(part.aliases) || part.aliases.length > 16 || !part.aliases.every(alias => typeof alias === 'string' && alias.trim() && alias.length <= 80 && !alias.includes('/')));
+}
+
+const validPartSection = part => Boolean(part.section && typeof part.sectionId === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(part.sectionId));
+
 export function buildHierarchy(graph, configuration = null) {
   const diagnostics = [];
   const rawFiles = new Map(graph.nodes.filter(node => node.path).map(node => [node.id, node]));
@@ -142,11 +148,11 @@ export function buildHierarchy(graph, configuration = null) {
   else {
     const targets = new Set();
     for (const part of parts) {
-      if (!part || typeof part.target !== 'string' || targets.has(part.target) || typeof part.label !== 'string' || !part.label.trim() || part.label.length > 80 || part.label.includes('/') || typeof part.description !== 'string' || part.description.length > 300 || (part.section !== undefined && (typeof part.section !== 'string' || !part.section.trim() || part.section.length > 48)) || !Array.isArray(part.aliases) || part.aliases.length > 16 || !part.aliases.every(alias => typeof alias === 'string' && alias.trim() && alias.length <= 80 && !alias.includes('/'))) {
+      if (!validPartName(part, targets)) {
         diagnostics.push(diagnostic('Invalid or duplicate part name.')); continue;
       }
       targets.add(part.target);
-      const validSection = Boolean(part.section && typeof part.sectionId === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(part.sectionId));
+      const validSection = validPartSection(part);
       if ((part.section !== undefined || part.sectionId !== undefined) && !validSection) diagnostics.push(diagnostic('A named area requires a stable sectionId slug; using Other parts until it is provided.'));
       const node = byId.get(part.target);
       if (!node || node.kind === 'block') { diagnostics.push(diagnostic(`The named part ${part.target} is missing from the current sources.`)); continue; }
@@ -230,12 +236,39 @@ export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
   if (!graph.inputPolicy || !configuration) return graph;
   const boundaries = (graph.inventory?.entries ?? []).filter(entry => entry.state === 'excluded').map(entry => entry.path.replace(/\/$/, ''));
   const denied = value => typeof value === 'string' && (hardDenied(value.replace(/\/$/, '')) || boundaries.some(boundary => value === boundary || value.startsWith(`${boundary}/`)));
-  try { validateConfiguration(configuration); }
+  let validParts;
+  const partMessages = new Set();
+  try {
+    validateConfiguration(configuration);
+    // Validate original entries before exclusion can hide invalid fields/duplicates
+    // or shrink an over-limit list. Preserve valid names in partially invalid maps.
+    const parts = configuration.parts ?? [];
+    if (!Array.isArray(parts) || parts.length > 512) throw new Error('Invalid parts');
+    const targets = new Set();
+    validParts = [];
+    for (const part of parts) {
+      if (!validPartName(part, targets)) {
+        partMessages.add('Invalid or duplicate part name.');
+        continue;
+      }
+      targets.add(part.target);
+      if ((part.section !== undefined || part.sectionId !== undefined) && !validPartSection(part)) {
+        partMessages.add('A named area requires a stable sectionId slug; using Other parts until it is provided.');
+        const { section, sectionId, ...unsectioned } = part;
+        validParts.push(unsectioned);
+      } else validParts.push(part);
+    }
+  }
   catch {
     graph.metadata = { ...graph.metadata, configuration: null, status: 'error' };
     graph.status = 'partial';
     graph.diagnostics.push({ path: graph.metadata.path, code: 'INVALID_NAMING_METADATA', severity: 'warning', message: 'The naming metadata is invalid; source-derived names are used.' });
     return graph;
+  }
+  if (partMessages.size) {
+    graph.metadata = { ...graph.metadata, status: 'error' };
+    graph.status = 'partial';
+    for (const message of partMessages) graph.diagnostics.push({ path: graph.metadata.path, code: 'INVALID_NAMING_PARTS', severity: 'warning', message });
   }
   const blocks = configuration.blocks.flatMap(block => {
     const files = block.files.filter(value => !denied(value));
@@ -244,7 +277,7 @@ export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
     return [{ id: block.id, label: block.label, type: block.type, group: block.group, description: block.description, aliases: [...block.aliases], files, prefixes }];
   });
   const partPath = target => typeof target !== 'string' ? null : target.startsWith('file:') ? target.slice(5) : target.startsWith('symbol:') ? target.slice(7).split('#')[0] : null;
-  const parts = Array.isArray(configuration.parts) ? configuration.parts.filter(part => !denied(partPath(part?.target))).map(part => {
+  const parts = configuration.parts != null ? validParts.filter(part => !denied(partPath(part?.target))).map(part => {
     if (!part || typeof part !== 'object') return part;
     return Object.fromEntries(['target', 'label', 'description', 'aliases', 'section', 'sectionId'].filter(key => Object.hasOwn(part, key)).map(key => [key, structuredClone(part[key])]));
   }) : configuration.parts;
@@ -257,13 +290,14 @@ export function attachOverview(graph) {
   graph.overview = buildOverview(graph, config);
   if (graph.metadata && graph.overview.source !== 'inferred') graph.overview.source = graph.metadata.path;
   graph.hierarchy = buildHierarchy(graph, config);
+  graph.hierarchy.diagnostics.push(...graph.diagnostics.filter(item => item.code === 'INVALID_NAMING_PARTS').map(item => ({ ...item })));
   graph.overview.diagnostics.push(...graph.hierarchy.diagnostics);
   const invalidMetadata = graph.diagnostics.find(item => item.code === 'INVALID_NAMING_METADATA');
   if (invalidMetadata) graph.overview.diagnostics.push({ ...invalidMetadata });
   for (const item of graph.overview.diagnostics) item.path = graph.metadata?.path ?? item.path;
   if (graph.overview.diagnostics.length) {
     graph.status = 'partial';
-    graph.diagnostics = [...graph.diagnostics, ...graph.overview.diagnostics.filter(item => item.code !== 'INVALID_NAMING_METADATA')];
+    graph.diagnostics = [...graph.diagnostics, ...graph.overview.diagnostics.filter(item => !['INVALID_NAMING_METADATA', 'INVALID_NAMING_PARTS'].includes(item.code))];
   }
   return graph;
 }

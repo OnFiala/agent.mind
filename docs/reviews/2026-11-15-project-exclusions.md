@@ -4,7 +4,7 @@ Date: 2026-11-15. Base: `73e892d0d8f36bcb19b1b789931de9e4d2edc291`
 (the merged R05 contract). Status: **source candidate, unmerged and unreleased**.
 The owner authorized implementation, tests, documentation, CORTEX and a standalone
 PR with independent review. Merge, release and real-target changes are excluded.
-[ROADMAP](../../ROADMAP.md#r06--project-exclusions) owns stage status; the PR owns
+[ROADMAP](../../ROADMAP.md#r06--project-exclusions) owns stage status; [PR #29](https://github.com/OnFiala/agent.mind/pull/29) owns
 exact reviewed commit/disposition and CI receipts. Published 1.3.1 is unchanged.
 
 ## Result and boundaries
@@ -42,7 +42,7 @@ pin, sensitive-name exception or source-priority ordering change is included.
 
 Local Node 22 checks use synthetic disposable fixtures and loopback only:
 
-- 389 tests pass, including 77 focused index/policy tests, client cache/order guards,
+- 391 tests pass, including 77 focused index/policy tests, client cache/order guards,
   API graph/context/source/SSE and policy-change/refresh-failure recovery.
 - Policy tests exercise exact byte/line/work limits, Unicode/anchoring/negation,
   no-open spies, hard-negative controls, metadata exclusion, missing/empty identity,
@@ -51,11 +51,43 @@ Local Node 22 checks use synthetic disposable fixtures and loopback only:
   fields/root-only scope notice. Default full output and bounded opt-in remain;
   existing pagination/wire budgets, CommonJS/Python disclosure and lifecycle tests pass.
 
-Produced-bundle installed CLI smoke, browser evidence and independent exact-diff
-review are completion requirements. The PR records their final results; source unit
-tests alone do not establish these layers. Initial integration caught and corrected
-missing overview diagnostics after safe metadata rejection and an outdated pre-R06
-serialization oracle; the final full suite above includes both corrections.
+The produced 47-file bundle passed all 15 installed CLI/loopback smoke groups,
+including R06 default/exact exclusions, naming-map parity, comment-only receipt and
+cursor invalidation, graph/SSE/source withholding, recovery, and byte-exact policy,
+map and descriptor preservation. Artifact digest:
+`02253b14d11f1461cad7738c5c9fd735f4fbc217773c50f2fba4bafdc34d22d3`.
+
+An isolated Chromium 157.0.8103.52 profile ran the initial actual installed bundle
+(digest `2c971417b975c9b3c26e4d3a57f6bc1ab250eb3944804e933c3c8d1365c49026`): source
+was visibly loaded, excluded source/labels disappeared after SSE refresh, invalid
+policy emptied the graph without echoing its contents, and restoration recovered
+source. A deliberately held old source response, released after revocation while
+ignoring abort, did not restore DOM text. No JavaScript runtime exceptions occurred.
+Screenshots were inspected. The first harness attempt expected automatic selection
+restoration; the corrected probe explicitly reselected after invalidation. This was
+a test-navigation correction, not a product fix. The browser/foreground view were
+closed after validation; no real project was installed or upgraded. The final
+bundle changes only `project-map.mjs` from that browser artifact; browser/client
+revocation code is byte-identical. Final installed API/CLI/SSE tests cover the repair.
+
+Independent exact-diff review and Node 22/24 CI (including five historical
+upgrade/rollback paths) are recorded in the PR against their exact commits. Source
+unit tests alone do not establish these layers. Initial integration caught and
+corrected missing overview diagnostics after safe metadata rejection and an outdated
+pre-R06 serialization oracle; the final full suite above includes both corrections.
+
+Independent review of `de6c92a` found two P2 issues: a non-array `parts` container
+could serialize excluded labels, and filtering invalid/over-limit parts could hide
+the warning and permit strict preflight. Both were independently reproduced and
+repaired by validating the original input before filtering, discarding unsafe
+containers and preserving safe warnings for invalid entries. Shared hierarchy
+validation retains valid names and the existing visible legacy-area fallback.
+Two new integration tests and actual installed CLI/graph/SSE checks cover positive
+and negative controls. Targeted repair validation passed 35/35, followed by the
+391-test suite and the new 15-group bundle smoke. The PR records the reviewer's
+independent repair disposition and final reviewed commit, separately from these
+producer checks. Reviewer read-only behavior is procedural under inherited
+permissions; it is not a technically enforced read-only sandbox.
 
 ## Limits and rollback
 

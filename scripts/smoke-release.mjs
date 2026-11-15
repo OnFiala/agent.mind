@@ -282,6 +282,22 @@ try {
     assert(!excludedContext.nodes.some(node => node.path === 'src/revocable.mjs'));
     assert.equal((await fetch(sourceURL('src/revocable.mjs', initialGraph))).status, 409);
     assert.equal((await fetch(`${started.url}/api/source?path=src/revocable.mjs`)).status, 409);
+    const excludedPart = { target: 'file:src/revocable.mjs', label: labelMarker, description: '', aliases: [] };
+    for (const parts of [excludedPart, [{ ...excludedPart, label: '' }], Array.from({ length: 513 }, (_, index) => ({ ...excludedPart, target: `symbol:src/revocable.mjs#value${index}` }))]) {
+      fs.writeFileSync(mapPath, JSON.stringify({ ...naming, parts }));
+      const invalidNames = run(cli, ['context', 'src/module-c.mjs']);
+      assert.equal(invalidNames.status, 'partial');
+      assert(!JSON.stringify(invalidNames).includes(labelMarker));
+      const invalidGraph = await waitGraph(current => current.revision === invalidNames.revision);
+      assert.equal(invalidGraph.metadata.status, 'error');
+      assert(!JSON.stringify(invalidGraph).includes(labelMarker));
+      assert(!JSON.stringify(await firstSSEState()).includes(labelMarker));
+      const invalidReceipt = ['--revision', invalidNames.revision, '--binding-id', invalidNames.binding.id, '--generation', String(invalidNames.binding.generation)];
+      for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'src/module-c.mjs', ...flags, ...invalidReceipt], false), /requires current context/i);
+    }
+    fs.writeFileSync(mapPath, JSON.stringify(naming));
+    await waitGraph(current => current.revision === excluded.revision);
+    checks.push('invalid installed naming parts never expose excluded labels or lose the strict preflight gate after filtering');
     fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('/agent.mind/project-map.json\n/src/revocable.mjs\n')]));
     const mapExcluded = await getGraph();
     assert.equal(mapExcluded.metadata.status, 'excluded');

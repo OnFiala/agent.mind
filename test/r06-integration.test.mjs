@@ -123,3 +123,59 @@ test('HTTP graph/source/SSE reject old policy without waiting for the polling in
   assert.equal(restored.inputPolicy.status, 'valid'); assert(restored.nodes.some(n => n.path === 'private.mjs'));
   assert.equal((await fetch(sourceUrl)).status, 409);
 });
+
+test('invalid installed naming parts fail safely before exclusion filtering and retain the strict partial gate', t => {
+  const root = fixture(t);
+  fs.mkdirSync(path.join(root, 'agent.mind'));
+  const options = { generic: true, excludePaths: ['agent.mind'], metadataPath: 'agent.mind/project-map.json' };
+  const part = { target: 'file:private.mjs', label: 'R06_INVALID_PRIVATE_LABEL', description: '', aliases: [] };
+  const invalidParts = [
+    part, [{ ...part, label: '' }], [part, part],
+    [{ ...part, section: 'R06_INVALID_PRIVATE_SECTION' }],
+    Array.from({ length: 513 }, (_, index) => ({ ...part, target: `symbol:private.mjs#value${index}` })),
+  ];
+  for (const parts of invalidParts) {
+    fs.writeFileSync(path.join(root, 'agent.mind/project-map.json'), JSON.stringify({ schemaVersion: 1, blocks: [], parts }));
+    for (const rules of ['', 'private.mjs\n']) {
+      fs.writeFileSync(path.join(root, '.gitignore'), rules);
+      const graph = attachOverview(indexProject(root, options));
+      assert.equal(graph.status, 'partial');
+      assert.equal(graph.metadata.status, 'error');
+      if (!Array.isArray(parts) || parts.length > 512) assert.equal(graph.metadata.configuration, null);
+      assert(graph.overview.diagnostics.some(item => ['INVALID_NAMING_METADATA', 'INVALID_NAMING_PARTS'].includes(item.code)));
+      if (rules) assert(!JSON.stringify(graph).includes('R06_INVALID_PRIVATE_'));
+      const context = freshContext(root, 'main.mjs', options);
+      assert.equal(context.status, 'partial');
+      if (rules) assert(!JSON.stringify(context).includes('R06_INVALID_PRIVATE_'));
+    }
+  }
+  fs.writeFileSync(path.join(root, 'agent.mind/project-map.json'), JSON.stringify({ schemaVersion: 1, blocks: [], parts: [part] }));
+  const valid = attachOverview(indexProject(root, options));
+  assert.equal(valid.status, 'current');
+  assert.deepEqual(valid.metadata.configuration.parts, []);
+  assert(!JSON.stringify(valid).includes(part.label));
+});
+
+test('HTTP graph and SSE never serialize invalid excluded parts from the installed control map', async t => {
+  const root = fixture(t);
+  fs.mkdirSync(path.join(root, 'agent.mind'));
+  fs.writeFileSync(path.join(root, '.gitignore'), 'private.mjs\n');
+  fs.writeFileSync(path.join(root, 'agent.mind/project-map.json'), JSON.stringify({ schemaVersion: 1, blocks: [], parts: { target: 'file:private.mjs', label: 'R06_INVALID_PARTS_PAYLOAD', description: '', aliases: [] } }));
+  const app = createVisualizer({ root, intervalMs: 60000, indexOptions: { generic: true, excludePaths: ['agent.mind'], metadataPath: 'agent.mind/project-map.json' } });
+  app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
+  t.after(() => app.close());
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  const graph = await (await fetch(`${base}/api/graph`)).json();
+  assert.equal(graph.status, 'partial'); assert.equal(graph.metadata.configuration, null);
+  assert(!JSON.stringify(graph).includes('R06_INVALID_PARTS_PAYLOAD'));
+  assert.equal((await fetch(`${base}/api/source?path=agent.mind/project-map.json`)).status, 409);
+  const controller = new AbortController();
+  const response = await fetch(`${base}/api/events`, { signal: controller.signal });
+  const reader = response.body.getReader();
+  try {
+    const { value } = await reader.read();
+    const frame = new TextDecoder().decode(value);
+    assert(!frame.includes('R06_INVALID_PARTS_PAYLOAD'));
+    assert(frame.includes('INVALID_NAMING_METADATA'));
+  } finally { controller.abort(); await reader.cancel().catch(() => {}); }
+});
