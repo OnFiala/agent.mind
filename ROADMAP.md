@@ -150,10 +150,12 @@ bindings, installed pins and edited user blocks. No target upgrade is performed.
 implementation, tests, documentation, independent review and
 [PR #23](https://github.com/OnFiala/agent.mind/pull/23). On 2026-11-15 the owner
 requested completion against current main, preserving the PR #24–#27 repairs.
-Main `e312ff13` is integrated into the candidate branch; this does not merge R04
-into main. Merge, release and real-target upgrades remain unauthorized. The
+Main `e312ff13` is integrated into the candidate branch. The owner subsequently
+approved merging PR #23 and verifying CI on the actual merge commit. That PR owns
+the merge status, exact merge commit and subsequent CI receipts. Release and
+real-target upgrades remain separately authorized actions. The
 [R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
-contract and dated validation; PR #23 owns the exact final head, review and CI.
+contract and dated validation.
 
 Scope: additive per-file reasons for unavailable reference analysis, including
 `.cjs` and bounded recognized CommonJS-style forms in `.js`/`.mjs`. Preserve

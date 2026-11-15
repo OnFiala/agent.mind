@@ -4,10 +4,12 @@ Original date: 2026-11-12. Original base: `9e6c881989de885432f921c68f5d789f33e6e
 Integration update: 2026-11-15, against main `e312ff13bdf64cbd16697fc7a6e85bc231a3166a`.
 Status: source candidate; implementation, tests, documentation, independent review
 and [PR #23](https://github.com/OnFiala/agent.mind/pull/23) authorized. The owner
-also authorized completion against current main with PR #24–#27 preserved.
-Merge into main, release and target upgrades are not authorized.
+also authorized completion against current main with PR #24–#27 preserved, then
+explicitly approved the PR merge on 2026-11-15 and verification of CI on the actual
+merge commit. Release and real-target upgrades remain outside this authorization.
 [ROADMAP](../../ROADMAP.md#r04--explicit-unsupported-reference-diagnostics) owns
-priority/status. The PR records exact reviewed commits, review disposition and CI.
+priority/status. The PR records exact reviewed commits, review disposition, actual
+merge status and distinct pre-/post-merge CI receipts.
 Published 1.3.1 and existing installed runtimes do not include this candidate.
 
 ## Contract
