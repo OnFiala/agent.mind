@@ -8,6 +8,21 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
+## UI-NEW-01 — Symbol selection across views
+
+**UI-NEW-01 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regression tests, documentation, independent review and
+[PR #26](https://github.com/OnFiala/agent.mind/pull/26), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
+
+Scope: retain the precise symbol selection and project it onto the visible owning
+file or overview block when the symbol or its containing area is not visible.
+The [selection projection record](docs/reviews/2026-11-15-selection-projection.md)
+owns the contract, validation and rollback. UI-NEW-02 and separate R04 work remain
+outside this repair; the published baseline remains 1.3.1.
+
 ## CORE-02 — Exact inventory file boundary
 
 **CORE-02 source repair; unreleased.** On 2026-11-15 the owner authorized

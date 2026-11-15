@@ -141,6 +141,37 @@ test('raw source selection remains associated with its overview block across lay
   assert.equal(selectedDisplayId({ type: 'node', id: 'deleted' }, display), null);
 });
 
+test('symbol selection projects across files and blocks without selecting unrelated parts or relations', () => {
+  const selection = { type: 'node', id: 'view', partId: 'symbol:draw', line: 12, endLine: 19 };
+  const original = { ...selection };
+  const files = { ...displayGraph(overviewGraph, 'files'), edges: [
+    { id: 'view-import', from: 'view', to: 'server' },
+    { id: 'unrelated-import', from: 'server', to: 'index' },
+  ] };
+  const blocks = displayGraph(overviewGraph, 'blocks');
+  assert.equal(selectedDisplayId(selection, files), 'view');
+  assert.equal(selectedDisplayId(selection, blocks), 'block:canvas');
+  const focus = relationFocus(files, { mode: 'focus', selection });
+  assert.deepEqual([...focus.targets], ['view']);
+  assert.deepEqual([...focus.visible], ['view-import']);
+  assert.deepEqual(selection, original);
+  const parts = { nodes: [
+    { id: 'area:draw', isArea: true, memberIds: ['symbol:draw'] },
+    { id: 'symbol:draw', hierarchyKind: 'symbol', fileIds: ['view'] },
+    { id: 'view' },
+    { id: 'symbol:other', hierarchyKind: 'symbol', fileIds: ['view'] },
+  ], edges: [] };
+  assert.equal(selectedDisplayId(selection, parts), 'symbol:draw');
+  assert.equal(selectedDisplayId(selection, { ...parts, nodes: [parts.nodes[0], parts.nodes[2]] }), 'area:draw');
+  assert.equal(selectedDisplayId(selection, { ...parts, nodes: [parts.nodes[3]] }), null);
+  assert.equal(selectedDisplayId(null, files), null);
+  assert.equal(selectedDisplayId({ type: 'edge', id: 'view', partId: selection.partId }, files), null);
+  assert.equal(selectedDisplayId({ ...selection, id: 'deleted', partId: 'missing' }, files), null);
+  const edgeFocus = relationFocus(files, { mode: 'focus', selection: { type: 'edge', id: files.edges[0].id, partId: selection.partId } });
+  assert.deepEqual([...edgeFocus.targets], []);
+  assert.deepEqual([...edgeFocus.visible], [files.edges[0].id]);
+});
+
 test('overview starts readable on a narrow canvas and retains manual positions on reconciliation', () => {
   const display = displayGraph(overviewGraph);
   const layout = layoutOverview(display.nodes, new Map(), 2);
