@@ -723,6 +723,37 @@ test('inventory separates binary, non-UTF8, oversized and excluded entries from 
   assert.throws(() => readIndexedSource(root, typed), /Symbolic links/);
 });
 
+test('exact file limit permits excluded entries and empty directories without claiming omissions', t => {
+  const root = fixture(t, {});
+  for (let number = 0; number < INDEX_LIMITS.files; number++) write(root, `a${String(number).padStart(4, '0')}.mjs`, '');
+  write(root, 'node_modules/ignored.mjs', 'excluded-marker');
+  write(root, 'z-nested/.hidden.mjs', 'excluded-marker');
+  write(root, 'z-nested/credentials.txt', 'excluded-marker');
+  fs.mkdirSync(path.join(root, 'z-empty'));
+  fs.symlinkSync(path.join(root, 'a0000.mjs'), path.join(root, 'z-link.mjs'));
+  const graph = indexProject(root);
+  assert.equal(graph.stats.files, INDEX_LIMITS.files);
+  assert.equal(graph.status, 'current');
+  assert.equal(graph.inventory.status, 'complete');
+  assert.ok(!graph.inventory.entries.some(item => item.reason === 'file-limit'));
+  for (const name of ['node_modules/', 'z-nested/.hidden.mjs', 'z-nested/credentials.txt', 'z-link.mjs']) {
+    assert.equal(graph.inventory.entries.find(item => item.path === name)?.state, 'excluded', name);
+  }
+  assert.ok(!JSON.stringify(graph).includes('excluded-marker'));
+});
+
+test('file limit detects an eligible file inside a later nested directory', t => {
+  const root = fixture(t, {});
+  for (let number = 0; number < INDEX_LIMITS.files; number++) write(root, `a${String(number).padStart(4, '0')}.mjs`, '');
+  write(root, 'z-nested/extra.mjs', '');
+  const graph = indexProject(root);
+  assert.equal(graph.stats.files, INDEX_LIMITS.files);
+  assert.equal(graph.status, 'partial');
+  assert.equal(graph.inventory.status, 'partial');
+  assert.ok(graph.inventory.entries.some(item => item.state === 'unscanned' && item.reason === 'file-limit'));
+  assert.ok(graph.diagnostics.some(item => item.path === 'z-nested/extra.mjs' && /Inventory budget exceeded/.test(item.message)));
+});
+
 test('unsupported inventory consumes the existing file and total-byte budgets', t => {
   const root = fixture(t, {});
   for (let number = 0; number <= INDEX_LIMITS.files; number++) write(root, `${String(number).padStart(4, '0')}.txt`, 'text');

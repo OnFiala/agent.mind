@@ -293,6 +293,14 @@ limits are 1000 regular files, 512 KiB per file, 16 MiB total bytes read, 10000 
 depth 20. Scope and limitations are available in the UI and context JSON. Large
 projects may hit these limits or pause during synchronous indexing.
 
+The unreleased CORE-02 source repair counts only otherwise eligible regular files
+against the 1000-file inventory limit. At exactly that limit, excluded paths and
+empty directories do not by themselves make the inventory partial. Directories
+are still traversed within the separate entry/depth budgets; an additional eligible
+regular file still marks the inventory partial. Content is classified after this
+count, so binary and oversized regular files also consume a file slot. Published
+1.3.1 does not contain this repair.
+
 `live-index.mjs` checks inventory and contents every 900 ms, reusing parsed data
 when content is unchanged. Two scans must agree before a new revision is published.
 Persistent changes mark the previous snapshot as an error. Files can change again

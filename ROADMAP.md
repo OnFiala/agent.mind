@@ -8,6 +8,22 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
+## CORE-02 — Exact inventory file boundary
+
+**CORE-02 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regression tests, documentation, independent review and
+[PR #25](https://github.com/OnFiala/agent.mind/pull/25), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
+
+Scope: enforce the file-count limit when admitting an otherwise eligible regular
+file. Preserve excluded-path classification, traversal within the separate entry
+and depth budgets, and partial status for actual file overflow. The
+[CORE-02 record](docs/reviews/2026-11-15-inventory-file-limit.md) owns the contract,
+validation and rollback. This repair includes no other audit findings or R04 work;
+the published baseline remains 1.3.1.
+
 ## CORE-01 — Captured HTTP handler writes
 
 **CORE-01 source repair; unreleased.** On 2026-11-15 the owner authorized
