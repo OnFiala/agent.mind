@@ -212,12 +212,14 @@ naming maps, descriptors and all project contents. See the R06 record for detail
 
 ## R07 — Source priority within existing budgets
 
-**Implemented source candidate; unmerged and unreleased.** On 2026-11-15 the owner
+**Implemented source; merge approved, unreleased.** On 2026-11-15 the owner
 separately authorized source prioritization after R06 filtering, agent swarm,
-tests, documentation, CORTEX and a standalone PR with independent review, explicitly
-without merge or release. The [R07 record](docs/reviews/2026-11-15-source-priority.md)
-owns behavior, checks and limitations; [PR #30](https://github.com/OnFiala/agent.mind/pull/30)
-owns exact reviewed commits, review disposition and CI receipts.
+tests, documentation, CORTEX and a standalone PR with independent review, then
+explicitly approved merging [PR #30](https://github.com/OnFiala/agent.mind/pull/30)
+and verifying CI on the actual merge commit. Release and real-target changes remain
+separately gated. The [R07 record](docs/reviews/2026-11-15-source-priority.md) owns
+behavior, checks and limitations; PR #30 owns actual merge status/commit, exact
+reviewed commits, disposition and separate pre-/post-merge CI receipts.
 
 Eligible observed paths are ranked by recognized source suffix before allocating
 file slots and byte reads. Equal ranks use ordinal full-path ordering. All R06

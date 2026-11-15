@@ -1,13 +1,15 @@
 # R07 — Source priority within existing budgets
 
 Date: 2026-11-15. Base: `b9eb09adbcfdfcb2e7fbc92e79b98076ba1a3677`
-(the merged R06 input-policy implementation). Status: **source candidate, unmerged
-and unreleased**. The owner authorized R07, tests, documentation, CORTEX and a
-standalone PR with independent review. Merge, release and real-target changes are
-excluded. [ROADMAP](../../ROADMAP.md#r07--source-priority-within-existing-budgets)
-owns stage status; [PR #30](https://github.com/OnFiala/agent.mind/pull/30) owns exact
-reviewed commits, disposition and CI receipts.
-Published 1.3.1 is unchanged.
+(the merged R06 input-policy implementation). Status: **implemented source; merge
+approved, unreleased**. The owner authorized R07, tests, documentation, CORTEX and a
+standalone PR with independent review, then explicitly approved merging PR #30 on
+2026-11-15 and verifying CI on the actual merge commit. Release and real-target
+changes remain excluded. [ROADMAP](../../ROADMAP.md#r07--source-priority-within-existing-budgets)
+owns stage status; [PR #30](https://github.com/OnFiala/agent.mind/pull/30) owns actual
+merge status, exact merge/reviewed commits, disposition and separate pre-/post-merge
+CI receipts. Approval is not evidence that merge or CI succeeded. Published 1.3.1
+is unchanged.
 
 ## Problem and behavior
 
