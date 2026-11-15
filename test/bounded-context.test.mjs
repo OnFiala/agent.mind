@@ -49,15 +49,18 @@ function traverse(graph, selector, initial, section, maxBytes = 7000) {
   return { values: [...results].sort(([a], [b]) => a - b).map(([, value]) => value), pageCount, fragments, suffixPages };
 }
 
-test('legacy default matches the independently captured pre-R02 compact serialization oracle', t => {
+test('full default retains its shape with the R06 additive policy identity', t => {
   const root = fixture(t, { 'main.mjs': 'import "./other.mjs";\nexport function run() { return helper(); }\nfunction helper() { return 1; }\n', 'other.mjs': 'export const other = 2;\n' });
   const graph = indexProject(root, { generic: true });
   graph.project = { name: 'fixture', root: '/fixture' };
   graph.generatedAt = '2026-01-01T00:00:00.000Z';
   const full = projectContext(graph, 'main.mjs');
-  // Measured on the clean e20f43e base before changing graph-context.mjs.
-  assert.equal(bytes(full), 11735);
-  assert.equal(createHash('sha256').update(JSON.stringify(full)).digest('hex'), 'fa0cff4212650484a2e038cef779ad76f13626d9cdd10e94d9deddd6396e5e96');
+  // R06 deliberately adds inputPolicy/node.policyId and a root-only scope limit.
+  // The historical pre-R02 oracle (11735 bytes) no longer describes this contract.
+  assert.equal(full.inputPolicy.id, graph.inputPolicy.id);
+  assert.equal(full.inputPolicy.status, 'valid');
+  assert.equal(bytes(full), 12406);
+  assert.equal(createHash('sha256').update(JSON.stringify(full)).digest('hex'), 'a8ada4c2254c7b4d2dcd4f3c71af10ac70321d24d7821a5a47f9214e62178ea1');
   assert.deepEqual(projectContext(graph, 'main.mjs', {}), full);
   assert.equal(full.profile, undefined);
 });

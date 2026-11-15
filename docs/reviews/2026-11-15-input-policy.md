@@ -10,7 +10,8 @@ release and target upgrades still require separate owner authority.
 priority/status. The PR owns the exact reviewed commits, review disposition,
 actual merge status and distinct pre-/post-merge CI receipts.
 
-This is the reviewed contract for a later R06 implementation. Neither the source
+This is the reviewed contract for R06. The separately authorized
+[implementation candidate](2026-11-15-project-exclusions.md) records current work. Neither the source
 baseline nor published 1.3.1 implements root-ignore policy. Merging this design
 changes no runtime behavior or installed target. All acceptance cases below are future requirements,
 not claims that tests have run or the protections have been implemented.

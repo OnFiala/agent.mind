@@ -23,7 +23,7 @@ export function sourceExcerpt(root, graph, relative, requestedLine = 1, indexOpt
   const lines = source.split(/\r\n?|\n/);
   const line = Math.max(1, Math.min(lines.length, Number.isFinite(Number(requestedLine)) ? Math.floor(Number(requestedLine)) : 1));
   const startLine = Math.max(1, line - 8);
-  return { path: relative, hash: node.hash, totalLines: lines.length, startLine, lines: lines.slice(startLine - 1, startLine + 70).map((text, offset) => ({ number: startLine + offset, text })) };
+  return { path: relative, hash: node.hash, policyId: graph.inputPolicy?.id, revision: graph.revision, totalLines: lines.length, startLine, lines: lines.slice(startLine - 1, startLine + 70).map((text, offset) => ({ number: startLine + offset, text })) };
 }
 
 export function createVisualizer({ root = APP_ROOT, intervalMs = 900, indexOptions = {}, binding = null } = {}) {
@@ -49,6 +49,7 @@ export function createVisualizer({ root = APP_ROOT, intervalMs = 900, indexOptio
     let url;
     try { url = new URL(req.url, `http://${req.headers.host}`); }
     catch { return json(res, 400, { error: 'Invalid request target.' }); }
+    if (['/api/graph', '/api/source', '/api/events'].includes(url.pathname) && live.checkPolicy()) live.refresh();
     if (url.pathname === '/api/graph') return json(res, 200, snapshot());
     if (url.pathname === '/api/context') {
       live.refresh();
@@ -57,6 +58,8 @@ export function createVisualizer({ root = APP_ROOT, intervalMs = 900, indexOptio
       catch (error) { return json(res, 404, { error: error.message }); }
     }
     if (url.pathname === '/api/source') {
+      if (live.runtime.status === 'error' || live.graph.inputPolicy?.status === 'invalid') return json(res, 409, { error: 'Source is unavailable until the input policy and index are current.' });
+      if (['policyId', 'revision'].some(key => url.searchParams.has(key) && url.searchParams.get(key) !== (key === 'policyId' ? live.graph.inputPolicy?.id : live.graph.revision))) return json(res, 409, { error: 'The source snapshot changed; refresh before reading.' });
       try { return json(res, 200, sourceExcerpt(root, live.graph, url.searchParams.get('path'), url.searchParams.get('line') || 1, indexOptions)); }
       catch (error) { return json(res, 409, { error: error.message }); }
     }

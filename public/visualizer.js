@@ -483,6 +483,37 @@ export function shouldAcceptRuntime(previous, next) {
     && next.sequence < previous.sequence);
 }
 
+/** Reject delayed snapshots from a server instance already replaced in this page. */
+export function shouldAcceptGraph(previous, next, retiredInstances = new Set()) {
+  if (retiredInstances.has(next?.runtime?.instanceId)) return false;
+  if (!shouldAcceptRuntime(previous?.runtime, next?.runtime)) return false;
+  if (previous?.inputPolicy && !next?.inputPolicy) return false;
+  return !(previous?.runtime?.instanceId === next?.runtime?.instanceId
+    && previous?.runtime?.sequence !== undefined && previous.runtime.sequence === next?.runtime?.sequence
+    && previous?.inputPolicy?.id !== next?.inputPolicy?.id);
+}
+
+/** Only a fresh policy-consistent snapshot can authorize cached or incoming source. */
+export function sourceMatchesSnapshot(source, node, snapshot, current) {
+  const policy = snapshot?.inputPolicy;
+  return Boolean(policy?.status === 'valid' && current?.inputPolicy?.status === 'valid'
+    && policy.id && policy.id === current.inputPolicy.id && node.policyId === policy.id
+    && source?.policyId === policy.id && source.revision === snapshot.revision
+    && current.revision === snapshot.revision
+    && snapshot.runtime?.instanceId === current.runtime?.instanceId
+    && current.nodes.some(item => item.id === node.id && item.policyId === policy.id && item.hash === node.hash)
+    && source.path === node.path && source.hash === node.hash && Array.isArray(source.lines));
+}
+
+/** Clear authorization and cached source before replacing any derived presentation. */
+export function revokeClientSource(state) {
+  state.sourceAbort?.abort();
+  state.sourceAbort = null;
+  state.sourceRequest++;
+  state.source = null;
+  state.modeViews.clear();
+}
+
 export function fitCamera(positions, width, height, panelWidth = 0) {
   if (!positions.size) return { x: width / 2, y: height / 2, scale: 1 };
   const points = [...positions.values()];
@@ -549,7 +580,8 @@ export function sourcePagingControls(source, onLine) {
 export function startVisualizer(projectScope = null, projectAreaScope = null, resolveSourceRelations = null) {
   const $ = id => document.getElementById(id);
   const canvas = $('canvas');
-  const state = { graph: null, display: null, mode: 'blocks', modeViews: new Map(), relationMode: 'auto', expandedAreaIds: new Set(), focusedAreaId: null, hoverNode: null, focusNode: null, hoverEdge: null, focusEdge: null, navigation: createNavigationState(), runtime: null, view: 'project', query: '', selection: null, panel: null, positions: new Map(), groups: [], camera: { x: 0, y: 0, scale: 1 }, connected: false, received: false, fitted: false, indexError: null, sourceRequest: 0, source: null };
+  const state = { graph: null, display: null, mode: 'blocks', modeViews: new Map(), relationMode: 'auto', expandedAreaIds: new Set(), focusedAreaId: null, hoverNode: null, focusNode: null, hoverEdge: null, focusEdge: null, navigation: createNavigationState(), runtime: null, view: 'project', query: '', selection: null, panel: null, positions: new Map(), groups: [], camera: { x: 0, y: 0, scale: 1 }, connected: false, received: false, fitted: false, indexError: null, sourceRequest: 0, source: null, sourceAbort: null };
+  const retiredInstances = new Set();
   const cards = new Map();
   const detailButtons = new Map();
   const links = new Map();
@@ -1167,7 +1199,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       if (node.capabilities) body.append(element('p', 'hint', node.capabilities.length === 1 ? 'Text only: no symbols, dependencies or security analysis for this file.' : `Available analysis: ${node.capabilities.filter(value => value !== 'text').map(value => value.replaceAll('-', ' ')).join(', ')}. Check file notes for failures or unresolved references.`));
       section('Source', body);
       const target = element('div'); target.id = 'source-excerpt'; body.append(target);
-      if (state.source?.path === node.path && state.source.hash === node.hash) displaySource(state.source, target, state.selection.line);
+      if (sourceMatchesSnapshot(state.source, node, state.graph, state.graph)) displaySource(state.source, target, state.selection.line);
       else loadSource(node, state.selection.line || 1, target);
     }
     if (node.diagnostics?.length) {
@@ -1349,16 +1381,20 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
 
   async function loadSource(node, line, target) {
     const request = ++state.sourceRequest;
+    const snapshot = state.graph;
+    state.sourceAbort?.abort();
+    const controller = new AbortController();
+    state.sourceAbort = controller;
     target.append(element('p', 'hint', 'Loading source…'));
     try {
-      const response = await fetch(`/api/source?path=${encodeURIComponent(node.path)}&line=${encodeURIComponent(line)}`, { cache: 'no-store' });
+      const response = await fetch(`/api/source?path=${encodeURIComponent(node.path)}&line=${encodeURIComponent(line)}&policyId=${encodeURIComponent(snapshot.inputPolicy?.id || '')}&revision=${encodeURIComponent(snapshot.revision || '')}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error(`Source unavailable (HTTP ${response.status}).`);
       const source = await response.json();
       if (request !== state.sourceRequest || !target.isConnected) return;
       if (source.path !== node.path || !Array.isArray(source.lines)) throw new Error('Could not read the selected file from the server response. Select it again.');
-      if (node.hash && source.hash !== node.hash) {
+      if (!sourceMatchesSnapshot(source, node, snapshot, state.graph)) {
         target.replaceChildren();
-        note('The file changed. Its source will be ready when the map updates.', false, target);
+        note('The file or input policy changed. Its source will be ready when the map updates.', false, target);
         void refresh(); return;
       }
       state.source = source;
@@ -1410,7 +1446,20 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
 
   function accept(graph) {
     if (!validGraph(graph)) throw new Error('Could not read the map returned by the server.');
-    if (!shouldAcceptRuntime(state.runtime, graph.runtime)) return;
+    if (!shouldAcceptGraph(state.graph, graph, retiredInstances)) return;
+    const previousInstance = state.runtime?.instanceId;
+    if (previousInstance && previousInstance !== graph.runtime?.instanceId) retiredInstances.add(previousInstance);
+    if (state.graph && (state.graph.inputPolicy?.id !== graph.inputPolicy?.id || graph.inputPolicy?.status !== 'valid')) {
+      revokeClientSource(state);
+      // Rebuild listeners as well as text: retained DOM closures may own old labels.
+      for (const collection of [cards, detailButtons, links]) {
+        for (const node of collection.values()) node.remove();
+        collection.clear();
+      }
+      $('panel-body').replaceChildren();
+      $('panel-title').textContent = '';
+      panelReturnFocus = null;
+    }
     version++;
     syncGraph(graph);
   }

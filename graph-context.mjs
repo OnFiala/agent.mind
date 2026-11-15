@@ -29,6 +29,7 @@ export function projectContext(graph, selector, projectionOptions = {}) {
   return {
     ...(graph.binding ? { binding: graph.binding } : {}),
     project: graph.project, revision: graph.revision, generatedAt: graph.generatedAt,
+    ...(graph.inputPolicy ? { inputPolicy: graph.inputPolicy } : {}),
     status: graph.status, inventory: graph.inventory, runtime: graph.runtime, target: selector ?? null,
     selection: selected ? { ...selected, blockId: owner.id, blockLabel: owner.label } : null,
     ancestry: ancestry.map(({ id, label, qualifiedLabel }) => ({ id, label, qualifiedLabel })),
@@ -118,6 +119,7 @@ function agentContext(graph, selector, options) {
   const base = {
     schemaVersion: 1, profile: 'agent', snapshot,
     project: full.project, revision: full.revision,
+    ...(full.inputPolicy ? { inputPolicy: { id: full.inputPolicy.id, status: full.inputPolicy.status, version: full.inputPolicy.version } } : {}),
     ...(full.binding ? { binding: full.binding } : {}),
     ...(full.runtime ? { runtime: full.runtime } : {}),
     status: full.status, selection, ancestry: full.ancestry,

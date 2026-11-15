@@ -5,6 +5,7 @@ import { performance } from 'node:perf_hooks';
 import { isUtf8 } from 'node:buffer';
 import { analyzeSource, securityModule } from './source-analysis.mjs';
 import { isTypedSource } from './typed-analysis.mjs';
+import { sanitizeNamingMetadata } from './project-map.mjs';
 
 // This index is descriptive. It never imports, evaluates, or runs scanned files.
 export const INDEX_LIMITS = Object.freeze({ files: 1000, fileBytes: 512 * 1024, totalBytes: 16 * 1024 * 1024, entries: 10000, depth: 20 });
@@ -96,12 +97,169 @@ function indexingPolicy({ generic = false, excludePaths = [], metadataPath = 'pr
   return { generic: Boolean(generic), excludePaths: [...new Set(excludePaths)].sort(), metadataPath, excludedDirs: generic ? GENERIC_EXCLUDED_DIRS : EXCLUDED_DIRS };
 }
 
-const excludedByPolicy = (relative, policy) => relative.split('/').some(component => policy.excludedDirs.has(component)) || policy.excludePaths.some(excluded => relative === excluded || relative.startsWith(`${excluded}/`));
+const excludedByPolicy = (relative, policy, exemption = null) => relative.split('/').some(component => policy.excludedDirs.has(component)) || policy.excludePaths.some(excluded => excluded !== exemption && (relative === excluded || relative.startsWith(`${excluded}/`)));
+
+export const INPUT_POLICY_LIMITS = Object.freeze({ bytes: 65536, lines: 1024, lineBytes: 1024, work: 8000000 });
+const POLICY_VERSION = 'root-ignore-v1';
+const SOFT_DIRECTORIES = ['build', 'dist', 'venv'];
+const policyFailure = (reason, line) => Object.assign(new Error('Input policy is invalid'), { policyFailure: true, reason, ...(line ? { line } : {}) });
+
+/** Strict bounded root-only dialect; no project code or Git state is consulted. */
+export function parseInputPolicy(bytes) {
+  if (bytes.length > INPUT_POLICY_LIMITS.bytes) throw policyFailure('byte-limit');
+  if (!isUtf8(bytes)) throw policyFailure('encoding');
+  const text = bytes.toString('utf8');
+  if (text.startsWith('\uFEFF')) throw policyFailure('encoding');
+  const lines = text.split('\n');
+  if (lines.at(-1) === '') lines.pop(); // A final newline terminates, rather than adds, a line.
+  if (lines.length > INPUT_POLICY_LIMITS.lines) throw policyFailure('line-limit');
+  const rules = [];
+  for (let index = 0; index < lines.length; index++) {
+    const raw = lines[index];
+    let line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    // A terminal CR is valid only when followed by LF in the original input.
+    if (raw.endsWith('\r') && index === lines.length - 1 && !text.endsWith('\n')) throw policyFailure('controls', index + 1);
+    if (Buffer.byteLength(line) > INPUT_POLICY_LIMITS.lineBytes) throw policyFailure('line-byte-limit', index + 1);
+    if (/[\u0000-\u001f\u007f-\u009f]/u.test(line)) throw policyFailure('controls', index + 1);
+    line = line.replace(/ +$/, '');
+    if (!line || line.startsWith('#')) continue;
+    const negate = line.startsWith('!');
+    if (negate) line = line.slice(1);
+    const directoryOnly = line.endsWith('/');
+    if (directoryOnly) line = line.slice(0, -1);
+    const anchored = line.startsWith('/') || line.includes('/');
+    if (line.startsWith('/')) line = line.slice(1);
+    if (!line || line.includes('**') || /[\\[\]]/u.test(line) || line.split('/').some(part => !part || part === '.' || part === '..')) throw policyFailure('grammar', index + 1);
+    rules.push({ tokens: [...line], negate, directoryOnly, anchored });
+  }
+  return { rules, lines: lines.length };
+}
+
+// One unit is one visited DP state (token-prefix, candidate-prefix), including
+// the initial row. Every rule costs (tokens + 1) * (codepoints + 1); there is no
+// backtracking or regex evaluation. Check BEFORE visiting state 8,000,001.
+function globMatch(tokens, candidate, work) {
+  const chars = [...candidate];
+  let previous = new Uint8Array(chars.length + 1);
+  const charge = () => { if (work.units >= INPUT_POLICY_LIMITS.work) throw policyFailure('work-limit'); work.units++; };
+  for (let j = 0; j <= chars.length; j++) { charge(); previous[j] = Number(j === 0); }
+  for (const token of tokens) {
+    const current = new Uint8Array(chars.length + 1);
+    for (let j = 0; j <= chars.length; j++) {
+      charge();
+      current[j] = token === '*'
+        ? Number(Boolean(previous[j] || j && chars[j - 1] !== '/' && current[j - 1]))
+        : Number(Boolean(j && previous[j - 1] && (token === '?' ? chars[j - 1] !== '/' : token === chars[j - 1])));
+    }
+    previous = current;
+  }
+  return Boolean(previous[chars.length]);
+}
+
+/** Pure soft-policy decision. Callers enforce hard boundaries first. */
+export function policyMatchDecision(rules, relative, directory, work) {
+  let excluded = directory && !relative.includes('/') && SOFT_DIRECTORIES.includes(relative);
+  for (const rule of rules) {
+    if (rule.directoryOnly && !directory) continue;
+    if (globMatch(rule.tokens, rule.anchored ? relative : relative.slice(relative.lastIndexOf('/') + 1), work)) excluded = !rule.negate;
+  }
+  return excluded;
+}
+
+function policyIdentity(policy, rootIgnore, status, reason, line) {
+  return sha(JSON.stringify({ version: POLICY_VERSION, generic: policy.generic, hardDirectories: [...policy.excludedDirs].sort(), softDirectories: SOFT_DIRECTORIES, excludePaths: policy.excludePaths, metadataPath: policy.metadataPath, rootIgnore, status, ...(reason ? { reason } : {}), ...(line ? { line } : {}) }));
+}
+
+function loadInputPolicy(root, policy) {
+  let rootIgnore = { state: 'missing', hash: null, bytes: 0, lines: 0 };
+  let rules = [];
+  let failure;
+  let descriptor;
+  try {
+    const absolute = path.join(root, '.gitignore');
+    let before;
+    try { before = fs.lstatSync(absolute); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (before) {
+      if (before.isSymbolicLink()) throw policyFailure('symlink');
+      if (!before.isFile()) throw policyFailure('special-file');
+      if (before.size > INPUT_POLICY_LIMITS.bytes) throw policyFailure('byte-limit');
+      descriptor = fs.openSync(absolute, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+      const stat = fs.fstatSync(descriptor);
+      const current = fs.lstatSync(absolute);
+      if (!stat.isFile() || current.isSymbolicLink() || !current.isFile() || stat.dev !== before.dev || stat.ino !== before.ino || stat.size !== before.size || stat.mtimeMs !== before.mtimeMs || stat.ctimeMs !== before.ctimeMs || stat.dev !== current.dev || stat.ino !== current.ino) throw policyFailure('changed');
+      if (stat.size > INPUT_POLICY_LIMITS.bytes) throw policyFailure('byte-limit');
+      const buffer = Buffer.alloc(stat.size + 1);
+      let length = 0;
+      while (length < buffer.length) {
+        const count = fs.readSync(descriptor, buffer, length, buffer.length - length, null);
+        if (!count) break;
+        length += count;
+      }
+      const after = fs.fstatSync(descriptor);
+      const final = fs.lstatSync(absolute);
+      if (length !== stat.size || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || after.ctimeMs !== stat.ctimeMs || final.isSymbolicLink() || final.dev !== stat.dev || final.ino !== stat.ino || final.size !== stat.size || final.mtimeMs !== stat.mtimeMs || final.ctimeMs !== stat.ctimeMs) throw policyFailure('changed');
+      const bytes = buffer.subarray(0, length);
+      rootIgnore = { state: length ? 'present' : 'empty', hash: sha(bytes), bytes: length, lines: 0 };
+      const parsed = parseInputPolicy(bytes);
+      rules = parsed.rules;
+      rootIgnore.lines = parsed.lines;
+    }
+  } catch (error) {
+    failure = error.policyFailure ? error : policyFailure('unreadable');
+    rootIgnore = { ...rootIgnore, state: 'invalid' };
+  } finally { if (descriptor !== undefined) fs.closeSync(descriptor); }
+  const status = failure ? 'invalid' : 'valid';
+  const summary = { id: policyIdentity(policy, rootIgnore, status, failure?.reason, failure?.line), version: POLICY_VERSION, status, rootIgnore, workUnits: 0, nestedIgnoreCount: 0, ...(failure ? { reason: failure.reason, ...(failure.line ? { line: failure.line } : {}) } : {}) };
+  return { summary, rules, work: { units: 0 } };
+}
+
+function checkedRoot(directory) {
+  const requestedRoot = path.resolve(directory);
+  if (fs.lstatSync(requestedRoot).isSymbolicLink()) throw new Error('Index root must not be a symbolic link');
+  const root = fs.realpathSync(requestedRoot);
+  if (!fs.statSync(root).isDirectory()) throw new Error('Index root must be a directory');
+  return root;
+}
+
+/** Read only the bounded policy control input; never source or naming-map bytes. */
+export function inspectInputPolicy(directory, indexOptions = {}) {
+  const policy = indexingPolicy(indexOptions);
+  return loadInputPolicy(checkedRoot(directory), policy).summary;
+}
+
+function invalidatePolicy(input, policy, reason, line) {
+  const rootIgnore = { ...input.summary.rootIgnore };
+  input.summary = { ...input.summary, id: policyIdentity(policy, rootIgnore, 'invalid', reason, line), status: 'invalid', reason, ...(line ? { line } : {}), workUnits: input.work.units };
+  return input.summary;
+}
+
+/** Safe replacement snapshot after any observed policy invalidation/failure. */
+export function emptyPolicyGraph(directory, inputPolicy, reason = 'policy-refresh') {
+  const safeReason = ['policy-refresh', 'policy-changed', 'policy-invalid'].includes(reason) ? reason : 'policy-refresh';
+  const diagnostics = [{ path: '.gitignore', code: 'INPUT_POLICY_INVALID', reason: inputPolicy?.reason ?? safeReason, ...(inputPolicy?.line ? { line: inputPolicy.line } : {}), message: 'Input policy is invalid or changed; source and naming data are withheld.', severity: 'warning' }];
+  return { schemaVersion: 1, project: { name: path.basename(directory), root: directory }, inputPolicy, revision: sha(JSON.stringify({ inputPolicy, diagnostics })), generatedAt: new Date().toISOString(), status: 'partial', nodes: [], edges: [], symbolGraph: { nodes: [], edges: [], diagnostics: [] }, diagnostics, metadata: null, inventory: { status: 'partial', entries: [] }, stats: { files: 0, edges: 0, tests: 0, security: 0, parseMs: 0, cachedFiles: 0 }, scope: { excluded: [], unsupported: [], generic: false, limitations: ['Invalid or changed root input policy; no project source or naming-map contents are exposed.'] } };
+}
+
+function softPathExcluded(relative, policy, input, metadata = false) {
+  const exemption = metadata && policy.generic && policy.metadataPath === 'agent.mind/project-map.json' && policy.excludePaths.includes('agent.mind') ? 'agent.mind' : null;
+  const parts = relative.split('/');
+  for (let i = 0; i < parts.length; i++) {
+    const prefix = parts.slice(0, i + 1).join('/');
+    if (parts[i].startsWith('.') || sensitive(parts[i]) || excludedByPolicy(prefix, policy, exemption)) return true;
+    if (policyMatchDecision(input.rules, prefix, i < parts.length - 1, input.work)) return true;
+  }
+  return false;
+}
 
 // Metadata is read independently of inventory so an excluded integration folder
 // can hold the single target vocabulary. It never falls back to a second map.
-function namingMetadata(root, policy, diagnostics, explicitlySelected) {
+function namingMetadata(root, policy, diagnostics, explicitlySelected, excluded) {
   const result = { path: policy.metadataPath, hash: null, status: 'missing', configuration: null };
+  if (excluded) {
+    result.status = 'excluded';
+    diagnostics.push({ path: policy.metadataPath, code: 'NAMING_MAP_EXCLUDED', message: 'Selected naming map is excluded by input policy; source-derived names are used.', severity: 'info' });
+    return result;
+  }
   try {
     const bytes = readBounded(root, policy.metadataPath, INDEX_LIMITS.fileBytes);
     result.hash = sha(bytes);
@@ -114,7 +272,7 @@ function namingMetadata(root, policy, diagnostics, explicitlySelected) {
   } catch (error) {
     if (error.code !== 'ENOENT' || explicitlySelected) {
       result.status = 'error';
-      diagnostics.push({ path: policy.metadataPath, message: `Cannot load names: ${error.message}`, severity: 'warning' });
+      diagnostics.push({ path: policy.metadataPath, message: 'Cannot load names: selected naming map is unavailable or invalid.', severity: 'warning' });
     }
   }
   return result;
@@ -124,17 +282,24 @@ function namingMetadata(root, policy, diagnostics, explicitlySelected) {
 export function readIndexedSource(directory, node, indexOptions = {}) {
   const policy = indexingPolicy(indexOptions);
   const relative = node?.path;
-  if (!relativePath(relative) || excludedByPolicy(relative, policy) || !node.capabilities?.includes('text') || node.id !== fileId(relative) || !/^[a-f\d]{64}$/.test(node.hash ?? '')) throw new Error('Source is not an eligible indexed file');
-  const requestedRoot = path.resolve(directory);
-  if (fs.lstatSync(requestedRoot).isSymbolicLink()) throw new Error('Index root must not be a symbolic link');
-  const root = fs.realpathSync(requestedRoot);
-  const bytes = readBounded(root, relative, INDEX_LIMITS.fileBytes);
-  if (sha(bytes) !== node.hash) throw new Error('Indexed source changed; refresh the graph before reading');
-  if (!isText(bytes)) throw new Error('Indexed file is not supported UTF-8 text');
-  return bytes.toString('utf8');
+  if (!relativePath(relative) || excludedByPolicy(relative, policy) || !node.capabilities?.includes('text') || node.id !== fileId(relative) || !/^[a-f\d]{64}$/.test(node.hash ?? '') || !/^[a-f\d]{64}$/.test(node.policyId ?? '')) throw new Error('Source is not an eligible indexed file');
+  const root = checkedRoot(directory);
+  const input = loadInputPolicy(root, policy);
+  try {
+    if (input.summary.status !== 'valid' || input.summary.id !== node.policyId || softPathExcluded(relative, policy, input)) throw policyFailure('stale');
+    const bytes = readBounded(root, relative, INDEX_LIMITS.fileBytes);
+    if (sha(bytes) !== node.hash) throw new Error('Indexed source changed; refresh the graph before reading');
+    if (!isText(bytes)) throw new Error('Indexed file is not supported UTF-8 text');
+    const after = loadInputPolicy(root, policy);
+    if (after.summary.status !== 'valid' || after.summary.id !== node.policyId || softPathExcluded(relative, policy, { ...after, work: input.work })) throw policyFailure('stale');
+    return bytes.toString('utf8');
+  } catch (error) {
+    if (error.policyFailure) throw new Error('Input policy changed or is invalid; refresh the graph before reading');
+    throw error;
+  }
 }
 
-function inventory(root, diagnostics, excluded, policy, unsupported, records) {
+function inventory(root, diagnostics, excluded, policy, unsupported, records, input) {
   const files = [];
   let entries = 0;
   let exhausted = false;
@@ -167,6 +332,10 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
       }
       for (const entry of directoryEntries.sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
         const name = posix(path.join(relative, entry.name));
+        if (entry.name === '.gitignore' && relative) {
+          input.summary.nestedIgnoreCount++;
+          diagnostics.push({ path: name, code: 'NESTED_IGNORE_NOT_LOADED', message: 'Nested ignore is not loaded; only the root .gitignore is supported.', severity: 'info' });
+        }
         if (entry.isSymbolicLink()) {
           excluded.add(`${name} (symlink)`);
           records.push({ path: name, state: 'excluded', reason: 'symlink' });
@@ -175,6 +344,12 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
         if (entry.name === '.DS_Store' || sensitive(entry.name) || entry.name.startsWith('.') || excludedByPolicy(name, policy)) {
           excluded.add(`${name}${entry.isDirectory() ? '/' : ''}`);
           records.push({ path: name + (entry.isDirectory() ? '/' : ''), state: 'excluded', reason: sensitive(entry.name) ? 'sensitive-name' : entry.name.startsWith('.') ? 'hidden' : 'policy' });
+          continue;
+        }
+        if (!entry.isDirectory() && !entry.isFile()) { records.push({ path: name, state: 'excluded', reason: 'special-file' }); continue; }
+        if (policyMatchDecision(input.rules, name, entry.isDirectory(), input.work)) {
+          excluded.add(`${name}${entry.isDirectory() ? '/' : ''}`);
+          records.push({ path: name + (entry.isDirectory() ? '/' : ''), state: 'excluded', reason: 'input-policy' });
           continue;
         }
         if (entry.isDirectory()) visit(name, depth + 1);
@@ -192,6 +367,7 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records) {
         } else records.push({ path: name, state: 'excluded', reason: 'special-file' });
       }
     } catch (error) {
+      if (error.policyFailure) throw error;
       records.push({ path: relative || '.', state: 'unreadable', reason: error.message });
       diagnostics.push({ path: relative || '.', message: `Cannot list directory: ${error.message}`, severity: 'warning' });
     }
@@ -306,16 +482,24 @@ export function indexProject(directory, options = {}) {
   const { previous } = options;
   const policy = indexingPolicy(options);
   const started = performance.now();
-  const requestedRoot = path.resolve(directory);
-  if (fs.lstatSync(requestedRoot).isSymbolicLink()) throw new Error('Index root must not be a symbolic link');
-  const root = fs.realpathSync(requestedRoot);
-  if (!fs.statSync(root).isDirectory()) throw new Error('Index root must be a directory');
-  const diagnostics = [];
+  const root = checkedRoot(directory);
+  const input = loadInputPolicy(root, policy);
+  if (input.summary.status !== 'valid') return emptyPolicyGraph(root, input.summary, 'policy-invalid');
+  const diagnostics = [{ path: '.gitignore', code: 'ROOT_IGNORE_SCOPE', message: 'Only the root .gitignore is loaded; nested ignores, Git tracking and global excludes are outside scope.', severity: 'info' }];
   const excluded = new Set([...policy.excludedDirs].map(name => `${name}/`).concat(policy.excludePaths.map(name => `${name}/`)));
   const unsupported = new Set();
   const inventoryEntries = [];
-  const files = inventory(root, diagnostics, excluded, policy, unsupported, inventoryEntries);
-  let inventoryComplete = diagnostics.length === 0;
+  let files;
+  let metadataExcluded;
+  try {
+    files = inventory(root, diagnostics, excluded, policy, unsupported, inventoryEntries, input);
+    metadataExcluded = softPathExcluded(policy.metadataPath, policy, input, true);
+  } catch (error) {
+    if (!error.policyFailure) throw error;
+    return emptyPolicyGraph(root, invalidatePolicy(input, policy, error.reason, error.line), 'policy-invalid');
+  }
+  input.summary.workUnits = input.work.units;
+  let inventoryComplete = !diagnostics.some(item => ['warning', 'error'].includes(item.severity));
   const commonJSFiles = new Map();
   for (const name of unsupported) {
     const diagnostic = /\.cjs$/i.test(name)
@@ -324,7 +508,9 @@ export function indexProject(directory, options = {}) {
     if (diagnostic.reason === 'cjs-extension') commonJSFiles.set(name, diagnostic);
     diagnostics.push(diagnostic);
   }
-  const metadata = namingMetadata(root, policy, diagnostics, Object.hasOwn(options, 'metadataPath'));
+  const beforeReads = loadInputPolicy(root, policy);
+  if (beforeReads.summary.status !== 'valid' || beforeReads.summary.id !== input.summary.id) return emptyPolicyGraph(root, invalidatePolicy(input, policy, 'policy-changed'), 'policy-changed');
+  const metadata = namingMetadata(root, policy, diagnostics, Object.hasOwn(options, 'metadataPath'), metadataExcluded);
   const priorCache = previous?.project?.root === root ? CACHE.get(previous) : null;
   const nextCache = new Map();
   const nodes = [];
@@ -348,7 +534,7 @@ export function indexProject(directory, options = {}) {
       if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) analyses.set(relative, analysis);
       const layers = ['project', ...(isTest(relative) ? ['testing'] : []), ...(analysis.security.length ? ['security'] : [])];
       // Clones prevent a consumer modifying its serialized result from poisoning the cache.
-      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
+      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, policyId: input.summary.id, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
       diagnostics.push(...structuredClone(analysis.diagnostics));
     } catch (error) {
       inventoryComplete = false;
@@ -442,6 +628,7 @@ export function indexProject(directory, options = {}) {
     unsupported: [...unsupported].sort(),
     generic: policy.generic,
     metadataPath: policy.metadataPath,
+    nestedIgnoreCount: input.summary.nestedIgnoreCount,
     limitations: [
       'The map reads source files without running them. Security signals point to code to review; they do not establish vulnerabilities or safety.',
       'Test links come from source references. Run tests for results and enable coverage to measure what they cover.',
@@ -460,14 +647,20 @@ export function indexProject(directory, options = {}) {
   const inventorySnapshot = { status: inventoryComplete ? 'complete' : 'partial', entries: inventoryEntries.sort((a, b) => a.path.localeCompare(b.path, 'en') || a.state.localeCompare(b.state, 'en')) };
   const result = {
     schemaVersion: 1,
+    inputPolicy: input.summary,
     project: { name: path.basename(root), root },
-    revision: sha(JSON.stringify({ inventory: inventorySnapshot, nodes, edges, symbolGraph, diagnostics, excluded: scope.excluded, generic: policy.generic, metadata: { path: metadata.path, hash: metadata.hash, status: metadata.status } })),
+    revision: null,
     generatedAt: new Date().toISOString(),
     status: diagnostics.some(item => item.severity === 'warning' || item.severity === 'error') ? 'partial' : 'current',
     nodes, edges, symbolGraph, diagnostics, metadata, inventory: inventorySnapshot,
     stats: { files: available.size, edges: edges.length, tests: [...available.values()].filter(node => node.kind === 'test').length, security: [...available.values()].filter(node => node.security.length).length, parseMs: Math.round((performance.now() - started) * 100) / 100, cachedFiles },
     scope
   };
+  sanitizeNamingMetadata(result, relative => !relativePath(relative) || excludedByPolicy(relative, policy));
+  result.diagnostics.sort((a, b) => a.path.localeCompare(b.path, 'en') || (a.line ?? 0) - (b.line ?? 0) || a.message.localeCompare(b.message, 'en'));
+  result.revision = sha(JSON.stringify({ inputPolicy: input.summary, inventory: inventorySnapshot, nodes, edges, symbolGraph, diagnostics: result.diagnostics, excluded: scope.excluded, generic: policy.generic, metadata: result.metadata }));
+  const finalPolicy = loadInputPolicy(root, policy);
+  if (finalPolicy.summary.status !== 'valid' || finalPolicy.summary.id !== input.summary.id) return emptyPolicyGraph(root, invalidatePolicy(input, policy, 'policy-changed'), 'policy-changed');
   CACHE.set(result, nextCache);
   return result;
 }
