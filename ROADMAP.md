@@ -177,18 +177,20 @@ does not add resolution. No stored data, binding, naming map or runtime pin is m
 
 ## R05 — Input policy and sensitive-file protection
 
-**R05 documentation candidate; no runtime implementation.** On 2026-11-15 the
+**R05 documentation contract; no runtime implementation.** On 2026-11-15 the
 owner authorized a standalone input-policy/privacy contract, independent review
-and a documentation PR. The [R05 contract](docs/reviews/2026-11-15-input-policy.md)
-owns the proposed precedence, bounded root-ignore dialect, failure behavior,
-sensitive-file rules, revision/cache/source-read invalidation and future acceptance
-matrix. The PR records its exact reviewed commits and validation. Merge, runtime
-implementation, release and target upgrades remain separately authorized actions.
+and [PR #28](https://github.com/OnFiala/agent.mind/pull/28), then approved its merge
+and verification of CI on the actual merge commit. That PR owns the actual merge
+status, exact merge commit and separate pre-/post-merge CI evidence. The
+[R05 contract](docs/reviews/2026-11-15-input-policy.md) owns the reviewed precedence,
+bounded root-ignore dialect, failure behavior, sensitive-file rules,
+revision/cache/source-read invalidation and future acceptance matrix. R06/R07
+implementation, release and target upgrades still require separate owner authority.
 
 The next proposed implementation is **R06: project exclusions**, using the reviewed
 contract without changing managed `project.json` or relaxing sensitive-name guards.
 **R07: budget ordering** follows R06; filtering does not itself prioritize source.
-Neither stage is implemented or authorized by this documentation candidate.
+Neither stage is implemented or authorized by this documentation contract.
 Published baseline remains 1.3.1; existing installations retain their pinned behavior.
 Rollback: withdraw or separately revert the R05 documentation only; no data or
 configuration migration is needed.

@@ -1,15 +1,18 @@
 # R05: input policy and sensitive-file protection
 
 Date: 2026-11-15. Source baseline: `dfdec93244d2fb83380cbdf813c5c4401f4336a2`.
-Status: **documentation candidate; no runtime implementation**. The owner authorized
-this contract, a standalone PR, independent review and the project memory update.
-Merge, R06/R07 implementation, release and target upgrades remain separate actions.
+Status: **documentation contract; no runtime implementation**. The owner authorized
+this contract, [PR #28](https://github.com/OnFiala/agent.mind/pull/28), independent
+review and the project memory update, then explicitly approved the PR merge on
+2026-11-15 and verification of CI on the actual merge commit. R06/R07 implementation,
+release and target upgrades still require separate owner authority.
 [ROADMAP](../../ROADMAP.md#r05--input-policy-and-sensitive-file-protection) owns
-priority/status. The PR owns the exact reviewed commits, review disposition and CI.
+priority/status. The PR owns the exact reviewed commits, review disposition,
+actual merge status and distinct pre-/post-merge CI receipts.
 
-This is the proposed contract for a later R06 implementation. Neither current main
-nor published 1.3.1 implements root-ignore policy. A merged design document would
-not change an installed runtime. All acceptance cases below are future requirements,
+This is the reviewed contract for a later R06 implementation. Neither the source
+baseline nor published 1.3.1 implements root-ignore policy. Merging this design
+changes no runtime behavior or installed target. All acceptance cases below are future requirements,
 not claims that tests have run or the protections have been implemented.
 
 ## Current behavior and problem
