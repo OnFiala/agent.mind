@@ -203,7 +203,7 @@ test('symlink files/directories, traversal and absolute references never read ou
   const graph = indexProject(root);
   assert.equal(graph.nodes.length, 1);
   assert.equal(graph.edges.length, 0);
-  assert.equal(graph.diagnostics.length, 4);
+  assert.equal(graph.diagnostics.filter(item => item.code !== 'ROOT_IGNORE_SCOPE').length, 4);
   assert.ok(graph.scope.excluded.includes('link.mjs (symlink)'));
   assert.ok(graph.scope.excluded.includes('linked (symlink)'));
   assert.ok(!JSON.stringify(graph).includes('sensitiveOutsideMarker'));
@@ -630,12 +630,12 @@ test('namespaced metadata is a bounded independent snapshot and changes revision
   write(root, options.metadataPath, 'x'.repeat(INDEX_LIMITS.fileBytes + 1));
   const oversized = indexProject(root, options);
   assert.equal(oversized.status, 'partial');
-  assert.ok(oversized.diagnostics.some(item => item.path === options.metadataPath && item.message.includes('Read budget')));
+  assert.ok(oversized.diagnostics.some(item => item.path === options.metadataPath && item.message.includes('unavailable or invalid')));
   fs.unlinkSync(path.join(root, options.metadataPath));
   fs.symlinkSync(path.join(root, 'a.mjs'), path.join(root, options.metadataPath));
   const symlink = indexProject(root, options);
   assert.equal(symlink.metadata.status, 'error');
-  assert.ok(symlink.diagnostics.some(item => /Symbolic links/.test(item.message)));
+  assert.ok(symlink.diagnostics.some(item => /unavailable or invalid/.test(item.message)));
   fs.unlinkSync(path.join(root, options.metadataPath));
   fs.rmSync(path.join(root, 'agent.mind'), { recursive: true });
   const outside = fixture(t, { 'project-map.json': '{"outsideMarker":true}' });
@@ -707,7 +707,7 @@ test('inventory separates binary, non-UTF8, oversized and excluded entries from 
     assert.equal(entry(name).state, 'binary');
     assert.match(entry(name).hash, /^[a-f0-9]{64}$/);
     assert.ok(!file(graph, name));
-    assert.throws(() => readIndexedSource(root, { id: `file:${name}`, path: name, hash: entry(name).hash, capabilities: ['text'] }), /text/);
+    assert.throws(() => readIndexedSource(root, { id: `file:${name}`, path: name, hash: entry(name).hash, policyId: graph.inputPolicy.id, capabilities: ['text'] }), /text/);
   }
   assert.equal(entry('large.ts').state, 'too-large');
   assert.equal(entry('large.ts').hash, undefined);
@@ -1287,6 +1287,8 @@ test('Python adapter lookup metadata rejects invalid present values without fall
   const runtime = fixture(t, {
     'code-index.mjs': fs.readFileSync(new URL('../code-index.mjs', import.meta.url)),
     'typed-analysis.mjs': fs.readFileSync(new URL('../typed-analysis.mjs', import.meta.url)),
+    'project-map.mjs': fs.readFileSync(new URL('../project-map.mjs', import.meta.url)),
+    'public/hierarchy.mjs': fs.readFileSync(new URL('../public/hierarchy.mjs', import.meta.url)),
     'source-analysis.mjs': `export const securityModule = () => false;
 export function analyzeSource(relative, source) {
   return { references: relative === 'main.py' ? [{ kind: 'import', specifier: 'raw', evidence: { path: relative, line: 1, column: 1, snippet: 'import raw' }, python: JSON.parse(source) }] : [], symbols: [], security: [], diagnostics: [] };

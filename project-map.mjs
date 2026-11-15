@@ -223,16 +223,47 @@ export function resolvePart(hierarchy, selector) {
   }
 }
 
+// Keep naming data for excluded boundaries out of every serialized projection.
+// The eligible source-mode map is still independently readable as ordinary text.
+export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
+  const configuration = graph.metadata?.configuration;
+  if (!graph.inputPolicy || !configuration) return graph;
+  const boundaries = (graph.inventory?.entries ?? []).filter(entry => entry.state === 'excluded').map(entry => entry.path.replace(/\/$/, ''));
+  const denied = value => typeof value === 'string' && (hardDenied(value.replace(/\/$/, '')) || boundaries.some(boundary => value === boundary || value.startsWith(`${boundary}/`)));
+  try { validateConfiguration(configuration); }
+  catch {
+    graph.metadata = { ...graph.metadata, configuration: null, status: 'error' };
+    graph.status = 'partial';
+    graph.diagnostics.push({ path: graph.metadata.path, code: 'INVALID_NAMING_METADATA', severity: 'warning', message: 'The naming metadata is invalid; source-derived names are used.' });
+    return graph;
+  }
+  const blocks = configuration.blocks.flatMap(block => {
+    const files = block.files.filter(value => !denied(value));
+    const prefixes = block.prefixes.filter(value => !denied(value));
+    if ((block.files.length || block.prefixes.length) && !files.length && !prefixes.length) return [];
+    return [{ id: block.id, label: block.label, type: block.type, group: block.group, description: block.description, aliases: [...block.aliases], files, prefixes }];
+  });
+  const partPath = target => typeof target !== 'string' ? null : target.startsWith('file:') ? target.slice(5) : target.startsWith('symbol:') ? target.slice(7).split('#')[0] : null;
+  const parts = Array.isArray(configuration.parts) ? configuration.parts.filter(part => !denied(partPath(part?.target))).map(part => {
+    if (!part || typeof part !== 'object') return part;
+    return Object.fromEntries(['target', 'label', 'description', 'aliases', 'section', 'sectionId'].filter(key => Object.hasOwn(part, key)).map(key => [key, structuredClone(part[key])]));
+  }) : configuration.parts;
+  graph.metadata = { ...graph.metadata, configuration: { schemaVersion: configuration.schemaVersion, blocks, ...(parts === undefined ? {} : { parts }) } };
+  return graph;
+}
+
 export function attachOverview(graph) {
   const config = graph.metadata?.configuration ?? null;
   graph.overview = buildOverview(graph, config);
   if (graph.metadata && graph.overview.source !== 'inferred') graph.overview.source = graph.metadata.path;
   graph.hierarchy = buildHierarchy(graph, config);
   graph.overview.diagnostics.push(...graph.hierarchy.diagnostics);
+  const invalidMetadata = graph.diagnostics.find(item => item.code === 'INVALID_NAMING_METADATA');
+  if (invalidMetadata) graph.overview.diagnostics.push({ ...invalidMetadata });
   for (const item of graph.overview.diagnostics) item.path = graph.metadata?.path ?? item.path;
   if (graph.overview.diagnostics.length) {
     graph.status = 'partial';
-    graph.diagnostics = [...graph.diagnostics, ...graph.overview.diagnostics];
+    graph.diagnostics = [...graph.diagnostics, ...graph.overview.diagnostics.filter(item => item.code !== 'INVALID_NAMING_METADATA')];
   }
   return graph;
 }

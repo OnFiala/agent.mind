@@ -28,6 +28,8 @@ try {
   fs.writeFileSync(path.join(project, 'legacy/core.mjs'), 'export const stillActive = true;\n');
   const agents = '\ufeff# Owner instructions\r\nPreserve this exact text.\r\n';
   fs.writeFileSync(path.join(project, 'AGENTS.md'), agents);
+  const ownerIgnore = Buffer.from('# Owner root policy\r\n');
+  fs.writeFileSync(path.join(project, '.gitignore'), ownerIgnore);
   const hostPackage = '{"name":"fixture","private":true}\n';
   fs.writeFileSync(path.join(project, 'package.json'), hostPackage);
   const originCLI = path.join(release, 'cli.mjs');
@@ -36,6 +38,7 @@ try {
   assert.equal(installed.integrity, 'verified');
   const installDir = path.join(project, 'agent.mind'), cli = path.join(installDir, 'cli.mjs');
   assert.equal(fs.readFileSync(path.join(project, 'package.json'), 'utf8'), hostPackage);
+  assert.deepEqual(fs.readFileSync(path.join(project, '.gitignore')), ownerIgnore);
   assert(!fs.existsSync(path.join(project, 'node_modules')));
   assert(!fs.existsSync(path.join(project, 'package-lock.json')));
   checks.push('install and attach preserve host dependencies and instructions');
@@ -156,6 +159,172 @@ try {
   assert((await sourceResponse.json()).lines.some(line => line.text.includes('stillActive')));
   for (const asset of ['/', '/visualizer.js', '/hierarchy.mjs', '/assets/canvas-paper.webp', '/assets/agent-mind-wordmark.webp']) assert.equal((await fetch(started.url + asset)).status, 200);
   assert.equal((await fetch(`${started.url}/api/graph`, { headers: { Origin: 'https://example.com' } })).status, 403);
+  // R06 is exercised through the produced bundle's installed CLI and real view.
+  // Only harness-owned disposable inputs change; restore policy/map byte-for-byte.
+  const ignorePath = path.join(project, '.gitignore');
+  const mapPath = path.join(installDir, 'project-map.json');
+  const descriptorPath = path.join(installDir, 'project.json');
+  const originalIgnore = fs.readFileSync(ignorePath);
+  const originalMap = fs.readFileSync(mapPath);
+  const originalDescriptor = fs.readFileSync(descriptorPath);
+  const policyFiles = [
+    'dist/generated.mjs', 'build/generated.mjs', 'venv/generated.mjs',
+    'src/build/legitimate.mjs', 'agent.mind-copy/visible.mjs',
+    'src/agent.mind/visible.mjs', 'src/revocable.mjs',
+  ];
+  const policyDirectories = ['dist', 'build', 'venv', 'src/build', 'agent.mind-copy', 'src/agent.mind'];
+  const sourceMarker = 'R06_REVOKABLE_SOURCE_SENTINEL';
+  const labelMarker = 'R06_REVOKABLE_LABEL_SENTINEL';
+  const getGraph = async () => {
+    const response = await fetch(`${started.url}/api/graph`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const waitGraph = async predicate => {
+    const deadline = Date.now() + 6000;
+    do {
+      const current = await getGraph();
+      if (predicate(current)) return current;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } while (Date.now() < deadline);
+    assert.fail('Installed view did not reach the expected policy-consistent graph');
+  };
+  const sourceURL = (relative, snapshot) => `${started.url}/api/source?path=${encodeURIComponent(relative)}&policyId=${snapshot.inputPolicy.id}&revision=${snapshot.revision}`;
+  const firstSSEState = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    let reader;
+    try {
+      const response = await fetch(`${started.url}/api/events`, { signal: controller.signal });
+      assert.equal(response.status, 200);
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let frame = '';
+      while (!frame.includes('\n\n')) {
+        const { value, done } = await reader.read();
+        assert.equal(done, false, 'SSE closed before its first state');
+        frame += decoder.decode(value, { stream: true });
+        assert(frame.length <= 8 * 1024 * 1024, 'SSE first frame exceeded the smoke bound');
+      }
+      assert(frame.startsWith('event: state\n'));
+      return JSON.parse(frame.split('\n\n')[0].split('data: ')[1]);
+    } finally {
+      clearTimeout(timer); controller.abort();
+      await reader?.cancel().catch(() => {});
+    }
+  };
+  const assertWithheld = snapshot => {
+    assert.equal(snapshot.inputPolicy.status, 'invalid');
+    assert.equal(snapshot.status, 'partial');
+    assert.deepEqual(snapshot.nodes, []); assert.deepEqual(snapshot.edges, []);
+    assert.deepEqual(snapshot.symbolGraph.nodes, []); assert.deepEqual(snapshot.symbolGraph.edges, []);
+    assert.equal(snapshot.metadata, null);
+    assert.deepEqual(snapshot.runtime.changes, []);
+    for (const marker of [sourceMarker, labelMarker, 'R06_RAW_POLICY_MUST_NOT_ECHO']) assert(!JSON.stringify(snapshot).includes(marker));
+  };
+  try {
+    for (const relative of policyFiles) {
+      const file = path.join(project, relative);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, relative === 'src/revocable.mjs'
+        ? `export const revocable = "${sourceMarker}";\n`
+        : 'export const harmless = true;\n');
+    }
+    const naming = JSON.parse(originalMap);
+    naming.blocks.push({ id: 'r06-revocable', label: labelMarker, aliases: [], description: '', type: 'module', group: 'core', files: ['src/revocable.mjs'], prefixes: [] });
+    fs.writeFileSync(mapPath, JSON.stringify(naming));
+    const initial = run(cli, ['context', 'block:module-c']);
+    const initialGraph = await waitGraph(current => current.revision === initial.revision);
+    assert.equal(initialGraph.inputPolicy.status, 'valid');
+    const installedPolicyContext = run(cli, ['context']);
+    assert.equal(installedPolicyContext.inputPolicy.id, initialGraph.inputPolicy.id);
+    assert.deepEqual(installedPolicyContext.nodes.map(node => node.id), initialGraph.nodes.map(node => node.id));
+    for (const relative of ['src/build/legitimate.mjs', 'agent.mind-copy/visible.mjs', 'src/agent.mind/visible.mjs', 'src/revocable.mjs']) assert(initialGraph.nodes.some(node => node.path === relative), relative);
+    for (const relative of ['dist/generated.mjs', 'build/generated.mjs', 'venv/generated.mjs']) {
+      assert(!initialGraph.nodes.some(node => node.path === relative), relative);
+      assert.equal((await fetch(`${started.url}/api/source?path=${relative}`)).status, 409);
+    }
+    assert(!initialGraph.nodes.some(node => node.path?.startsWith('agent.mind/')));
+    assert(initialGraph.overview.nodes.some(node => node.label === 'Module C'));
+    assert.equal((await fetch(`${started.url}/api/source?path=agent.mind/project-map.json`)).status, 409);
+    const initialReceipt = ['--revision', initial.revision, '--binding-id', initial.binding.id, '--generation', String(initial.binding.generation)];
+    const initialProfile = run(cli, ['preflight', 'block:module-c', '--profile', 'agent', ...initialReceipt]);
+    const policyCursor = initialProfile.diagnostics.find(item => item.section === 'diagnostics').cursor;
+    const unchangedNode = initialGraph.nodes.find(node => node.path === 'src/module-c.mjs');
+    const initialSourceURL = sourceURL('src/module-c.mjs', initialGraph);
+    assert.equal((await fetch(initialSourceURL)).status, 200);
+    const warmRevocable = await fetch(sourceURL('src/revocable.mjs', initialGraph));
+    assert.equal(warmRevocable.status, 200);
+    assert((await warmRevocable.json()).lines.some(line => line.text.includes(sourceMarker)));
+
+    fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('# comment-only policy change\r\n')]));
+    assert.equal((await fetch(initialSourceURL)).status, 409);
+    const commentGraph = await getGraph();
+    assert.equal(commentGraph.inputPolicy.status, 'valid');
+    assert.notEqual(commentGraph.inputPolicy.id, initialGraph.inputPolicy.id);
+    assert.notEqual(commentGraph.revision, initialGraph.revision);
+    assert.equal(commentGraph.nodes.find(node => node.id === unchangedNode.id).hash, unchangedNode.hash);
+    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'block:module-c', ...flags, ...initialReceipt], false), /revision changed/i);
+    assert.match(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', policyCursor, ...initialReceipt], false), /revision changed/i);
+    const commentSource = await (await fetch(sourceURL('src/module-c.mjs', commentGraph))).json();
+    assert.equal(commentSource.policyId, commentGraph.inputPolicy.id);
+    assert.equal(commentSource.revision, commentGraph.revision);
+    assert.equal(commentSource.hash, unchangedNode.hash);
+
+    fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('/src/revocable.mjs\n')]));
+    const excluded = await getGraph();
+    assert.equal(excluded.inputPolicy.status, 'valid');
+    for (const marker of [sourceMarker, labelMarker]) assert(!JSON.stringify(excluded).includes(marker), marker);
+    assert(!excluded.nodes.some(node => node.path === 'src/revocable.mjs'));
+    const excludedContext = run(cli, ['context']);
+    assert.equal(excludedContext.inputPolicy.id, excluded.inputPolicy.id);
+    for (const marker of [sourceMarker, labelMarker]) assert(!JSON.stringify(excludedContext).includes(marker), marker);
+    assert(!excludedContext.nodes.some(node => node.path === 'src/revocable.mjs'));
+    assert.equal((await fetch(sourceURL('src/revocable.mjs', initialGraph))).status, 409);
+    assert.equal((await fetch(`${started.url}/api/source?path=src/revocable.mjs`)).status, 409);
+    fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('/agent.mind/project-map.json\n/src/revocable.mjs\n')]));
+    const mapExcluded = await getGraph();
+    assert.equal(mapExcluded.metadata.status, 'excluded');
+    assert.equal(mapExcluded.metadata.configuration, null);
+    assert(!JSON.stringify(mapExcluded).includes('Module C'));
+    assert(!JSON.stringify(mapExcluded).includes(labelMarker));
+    assert(mapExcluded.nodes.some(node => node.path === 'src/module-c.mjs'));
+    assert.equal((await fetch(`${started.url}/api/source?path=agent.mind/project-map.json`)).status, 409);
+
+    fs.writeFileSync(ignorePath, '**R06_RAW_POLICY_MUST_NOT_ECHO\n');
+    assertWithheld(await getGraph());
+    assertWithheld(await firstSSEState());
+    assert.equal((await fetch(`${started.url}/api/source?path=src/module-c.mjs`)).status, 409);
+    const invalidContext = run(cli, ['context']);
+    assert.equal(invalidContext.inputPolicy.status, 'invalid');
+    assert.deepEqual(invalidContext.nodes, []); assert.deepEqual(invalidContext.edges, []);
+    for (const marker of [sourceMarker, labelMarker, 'R06_RAW_POLICY_MUST_NOT_ECHO']) assert(!JSON.stringify(invalidContext).includes(marker));
+    assert.match(run(cli, ['preflight', 'src/module-c.mjs', '--revision', invalidContext.revision, '--binding-id', invalidContext.binding.id, '--generation', String(invalidContext.binding.generation)], false), /partial|requires current context|not in the active index/i);
+
+    fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('# recovered policy\n')]));
+    const recovered = await getGraph();
+    assert.equal(recovered.inputPolicy.status, 'valid');
+    assert(recovered.nodes.some(node => node.path === 'src/revocable.mjs'));
+    assert(recovered.overview.nodes.some(node => node.label === labelMarker));
+    const recoveredSource = await fetch(sourceURL('src/revocable.mjs', recovered));
+    assert.equal(recoveredSource.status, 200);
+    assert((await recoveredSource.json()).lines.some(line => line.text.includes(sourceMarker)));
+    assert.equal((await fetch(initialSourceURL)).status, 409);
+    const recoveredContext = run(cli, ['context', 'Module C']);
+    assert.equal(recoveredContext.revision, recovered.revision);
+    assert.equal(run(cli, ['preflight', 'block:module-c', '--revision', recoveredContext.revision, '--binding-id', recoveredContext.binding.id, '--generation', String(recoveredContext.binding.generation)]).preflight, 'verified-at-read');
+  } finally {
+    fs.writeFileSync(ignorePath, originalIgnore);
+    fs.writeFileSync(mapPath, originalMap);
+    for (const relative of policyFiles) fs.rmSync(path.join(project, relative), { force: true });
+    for (const relative of policyDirectories) if (fs.existsSync(path.join(project, relative))) fs.rmdirSync(path.join(project, relative));
+    assert.deepEqual(fs.readFileSync(ignorePath), originalIgnore);
+    assert.deepEqual(fs.readFileSync(mapPath), originalMap);
+    assert.deepEqual(fs.readFileSync(descriptorPath), originalDescriptor);
+  }
+  assert.deepEqual(fs.readFileSync(ignorePath), ownerIgnore);
+  assert.equal((await waitGraph(current => current.revision === context.revision)).inputPolicy.status, 'valid');
+  checks.push('installed bundle enforces root defaults/exact integration/map policy, comment-only stale receipt/cursor/source revocation, invalid-policy graph/SSE/source withholding and fresh recovery while preserving descriptor/policy/map bytes');
   run(cli, ['detach'], false);
   const ended = once(view, 'exit'); view.kill('SIGINT'); await ended; view = null;
   checks.push('real loopback graph/source/assets use same binding; active view protects lifecycle');

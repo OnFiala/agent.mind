@@ -329,6 +329,49 @@ supported links does not establish complete language or runtime coverage. Consul
 file capabilities, diagnostics and scope limits. See the
 [R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) for verification and rollback.
 
+### Root input policy (unreleased R06)
+
+The source candidate implements the [R05 input contract](docs/reviews/2026-11-15-input-policy.md).
+Published **1.3.1 and existing pinned installations do not contain R06**.
+Both source and installed modes read only the root `.gitignore`, and softly exclude
+root `/dist/`, `/build/` and `/venv/` directories. A nested `src/build/` remains
+eligible. To restore a legitimate root build directory, use `!/build/` in your
+own policy. Child negations cannot restore a pruned parent.
+
+This is a restricted, versioned subset, not full Git ignore support: literal
+components, `*`, `?`, leading/root-relative `/`, trailing directory `/`, ordered
+`!` negation, comments and blank lines; LF/CRLF, strict UTF-8, case-sensitive Unicode
+matching. Leading spaces are literal, trailing ASCII spaces are removed. `**`,
+classes (`[]`), backslashes/escapes, tabs, BOM and malformed components invalidate
+the whole policy. Nested/global ignore files and Git tracking are not consulted;
+encountered nested ignores are reported without reading them. The tool never edits
+these files or executes Git/project code to discover scope.
+
+Limits are 65,536 policy bytes, 1,024 lines, 1,024 UTF-8 bytes per line and 8,000,000
+matching states per scan/read request. Invalid, unavailable, changed or over-budget
+policy withholds source and naming data, returns a partial result and rejects
+strict preflight/source reads. No previous-policy or default-only fallback is used.
+Correcting the policy allows a fresh scan to recover. These are input/work bounds,
+not timing guarantees.
+
+Negations cannot bypass hidden/sensitive names, symlinks, special files,
+mode-specific exclusions or the exact installed integration subtree. Names such
+as `env.mjs` and `credentials.mjs` remain excluded. The installed naming map has
+only its existing narrow control-plane exception; it still obeys ignore rules.
+Excluded map entries/labels are removed from derived projections. An independently
+eligible source-mode map remains readable text and can mention excluded names;
+ordinary included text is not redacted. Observed excluded paths/reasons are visible,
+but their contents, hashes and unseen descendants are not inspected.
+
+The additive `inputPolicy` identity and source `policyId` bind context revisions,
+continuations and source reads. Even comment-only policy edits invalidate old
+receipts; readers check policy before and after source bytes, independently of
+polling. Observed changes clear retained graph/UI/source data and reject late
+responses. This does not lock the filesystem, guarantee revocation latency or erase
+already delivered data. R07 source-priority ordering remains separate; unchanged
+file/entry/depth/byte caps can still omit later source behind many eligible assets.
+See the [R06 implementation record](docs/reviews/2026-11-15-project-exclusions.md).
+
 ### Scope and updates
 
 Installed projects exclude their exact agent.mind integration directory,
@@ -350,7 +393,9 @@ count, so binary and oversized regular files also consume a file slot. Published
 
 `live-index.mjs` checks inventory and contents every 900 ms, reusing parsed data
 when content is unchanged. Two scans must agree before a new revision is published.
-Persistent changes mark the previous snapshot as an error. Files can change again
+Persistent source changes mark the previous snapshot as an error. An observed
+policy change instead discards the old source projections before replacement, even
+if the next scan fails. Files can change again
 after a scan; opening source checks its indexed hash separately. A parse failure
 removes that file's derived connections and marks the index as partial. SSE sends
 new revisions without reloading the page.

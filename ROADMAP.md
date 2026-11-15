@@ -184,16 +184,28 @@ and verification of CI on the actual merge commit. That PR owns the actual merge
 status, exact merge commit and separate pre-/post-merge CI evidence. The
 [R05 contract](docs/reviews/2026-11-15-input-policy.md) owns the reviewed precedence,
 bounded root-ignore dialect, failure behavior, sensitive-file rules,
-revision/cache/source-read invalidation and future acceptance matrix. R06/R07
-implementation, release and target upgrades still require separate owner authority.
-
-The next proposed implementation is **R06: project exclusions**, using the reviewed
-contract without changing managed `project.json` or relaxing sensitive-name guards.
-**R07: budget ordering** follows R06; filtering does not itself prioritize source.
-Neither stage is implemented or authorized by this documentation contract.
-Published baseline remains 1.3.1; existing installations retain their pinned behavior.
+revision/cache/source-read invalidation and acceptance matrix. The design itself
+did not authorize runtime work; the owner separately authorized R06 below.
 Rollback: withdraw or separately revert the R05 documentation only; no data or
 configuration migration is needed.
+
+## R06 — Project exclusions
+
+**Implemented source candidate; unmerged and unreleased.** On 2026-11-15 the owner
+separately authorized implementation under R05, tests, documentation, CORTEX and a
+standalone PR with independent review, explicitly without merge or release.
+The [R06 record](docs/reviews/2026-11-15-project-exclusions.md) owns implementation,
+checks and limitations; the PR owns exact reviewed commits and CI evidence.
+
+Root-only bounded ignore/default exclusions, policy identity, safe source-read
+revalidation, metadata filtering and live/browser revocation preserve managed
+`project.json`, runtime pins and sensitive-name guards. Invalid policy fails closed.
+No stored settings, dependencies, CLI overrides or target changes are introduced.
+**R07: budget ordering** remains proposed and separately authorized: filtering does
+not prioritize source or increase caps. Published baseline remains 1.3.1; existing
+installations retain their pinned behavior. Rollback before merge is withdrawal;
+a later authorized revert changes runtime code only, preserving target ignore files,
+naming maps, descriptors and all project contents. See the R06 record for details.
 
 ## Product and installation constraints
 
