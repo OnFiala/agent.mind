@@ -49,18 +49,19 @@ function traverse(graph, selector, initial, section, maxBytes = 7000) {
   return { values: [...results].sort(([a], [b]) => a - b).map(([, value]) => value), pageCount, fragments, suffixPages };
 }
 
-test('full default retains its shape with the R06 additive policy identity', t => {
+test('full default retains its shape with R06 policy identity and R07 allocation scope', t => {
   const root = fixture(t, { 'main.mjs': 'import "./other.mjs";\nexport function run() { return helper(); }\nfunction helper() { return 1; }\n', 'other.mjs': 'export const other = 2;\n' });
   const graph = indexProject(root, { generic: true });
   graph.project = { name: 'fixture', root: '/fixture' };
   graph.generatedAt = '2026-01-01T00:00:00.000Z';
   const full = projectContext(graph, 'main.mjs');
-  // R06 deliberately adds inputPolicy/node.policyId and a root-only scope limit.
-  // The historical pre-R02 oracle (11735 bytes) no longer describes this contract.
+  // R06 adds inputPolicy/node.policyId and a root-only scope limit; R07 adds
+  // one allocation-scope explanation. Removing that sentence reproduces the
+  // prior R06 oracle (12406 bytes); no other full-context shape change is intended.
   assert.equal(full.inputPolicy.id, graph.inputPolicy.id);
   assert.equal(full.inputPolicy.status, 'valid');
-  assert.equal(bytes(full), 12406);
-  assert.equal(createHash('sha256').update(JSON.stringify(full)).digest('hex'), 'a8ada4c2254c7b4d2dcd4f3c71af10ac70321d24d7821a5a47f9214e62178ea1');
+  assert.equal(bytes(full), 12704);
+  assert.equal(createHash('sha256').update(JSON.stringify(full)).digest('hex'), 'afabec304d3376cda0958f80609404069502bf02ed9f1a620e03423908718c05');
   assert.deepEqual(projectContext(graph, 'main.mjs', {}), full);
   assert.equal(full.profile, undefined);
 });

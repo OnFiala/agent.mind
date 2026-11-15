@@ -14,6 +14,9 @@ const EXTENSIONS = new Set(['.mjs', '.js', '.json', '.html', '.css', '.md', '.py
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'backups', 'evidence', 'workspace', 'legacy', 'coverage']);
 const GENERIC_EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 const UNSUPPORTED_SOURCE = /\.(?:cjs|ts|tsx|jsx|mts|cts|pyi|go|rs|java|swift|kt|c|h|cpp|cs|rb|php|vue|svelte)$/i;
+// Allocation priority only; these suffixes grant no additional analysis support.
+const sourcePriority = relative => ['.js', '.mjs', '.py'].includes(path.extname(relative)) || isTypedSource(relative) || UNSUPPORTED_SOURCE.test(relative) ? 0 : 1;
+const ordinalCompare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const CACHE = new WeakMap();
 const sha = value => createHash('sha256').update(value).digest('hex');
 const fileId = relative => `file:${relative}`;
@@ -353,18 +356,8 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
           continue;
         }
         if (entry.isDirectory()) visit(name, depth + 1);
-        else if (entry.isFile()) {
-          if (files.length >= INDEX_LIMITS.files) {
-            if (!exhausted) {
-              records.push({ path: relative || '.', state: 'unscanned', reason: 'file-limit' });
-              diagnostics.push({ path: name, message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
-            }
-            exhausted = true;
-            return;
-          }
-          files.push(name);
-          if (UNSUPPORTED_SOURCE.test(entry.name) && !isTypedSource(name)) unsupported.add(name);
-        } else records.push({ path: name, state: 'excluded', reason: 'special-file' });
+        else if (entry.isFile()) files.push(name);
+        else records.push({ path: name, state: 'excluded', reason: 'special-file' });
       }
     } catch (error) {
       if (error.policyFailure) throw error;
@@ -373,7 +366,18 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
     }
   }
   visit('', 0);
-  return files.sort();
+  // Discovery remains bounded by the existing entry/depth/policy-work limits.
+  // Rank only observed eligible paths, before any candidate contents are opened.
+  files.sort((a, b) => sourcePriority(a) - sourcePriority(b) || ordinalCompare(a, b));
+  const selected = files.slice(0, INDEX_LIMITS.files);
+  const omitted = files.slice(INDEX_LIMITS.files);
+  if (omitted.length) {
+    diagnostics.push({ path: omitted[0], message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+    // These paths were observed, but their contents, sizes and hashes are unknown.
+    for (const name of omitted) records.push({ path: name, state: 'unscanned', reason: 'file-limit' });
+  }
+  for (const name of selected) if (UNSUPPORTED_SOURCE.test(name) && !isTypedSource(name)) unsupported.add(name);
+  return selected;
 }
 
 // Python resolution describes one documented source layout, never sys.path or a
@@ -637,6 +641,7 @@ export function indexProject(directory, options = {}) {
       'Functions and classes are nested as they appear in source. Call links cover direct same-file references and known this.method calls within a class. They do not show runtime execution, callback scheduling, dynamic dispatch, coverage or control flow. Imported, aliased and computed calls, class fields and static-block bodies are omitted. Ambiguous or directly reassigned bindings and methods are excluded. Anonymous closures use the nearest named owner and carry a nested-closure marker. Per-file limits apply to symbols, calls, AST nodes and nesting depth.',
       'HTML analysis reads script src and link href. It skips inline scripts, CSS imports and URLs, and Markdown links.',
       'Inventory includes bounded regular files independently of language support. UTF-8 text without binary controls can be read by indexed hash. Binary, unreadable, oversized and unscanned entries have explicit states; excluded directories are not traversed. Hidden/sensitive paths, symlinks and configured exclusions remain excluded.',
+      'File and total-byte budgets prioritize recognized source suffixes, then other eligible paths, with ordinal full-path ordering within each group. Priority applies only to observed candidates; entry/depth limits leave unvisited scope unknown. Source priority grants no additional language support.',
       'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
       ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python provides bounded declarations, literal module imports and conservative bare same-file calls (64 KiB per file), using an editor grammar rather than CPython validation. Imports map project-root modules and regular packages, with internal namespace subdirectories below an indexed regular-package anchor. Relative ascent stops at the highest indexed regular-package ancestor, including an explicit root initializer. Namespace-only modules have no file edge; top-level namespace packages, custom source roots, sys.path and environment resolution are not inferred. From-import members are attributes or submodules, never guessed file edges. Imported/member calls, types, security, framework/runtime behavior, decorator effects, notebooks and .pyi files remain outside scope. Recovery errors and traversal limits withhold relationships; ambiguity remains explicit. Parser limits are not timeouts or a sandbox.'] : []),
       ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides syntax and bounded named declarations only (64 KiB per file); no import/type/call/security/HTTP analysis. Both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse errors and ambiguity withhold affected symbols; traversal limits withhold all symbols from the file. Parser and traversal limits are not timeouts or a sandbox.'] : []),

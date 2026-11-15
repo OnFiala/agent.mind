@@ -100,8 +100,9 @@ atomic snapshot, guaranteed revocation latency or erasure of delivered data.
 Restrictive v1 grammar intentionally rejects common full-Git patterns such as `**`;
 the tool neither rewrites them nor pretends to honor a parsed prefix.
 
-R07 is not included: many eligible assets can still consume the original inventory
-budget before later source. Existing 1,000-file/10,000-entry/depth/byte boundaries
+R07 is not included in this R06 change: many eligible assets can still consume the
+original inventory budget before later source. The separately authorized
+[R07 follow-up](2026-11-15-source-priority.md) changes allocation order. Existing 1,000-file/10,000-entry/depth/byte boundaries
 and strict global preflight remain. Self-indexing can remain partial for existing
 oversized assets; that is not a successful strict preflight. Source/bundle fixtures
 do not establish behavior on arbitrary projects, other browsers or real installs.
