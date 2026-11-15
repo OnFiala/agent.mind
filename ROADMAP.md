@@ -10,9 +10,12 @@ and L3 only separates the existing analysis from indexing.
 
 ## CORE-02 — Exact inventory file boundary
 
-**Source candidate; unmerged and unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regression tests, documentation, independent review and a
-separate PR. Merge, release and real-target upgrades are not authorized.
+**CORE-02 source repair; unreleased.** On 2026-11-15 the owner authorized
+this isolated repair, regression tests, documentation, independent review and
+[PR #25](https://github.com/OnFiala/agent.mind/pull/25), then separately approved its
+merge and verification of the actual post-merge CI. That PR owns the merge status,
+exact merge commit and subsequent CI evidence. Release and real-target upgrades
+remain separately authorized actions.
 
 Scope: enforce the file-count limit when admitting an otherwise eligible regular
 file. Preserve excluded-path classification, traversal within the separate entry

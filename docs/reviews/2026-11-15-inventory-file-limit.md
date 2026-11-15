@@ -1,9 +1,11 @@
 # CORE-02 — Exact inventory file boundary
 
-Date: 2026-11-15. Status: source candidate, unmerged and unreleased.
-The owner authorized this isolated repair, regression tests, documentation,
-independent review and a separate PR. Merge, release and real-target upgrades
-remain outside this change. Published 1.3.1 is unchanged.
+Date: 2026-11-15. Status: source repair, unreleased.
+The owner authorized this isolated repair, regression tests, documentation and
+independent review, then separately approved merging
+[PR #25](https://github.com/OnFiala/agent.mind/pull/25) on 2026-11-15, verification
+of the actual post-merge CI and documentation updates. Release and real-target
+upgrades remain outside this change. Published 1.3.1 is unchanged.
 
 ## Problem and contract
 
@@ -67,9 +69,9 @@ Candidate archive SHA256:
 `a452af04d1877f4614b6c6d641f8e3942eb7e3d098322ed37a64fc6260be80c2`.
 These identify a local candidate, not a published release.
 
-The associated PR owns the exact reviewed commit, independent review disposition
-and remote CI receipts. This local validation record alone does not establish
-PR readiness or authorize merge. Material follow-up changes require delta review.
+PR #25 owns the exact reviewed commit, independent review disposition, actual
+merge commit and pre-/post-merge CI receipts. This local validation record alone
+does not establish CI success. Material follow-up changes require delta review.
 
 ## Limits and rollback
 
@@ -78,8 +80,8 @@ is bypassed. No browser appearance, real-host instruction activation, production
 installation or general performance improvement is claimed. Reviewer read-only
 conduct is procedural under inherited permissions, not independently OS-enforced.
 
-Before merge, close the PR to leave main unchanged. If rollback is separately
-authorized after merge, revert the bounded CORE-02 source change; this restores
+If rollback is separately authorized after merge, revert the actual PR #25 merge
+commit with mainline 1 as recorded in the PR. This restores
 the known false-partial behavior at the exact file boundary. Existing published
 archives, target runtime pins, maps, bindings, instructions and recovery data are
 unchanged. No data migration is required.
