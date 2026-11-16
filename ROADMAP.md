@@ -326,14 +326,14 @@ project/
 ## Remaining work from the 2026-11-11 repair plan
 
 These contracts retain the approved plan's intent; they do not grant implementation,
-merge, publication, host registration or target-operation authority. R11 is a design
-proposal awaiting owner acceptance; R12 remains pending. R13–R16 require the stated evidence and
-separate owner authorization.
+merge, publication, host registration or target-operation authority. The owner
+accepted the R11 design and separately authorized PR #36's merge on 2026-11-16;
+R12 remains pending. R13–R16 require the stated evidence and separate owner authorization.
 The historical L0–L6 sequence below remains evidence, not a competing next-work list.
 
 | Work | Priority / state | Prerequisites and next deliverable |
 |---|---|---|
-| R11 | P1, design proposal; owner acceptance pending | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); owner acceptance and R15 implementation remain separate |
+| R11 | P1, accepted design; no implementation | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); [PR #36](https://github.com/OnFiala/agent.mind/pull/36) owns actual merge/CI evidence; R15 requires separate authorization |
 | R12 | P1, pending evaluation | R03/R04; paired consumer evaluation on representative pinned projects |
 | R13 | P2, conditional | R12 demonstrates typed-project demand; typed import/export syntax evidence |
 | R14 | P2, conditional | R12 selects one resolver mode/corpus; R13 for typed input |
@@ -348,9 +348,10 @@ prerequisites; never rewrite published tags/archives or silently downgrade targe
 
 ### R11 — Scoped-preflight design
 
-**Proposed contract; no implementation or gate relaxation.** The owner authorized
-R11 design, independent review and documentation on 2026-11-16. The
-[contract proposal](docs/reviews/2026-11-16-r11-scoped-preflight.md) separates
+**Accepted design contract; no implementation or gate relaxation.** After independent
+review, the owner accepted R11 and authorized PR #36's merge, subsequent CI and
+documentation on 2026-11-16. The
+[accepted contract](docs/reviews/2026-11-16-r11-scoped-preflight.md) separates
 freshness, inventory, completed per-file capabilities and sufficiency for a named
 operation. It preserves strict preflight/current semantics and proposes an explicit
 versioned opt-in receipt, global blockers and 24 decision cases, including unknown
@@ -362,10 +363,11 @@ lacks sufficient coverage evidence for the proposed boundary operation. Unknown
 scope and missing edges never prove dependency absence; even a safely scoped
 limitation remains visible. R11 proposes no asset-name exception or new read access.
 
-Independent review and its exact artifact/check receipt belong to the proposal PR.
-Owner acceptance of the contract is still required before separately authorized
-R15, together with the operation's required R13/R14 coverage. R12 and the conditional
-roadmap below remain unchanged. Rollback: withdraw/revert the proposal documents;
+Independent review, actual merge and subsequent CI receipts belong to
+[PR #36](https://github.com/OnFiala/agent.mind/pull/36); approval alone proves neither
+merge completion nor CI success. R15 still needs separate implementation authority
+and the operation's required R13/R14 coverage. R12 and the conditional roadmap
+below remain unchanged. Rollback: withdraw/revert these design documents;
 legacy behavior and installed targets remain unchanged.
 
 ### R12 — Consumer evaluation

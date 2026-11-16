@@ -1,16 +1,18 @@
-# R11: scoped-preflight contract proposal
+# R11: accepted scoped-preflight contract
 
 Date: 2026-11-16. Source baseline: `7bf24e919edecb70fa377dc1ad9499502f4bc19b`.
-Status: **design proposal; no implementation or change to the existing gate**.
-The owner requested this proposal, independent review, documentation and project
-memory updates. Review acceptance is not owner acceptance of the contract or
-authority to implement R15, merge, release, register a host integration or change
+Status: **owner-accepted design; no implementation or change to the existing gate**.
+The owner accepted this contract and authorized the merge of
+[PR #36](https://github.com/OnFiala/agent.mind/pull/36), subsequent merge-commit CI
+verification, documentation and project memory updates on 2026-11-16.
+This approval does not authorize R15, a release, host registration or changes to
 installed targets. [ROADMAP](../../ROADMAP.md#r11--scoped-preflight-design) owns the
-current disposition; the associated PR owns exact review/CI receipts.
+current disposition; PR #36 records exact review, actual merge and CI receipts.
+Authorization alone is not evidence that the merge or its CI has completed.
 
 R11 separates freshness, inventory coverage, completed per-file analysis and
 sufficiency for one named operation. It does not make `partial` mean `current`.
-All normative requirements below describe a proposed future opt-in contract.
+All normative requirements below define the accepted future opt-in contract.
 None of the proposed request fields, operation IDs or receipts is available in 1.4.0.
 
 ## 1. Current evidence and the problem
@@ -289,8 +291,9 @@ No second scan model, graph, truth table or browser-only bypass is introduced.
 
 ## 9. Acceptance before any R15 implementation is accepted
 
-R11 acceptance is document review of this whole contract and every table row;
-the owner still decides whether to accept it. Future executable acceptance must:
+Independent review covered this whole contract and every table row; the owner
+accepted R11 on 2026-11-16. R15 still requires separate implementation authority.
+Future executable acceptance must:
 
 1. Bind a tested operation/model descriptor to exact source/adapter versions.
    Demonstrate positive and negative cases with literal expected decisions,
@@ -324,7 +327,7 @@ operation unavailable. R11 grants no blanket R13–R16 implementation permission
 
 ## 10. Review, delivery and rollback
 
-This change contains only this proposal and ROADMAP status/link updates. Local
+This change contains only this design contract and ROADMAP status/link updates. Local
 checks validate document links, required cases and that no runtime/test/package/
 configuration files changed. No runtime tests, build, browser, installation or
 new behavior is claimed by R11. If repository CI runs for the docs PR, it checks
@@ -333,9 +336,10 @@ the unchanged baseline and is not evidence that scoped preflight exists.
 Independent review must bind the exact diff, challenge the two operation promises,
 global blockers, unknown inbound/outbound scope, truth table, receipt compatibility,
 policy/source-read privacy and stale/UI parity. Record findings and their verified
-disposition in the PR; review completion does not silently mark the contract
-owner-accepted. R15 remains conditional on owner acceptance and required coverage.
+disposition in PR #36. Independent review accepted the design candidate; the owner
+then explicitly accepted the contract. R15 remains conditional on separate
+implementation authority and required coverage.
 
-Rollback before merge: withdraw the proposal/PR. After a separately authorized
-merge: revert these documentation changes. No migration, target file rewrite,
+Rollback before merge: withdraw the PR. After the owner-authorized merge:
+revert these documentation changes. No migration, target file rewrite,
 runtime rollback, tag/asset change or installed-instruction rewrite is involved.
