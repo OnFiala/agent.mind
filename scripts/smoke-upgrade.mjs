@@ -35,14 +35,15 @@ const publishedDigests = new Map([
   ['1.2.0', '6f27e1b1e1d8a0740847f7bfef1f06c04d8c73dbefe2719c71c746975537550d'],
   ['1.2.1', '3f5c0348900525542d5b6860769c728610690db01e444e5a36bfe423d2d268ce'],
   ['1.3.0', 'd13a4194f38df22a266687d9b986e17c660ca824e61ec1437fe5e7623919f258'],
+  ['1.3.1', 'a4ebaf5b35e82cee108c3a7649804e0a2c9688034363ea43f0c324614c62c306'],
 ]);
 assert(publishedDigests.has(oldArtifact.version), 'Only pinned published previous releases are supported');
 assert.equal(oldArtifact.digest, publishedDigests.get(oldArtifact.version), `The old artifact must be the exact published ${oldArtifact.version} payload`);
 assert.notEqual(newArtifact.version, oldArtifact.version);
 assert.notEqual(newArtifact.digest, oldArtifact.digest);
-// Patch releases keep the same payload allowlist. Version identity comes from
+// These releases keep the same payload allowlist. Version identity comes from
 // the verified manifest/digest, not the version of the verifier importing it.
-if (['1.2.0', '1.2.1', '1.3.0'].includes(oldArtifact.version)) assert.equal(newVerifier.verifyArtifact(oldRelease).digest, oldArtifact.digest);
+if (['1.2.0', '1.2.1', '1.3.0', '1.3.1'].includes(oldArtifact.version)) assert.equal(newVerifier.verifyArtifact(oldRelease).digest, oldArtifact.digest);
 else assert.throws(() => newVerifier.verifyArtifact(oldRelease), /missing required file|unapproved|versions do not match/i);
 
 const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-upgrade-smoke-')));
@@ -51,7 +52,7 @@ const unrelated = path.join(temporary, 'unrelated cwd');
 fs.mkdirSync(backups); fs.mkdirSync(unrelated);
 const env = { ...process.env };
 delete env.AGENT_MIND_PROJECT;
-const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; ${['1.2.0', '1.2.1', '1.3.0'].includes(oldArtifact.version) ? 'compatible allowlist preserves distinct manifest/digest identities' : 'current allowlist rejects the older payload shape'}`];
+const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; ${['1.2.0', '1.2.1', '1.3.0', '1.3.1'].includes(oldArtifact.version) ? 'compatible allowlist preserves distinct manifest/digest identities' : 'current allowlist rejects the older payload shape'}`];
 const receipts = [];
 let view, report;
 const run = (cli, argv, expectedError) => {
@@ -250,9 +251,9 @@ try {
 
   // 1.0.3 predates the bounded text-inventory contract. Its regression above stays
   // focused on lifecycle preservation. Later releases also exercise Python.
-  if (['1.1.0', '1.2.0', '1.2.1', '1.3.0'].includes(oldArtifact.version)) {
+  if (['1.1.0', '1.2.0', '1.2.1', '1.3.0', '1.3.1'].includes(oldArtifact.version)) {
     const oldPythonSyntax = ['1.2.0', '1.2.1'].includes(oldArtifact.version);
-    const oldPythonMode = oldArtifact.version === '1.3.0' ? 'source' : oldPythonSyntax ? 'syntax' : 'text';
+    const oldPythonMode = ['1.3.0', '1.3.1'].includes(oldArtifact.version) ? 'source' : oldPythonSyntax ? 'syntax' : 'text';
     const python = fixture('Python capability transition');
     install(python, oldRelease, oldArtifact);
     const relative = 'src/inspect.py';
@@ -313,7 +314,9 @@ try {
     else run(installedCLI(python), ['preflight', relative, ...receiptArgs(declarations)], /partial/i);
     assertParked(beforePython); assertParked(afterPython);
     checks.push(oldPythonMode === 'source'
-      ? 'published 1.3.0 construct projection loss is repaired by upgrade and restored by rollback; source capabilities, verified preflight, exact CRLF/Unicode source, map, recovery and stale-receipt rejection preserved'
+      ? (oldArtifact.version === '1.3.0'
+        ? 'published 1.3.0 construct projection loss is repaired by upgrade and restored by rollback; source capabilities, verified preflight, exact CRLF/Unicode source, map, recovery and stale-receipt rejection preserved'
+        : 'published 1.3.1 Python source capabilities and construct projections survive upgrade and rollback; verified preflight, exact CRLF/Unicode source, map, recovery and stale-receipt rejection preserved')
       : oldPythonSyntax
       ? `published ${oldArtifact.version} Python partial upgrades to current imports/local-call capabilities and verified preflight, rollback restores partial; exact CRLF/Unicode source and recovery preserved`
       : 'published 1.1.0 Python text inventory upgrades to current source analysis and verified preflight; rollback restores text-only inventory, exact CRLF/Unicode source and recovery');

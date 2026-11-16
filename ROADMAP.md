@@ -1,4 +1,4 @@
-# Lightweight expansion plan
+# agent.mind roadmap
 
 Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Published baseline: **[1.3.1](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.1)**, 2026-11-03; [PR #18](https://github.com/OnFiala/agent.mind/pull/18) merged as `1558dc0`.
 [GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
@@ -8,14 +8,50 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
+## Current delivery status — 2026-11-16
+
+The release-preparation base is `main` at
+[`03ddb5b`](https://github.com/OnFiala/agent.mind/commit/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a).
+The following bounded changes were **merged, unreleased** before PR #34. The first-parent merge
+commits below establish integration; their PRs and linked records own exact review
+and check evidence. A merge is not publication or a real-target upgrade.
+
+| Work | PR | Merge commit |
+|---|---|---|
+| R01 — locale-stable digest | [#20](https://github.com/OnFiala/agent.mind/pull/20) | [`e20f43e`](https://github.com/OnFiala/agent.mind/commit/e20f43ef7b9d182ae0937fa2b587d9b8584c0bc7) |
+| R02 — bounded context | [#21](https://github.com/OnFiala/agent.mind/pull/21) | [`7d9e4d9`](https://github.com/OnFiala/agent.mind/commit/7d9e4d9c2aee47527f5cb7330dba5884c7437a2f) |
+| R03 — CLI profile and receipt | [#22](https://github.com/OnFiala/agent.mind/pull/22) | [`9e6c881`](https://github.com/OnFiala/agent.mind/commit/9e6c881989de885432f921c68f5d789f33e6ee8e) |
+| R04 — unsupported-reference diagnostics | [#23](https://github.com/OnFiala/agent.mind/pull/23) | [`dfdec93`](https://github.com/OnFiala/agent.mind/commit/dfdec93244d2fb83380cbdf813c5c4401f4336a2) |
+| R05 — input-policy contract, documentation only | [#28](https://github.com/OnFiala/agent.mind/pull/28) | [`73e892d`](https://github.com/OnFiala/agent.mind/commit/73e892d0d8f36bcb19b1b789931de9e4d2edc291) |
+| R06 — project exclusions | [#29](https://github.com/OnFiala/agent.mind/pull/29) | [`b9eb09a`](https://github.com/OnFiala/agent.mind/commit/b9eb09adbcfdfcb2e7fbc92e79b98076ba1a3677) |
+| R07 — source priority | [#30](https://github.com/OnFiala/agent.mind/pull/30) | [`e6f1de2`](https://github.com/OnFiala/agent.mind/commit/e6f1de23c5198a1e0c71b3c4f521516e6ee489e4) |
+| R08 — keyboard acceptance follow-up | [#31](https://github.com/OnFiala/agent.mind/pull/31) | [`fe0c79e`](https://github.com/OnFiala/agent.mind/commit/fe0c79e4338e73fdef78cafc03305a2d0d164c4f) |
+| R09 — generic presentation | [#32](https://github.com/OnFiala/agent.mind/pull/32) | [`9fa1263`](https://github.com/OnFiala/agent.mind/commit/9fa1263f5ff1b4267a1434f660a8794270c3b2cd) |
+| R10 — accessor identities | [#33](https://github.com/OnFiala/agent.mind/pull/33) | [`03ddb5b`](https://github.com/OnFiala/agent.mind/commit/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a) |
+| CORE-01 — captured HTTP-handler writes | [#24](https://github.com/OnFiala/agent.mind/pull/24) | [`81fed38`](https://github.com/OnFiala/agent.mind/commit/81fed3850d2399c8f956da6cf53a37ae4614241c) |
+| CORE-02 — exact inventory file boundary | [#25](https://github.com/OnFiala/agent.mind/pull/25) | [`f279c84`](https://github.com/OnFiala/agent.mind/commit/f279c840691ef7fb3bac57a22d47ed109d2fa978) |
+| UI-NEW-01 — selection projection | [#26](https://github.com/OnFiala/agent.mind/pull/26) | [`e7a1ce4`](https://github.com/OnFiala/agent.mind/commit/e7a1ce486e240a996e119763ca68973ce636e81d) |
+| UI-NEW-02 — keyboard movement used by R08 | [#27](https://github.com/OnFiala/agent.mind/pull/27) | [`e312ff1`](https://github.com/OnFiala/agent.mind/commit/e312ff13bdf64cbd16697fc7a6e85bc231a3166a) |
+
+**1.4.0 is an unreleased candidate; the owner approved PR #34's merge on
+2026-11-16.** [PR #34](https://github.com/OnFiala/agent.mind/pull/34) records the
+actual merge commit and its subsequent CI; approval alone does not establish either.
+Its [release record](docs/releases/1.4.0.md) owns candidate artifact identities,
+actual checks, limits and rollback. Tag/release publication and real-target upgrades
+remain separate owner actions. Published 1.3.1 remains the installation baseline.
+
+R11 and R12 remain pending; R13–R16 remain conditional proposals. Neither this
+reconciliation nor a successful candidate check authorizes those stages. The
+[remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
+[audit-theme ledger](#audit-theme-ledger-and-decision-triggers) retain their scope.
+The original audit's 26 themes have differing priorities and are not all release
+blockers; bounded repairs do not establish that the whole audit is closed.
+
 ## UI-NEW-02 — Keyboard movement without a Back conflict
 
-**UI-NEW-02 source repair; unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regressions, documentation, independent review and
-[PR #27](https://github.com/OnFiala/agent.mind/pull/27), then separately approved its
-merge and verification of the actual post-merge CI. That PR owns the merge status,
-exact merge commit and subsequent CI evidence. Release and real-target upgrades
-remain separately authorized actions.
+**Merged, unreleased.** The current delivery ledger records
+[PR #27](https://github.com/OnFiala/agent.mind/pull/27); its review and CI evidence
+remain separate from release and real-target upgrade authority.
 
 Scope: Shift plus any arrow moves a focused card by 20 canvas units; plain arrows
 retain spatial focus navigation, while Alt plus left arrow retains Back. The
@@ -26,12 +62,9 @@ No new graph or platform support is claimed; the published baseline remains 1.3.
 
 ## UI-NEW-01 — Symbol selection across views
 
-**UI-NEW-01 source repair; unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regression tests, documentation, independent review and
-[PR #26](https://github.com/OnFiala/agent.mind/pull/26), then separately approved its
-merge and verification of the actual post-merge CI. That PR owns the merge status,
-exact merge commit and subsequent CI evidence. Release and real-target upgrades
-remain separately authorized actions.
+**Merged, unreleased.** The current delivery ledger records
+[PR #26](https://github.com/OnFiala/agent.mind/pull/26); its review and CI evidence
+remain separate from release and real-target upgrade authority.
 
 Scope: retain the precise symbol selection and project it onto the visible owning
 file or overview block when the symbol or its containing area is not visible.
@@ -41,12 +74,9 @@ outside this repair; the published baseline remains 1.3.1.
 
 ## CORE-02 — Exact inventory file boundary
 
-**CORE-02 source repair; unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regression tests, documentation, independent review and
-[PR #25](https://github.com/OnFiala/agent.mind/pull/25), then separately approved its
-merge and verification of the actual post-merge CI. That PR owns the merge status,
-exact merge commit and subsequent CI evidence. Release and real-target upgrades
-remain separately authorized actions.
+**Merged, unreleased.** The current delivery ledger records
+[PR #25](https://github.com/OnFiala/agent.mind/pull/25); its review and CI evidence
+remain separate from release and real-target upgrade authority.
 
 Scope: enforce the file-count limit when admitting an otherwise eligible regular
 file. Preserve excluded-path classification, traversal within the separate entry
@@ -57,13 +87,9 @@ the published baseline remains 1.3.1.
 
 ## CORE-01 — Captured HTTP handler writes
 
-**CORE-01 source repair; unreleased.** On 2026-11-15 the owner authorized
-this isolated repair, regression tests, documentation, independent review and
-[PR #24](https://github.com/OnFiala/agent.mind/pull/24), then separately approved its
-merge and verification of the actual post-merge CI. That PR owns the merge status,
-exact merge commit and subsequent CI evidence. Release and real-target upgrades
-remain separately authorized actions. This repair does not include other November 15
-audit findings or the separate R04 work.
+**Merged, unreleased.** The current delivery ledger records
+[PR #24](https://github.com/OnFiala/agent.mind/pull/24). This repair excludes the
+other November 15 audit findings and the separate R04 work.
 
 Scope: suppress unsupported HTTP/SSE provider evidence when a nested function
 directly writes the handler's captured request, response or URL binding, while
@@ -73,13 +99,10 @@ validation and rollback. Published baseline remains 1.3.1; no target is upgraded
 
 ## R01 — Locale-stable artifact digest
 
-**R01 source repair; unreleased.** The owner authorized this bounded repair and
-its merge on 2026-11-11, including tests, published-artifact compatibility checks,
-independent review and [PR #20](https://github.com/OnFiala/agent.mind/pull/20).
-That PR owns merge status and subsequent CI evidence. Further audit repairs remain
-separately gated.
-The [R01 record](docs/reviews/2026-11-11-locale-digest.md) owns the contract and
-verification evidence. Published baseline remains 1.3.1.
+**Merged, unreleased.** The current delivery ledger records
+[PR #20](https://github.com/OnFiala/agent.mind/pull/20). The
+[R01 record](docs/reviews/2026-11-11-locale-digest.md) owns the contract and
+verification evidence; the PR owns exact review and CI evidence.
 
 Scope: explicit English ordering in the schema-1 artifact builder and verifier,
 plus independent digest/order and cross-locale package regressions. Preserve schema,
@@ -94,12 +117,10 @@ remain separately authorized actions; this source repair does not perform either
 
 ## R02 — Bounded context projection
 
-**R02 source repair; unreleased.** The owner authorized R02 implementation and
-its merge on 2026-11-11, including tests, documentation, independent review and
-[PR #21](https://github.com/OnFiala/agent.mind/pull/21). That PR owns merge status
-and subsequent CI evidence. Release and subsequent repairs remain separately gated.
-The [R02 record](docs/reviews/2026-11-11-bounded-context.md) owns the response
-contract, reproducible measurements and validation evidence.
+**Merged, unreleased.** The current delivery ledger records
+[PR #21](https://github.com/OnFiala/agent.mind/pull/21). The
+[R02 record](docs/reviews/2026-11-11-bounded-context.md) owns the response contract,
+reproducible measurements and validation evidence.
 
 Scope: an opt-in, versioned agent projection in `graph-context.mjs`, preserving
 selection, ancestry, source hashes/evidence, revision, applicable binding, coverage
@@ -121,13 +142,10 @@ is migrated; existing installed targets remain on their chosen release.
 
 ## R03 — Installed CLI profile and preflight receipt
 
-**R03 source repair; unreleased.** The owner authorized implementation, tests,
-documentation, independent review and [PR #22](https://github.com/OnFiala/agent.mind/pull/22)
-on 2026-11-11, then approved its merge on 2026-11-12. That PR owns actual merge
-status, exact reviewed commits and pre-/post-merge CI evidence. Release and target
-upgrades remain separately gated. The
+**Merged, unreleased.** The current delivery ledger records
+[PR #22](https://github.com/OnFiala/agent.mind/pull/22). The
 [R03 record](docs/reviews/2026-11-11-cli-profile-receipt.md) owns the CLI contract
-and validation.
+and validation; the PR owns exact review and CI evidence.
 
 Scope: expose the R02 agent profile through the installed CLI and newly generated
 usage/instructions. Opt-in preflight returns selector, revision, binding identity,
@@ -147,16 +165,11 @@ bindings, installed pins and edited user blocks. No target upgrade is performed.
 
 ## R04 — Explicit unsupported-reference diagnostics
 
-**R04 source candidate; unreleased.** On 2026-11-12 the owner authorized
-implementation, tests, documentation, independent review and
-[PR #23](https://github.com/OnFiala/agent.mind/pull/23). On 2026-11-15 the owner
-requested completion against current main, preserving the PR #24–#27 repairs.
-Main `e312ff13` is integrated into the candidate branch. The owner subsequently
-approved merging PR #23 and verifying CI on the actual merge commit. That PR owns
-the merge status, exact merge commit and subsequent CI receipts. Release and
-real-target upgrades remain separately authorized actions. The
-[R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
-contract and dated validation.
+**Merged, unreleased.** The current delivery ledger records
+[PR #23](https://github.com/OnFiala/agent.mind/pull/23), integrated after PR #24–#27.
+The [R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
+contract and dated validation. Release and real-target upgrades remain separate
+owner actions.
 
 Scope: additive per-file reasons for unavailable reference analysis, including
 `.cjs` and bounded recognized CommonJS-style forms in `.js`/`.mjs`. Preserve
@@ -170,57 +183,43 @@ Python remains eligible under the current preflight; actual warning/error/limit
 states still fail. Verify the installed CLI and actual produced bundle, including
 recovery after removing an unsupported fixture.
 
-Rollback before merge: withdraw the candidate; main and installed targets stay
-unchanged. After a separately authorized merge, revert only the R04 change through
-review using the actual merge and verified mainline, preserving PR #24–#27. This
-removes the disclosure and restores the earlier silent CommonJS limitation; it
+Rollback: revert only the R04 change through review using the actual merge and
+verified mainline, preserving PR #24–#27. This removes the disclosure and restores the earlier silent CommonJS limitation; it
 does not add resolution. No stored data, binding, naming map or runtime pin is migrated.
 
 ## R05 — Input policy and sensitive-file protection
 
-**R05 documentation contract; no runtime implementation.** On 2026-11-15 the
-owner authorized a standalone input-policy/privacy contract, independent review
-and [PR #28](https://github.com/OnFiala/agent.mind/pull/28), then approved its merge
-and verification of CI on the actual merge commit. That PR owns the actual merge
-status, exact merge commit and separate pre-/post-merge CI evidence. The
-[R05 contract](docs/reviews/2026-11-15-input-policy.md) owns the reviewed precedence,
-bounded root-ignore dialect, failure behavior, sensitive-file rules,
-revision/cache/source-read invalidation and acceptance matrix. The design itself
-did not authorize runtime work; the owner separately authorized R06 below.
-Rollback: withdraw or separately revert the R05 documentation only; no data or
+**Merged documentation contract; no runtime implementation in R05.** The
+current delivery ledger records [PR #28](https://github.com/OnFiala/agent.mind/pull/28).
+The [R05 contract](docs/reviews/2026-11-15-input-policy.md) owns the reviewed
+precedence, bounded root-ignore dialect, failure behavior, sensitive-file rules,
+revision/cache/source-read invalidation and acceptance matrix. R06 was separately
+authorized to implement this contract.
+Rollback: separately revert the R05 documentation only; no data or
 configuration migration is needed.
 
 ## R06 — Project exclusions
 
-**Implemented source; merge approved, unreleased.** On 2026-11-15 the owner
-separately authorized implementation under R05, tests, documentation, CORTEX and a
-standalone PR with independent review, then explicitly approved merging
-[PR #29](https://github.com/OnFiala/agent.mind/pull/29) and verifying CI on the actual
-merge commit. Release and real-target changes remain separately gated.
-The [R06 record](docs/reviews/2026-11-15-project-exclusions.md) owns implementation,
-checks and limitations; PR #29 owns the actual merge status/commit, exact reviewed
-commits and separate pre-/post-merge CI receipts.
+**Merged, unreleased.** The current delivery ledger records
+[PR #29](https://github.com/OnFiala/agent.mind/pull/29). The
+[R06 record](docs/reviews/2026-11-15-project-exclusions.md) owns implementation,
+checks and limitations; the PR owns exact review and CI evidence.
 
 Root-only bounded ignore/default exclusions, policy identity, safe source-read
 revalidation, metadata filtering and live/browser revocation preserve managed
 `project.json`, runtime pins and sensitive-name guards. Invalid policy fails closed.
 No stored settings, dependencies, CLI overrides or target changes are introduced.
 R06 filtering alone does not prioritize source or increase caps; the separately
-authorized R07 candidate below adds ordering. Published baseline remains 1.3.1;
-existing installations retain their pinned behavior. Rollback before merge is withdrawal;
-a later authorized revert changes runtime code only, preserving target ignore files,
-naming maps, descriptors and all project contents. See the R06 record for details.
+authorized, merged R07 work below adds ordering. Published baseline remains 1.3.1;
+existing installations retain their pinned behavior. An authorized revert changes
+runtime code only, preserving target ignore files, naming maps, descriptors and all project contents. See the R06 record for details.
 
 ## R07 — Source priority within existing budgets
 
-**Implemented source; merge approved, unreleased.** On 2026-11-15 the owner
-separately authorized source prioritization after R06 filtering, agent swarm,
-tests, documentation, CORTEX and a standalone PR with independent review, then
-explicitly approved merging [PR #30](https://github.com/OnFiala/agent.mind/pull/30)
-and verifying CI on the actual merge commit. Release and real-target changes remain
-separately gated. The [R07 record](docs/reviews/2026-11-15-source-priority.md) owns
-behavior, checks and limitations; PR #30 owns actual merge status/commit, exact
-reviewed commits, disposition and separate pre-/post-merge CI receipts.
+**Merged, unreleased.** The current delivery ledger records
+[PR #30](https://github.com/OnFiala/agent.mind/pull/30). The
+[R07 record](docs/reviews/2026-11-15-source-priority.md) owns behavior, checks and
+limitations; the PR owns exact review and CI evidence.
 
 Eligible observed paths are ranked by recognized source suffix before allocating
 file slots and byte reads. Equal ranks use ordinal full-path ordering. All R06
@@ -228,21 +227,16 @@ privacy/ignore guards and existing file, byte, entry, depth and matching-work ca
 remain. Known omitted paths are explicit; incomplete scope remains partial and
 fails strict preflight. No new language support, settings, dependencies or target
 changes are introduced. Published 1.3.1 and pinned installations are unchanged.
-Rollback before merge is withdrawal; a later authorized revert restores previous
-allocation order while preserving R06, target data and configuration.
+An authorized revert restores previous allocation order while preserving R06,
+target data and configuration.
 
 ## R08 — Keyboard contract
 
-**Keyboard behavior implemented by merged PR #27; acceptance follow-up merge
-approved, unreleased.** R08 is the same Alt-left movement/Back conflict repaired
-by [UI-NEW-02 / PR #27](https://github.com/OnFiala/agent.mind/pull/27), not a second
-shortcut design. On 2026-11-15 the owner authorized R08 with agent swarm, tests,
-documentation, CORTEX and a standalone PR with independent review, then on
-2026-11-16 explicitly approved merging [PR #31](https://github.com/OnFiala/agent.mind/pull/31)
-and verifying CI on the actual merge commit. Release and real-target operations
-remain excluded. The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md)
-owns acceptance, limitations and rollback; PR #31 owns actual merge status/commit,
-exact reviewed commits, disposition and separate pre-/post-merge CI receipts.
+**Merged, unreleased.** The current delivery ledger records
+[PR #31](https://github.com/OnFiala/agent.mind/pull/31). R08 accepts the keyboard
+behavior implemented by UI-NEW-02 / PR #27; it is not a second shortcut design.
+The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md) owns acceptance,
+limitations and rollback; the PR owns exact review and CI evidence.
 
 This follow-up exposes the unchanged document key handler to direct tests and
 adds permanent Back/input/bubbling regressions beside existing four-direction
@@ -254,14 +248,10 @@ it does not restore the old Alt-left conflict or revert PR #27.
 
 ## R09 — Generic presentation
 
-**Implementation accepted; merge approved, unreleased.** On 2026-11-16 the owner
-requested R09 with agent swarm, tests, documentation, CORTEX and an independently
-reviewed PR, then explicitly approved merging
-[PR #32](https://github.com/OnFiala/agent.mind/pull/32) and verifying CI on the actual
-merge commit. Release and real-target operations remain excluded. The
+**Merged, unreleased.** The current delivery ledger records
+[PR #32](https://github.com/OnFiala/agent.mind/pull/32). The
 [R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns behavior,
-checks, limitations and rollback; PR #32 owns actual merge status/commit,
-exact reviewed commits, disposition and separate pre-/post-merge CI receipts.
+checks, limitations and rollback; the PR owns exact review and CI evidence.
 
 Presentation keeps the overview's metadata/source order and orders nested parts
 by source location with stable ID ties. Section/area labels and this repository's
@@ -276,17 +266,16 @@ Rollback reverts presentation/tests/docs without rewriting user maps or position
 
 ## R10 — Accessor identities
 
-**Implementation and independent review complete; merge authorized, unreleased.**
-On 2026-11-16 the owner approved merging PR #33, checking CI on the actual merge
-commit and updating documentation/CORTEX. Release remains outside that authority.
-The [R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the identity
-transition, validation, limits and rollback;
-[PR #33](https://github.com/OnFiala/agent.mind/pull/33) owns exact reviewed commits,
-independent disposition, actual merge SHA and post-merge CI receipts. Approval
-alone is not evidence of a completed merge or passing merge-commit CI.
+**Merged, unreleased.** The current delivery ledger records
+[PR #33](https://github.com/OnFiala/agent.mind/pull/33). The
+[R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the intentional
+identity transition, validation, limits and rollback; the PR owns exact review
+and CI evidence.
 
-Class accessors and their descendants use a structured identity with explicit
-get/set, static and private discriminators. Unrelated source IDs remain stable.
+The intentional exception to otherwise stable source IDs covers every supported
+class accessor and its descendants, including singleton/pair transitions. They use
+a structured identity with explicit get/set, static and private discriminators.
+Unrelated source IDs remain stable.
 Legacy selectors resolve only uniquely; ambiguous or conflicting map targets
 retain diagnostics and candidates rather than silently assigning names. Shared
 hierarchy/context consumers use the same resolution. Source names, ranges and
@@ -296,8 +285,8 @@ method, computed-accessor or cross-file-call expansion.
 Acceptance covers both singleton/pair transitions, descendants, old/new naming
 references, live UI/context parity and an actual installed-CLI rollback to pinned
 published 1.3.1. Revert the identity rule without deleting new-ID maps: older
-runtimes leave those entries unresolved. No version, release or real-target
-operation is included.
+runtimes leave those entries unresolved. R10 itself included no version, release
+or real-target operation.
 
 ## Product and installation constraints
 
@@ -330,7 +319,145 @@ project/
 - Require no account, API key, model, persistent daemon, database or cloud service.
   Keep the browser and CLI on the same source-derived graph.
 
+## Remaining work from the 2026-11-11 repair plan
+
+These contracts retain the approved plan's intent; they do not grant implementation,
+merge, publication, host registration or target-operation authority. R11 and R12 are
+pending. R13–R16 require the stated evidence and separate owner authorization.
+The historical L0–L6 sequence below remains evidence, not a competing next-work list.
+
+| Work | Priority / state | Prerequisites and next deliverable |
+|---|---|---|
+| R11 | P1, pending design only | R02 contract and accepted R05; reviewed scoped-preflight truth table |
+| R12 | P1, pending evaluation | R03/R04; paired consumer evaluation on representative pinned projects |
+| R13 | P2, conditional | R12 demonstrates typed-project demand; typed import/export syntax evidence |
+| R14 | P2, conditional | R12 selects one resolver mode/corpus; R13 for typed input |
+| R15 | P2, conditional | Accepted R11; operation's required coverage from R13/R14 |
+| R16 | P2, conditional | R12 demonstrates integration benefit; R03, with unchanged strict gate permitted |
+
+Keep UI and CLI on one source-derived graph. Preserve existing source IDs except
+the bounded, intentional R10 accessor transition. Revert dependents before their
+prerequisites; never rewrite published tags/archives or silently downgrade targets.
+
+### Contracts and evidence before expansion
+
+**R11 — Scoped-preflight design (GATE-01).** Scope: define freshness, inventory
+coverage, per-file capabilities and sufficiency for a named operation separately.
+Keep legacy strict preflight and `current` intact; propose a versioned opt-in receipt,
+explicit global blockers and rules for scoping limitations. It is never an edit lock.
+**Acceptance:** a reviewed truth table covers an unparsed incoming importer outside
+selection, unknown dynamic references, source omitted by limits, stale binding,
+unreadable input and an unrelated safely classified asset. Unknown scope cannot
+prove dependency absence. Include inbound/outbound uncertainty, stale continuations
+and UI/CLI parity. Owner acceptance of the contract precedes R15; R11 relaxes nothing.
+**Rollback:** withdraw the proposal; legacy behavior remains available.
+
+**R12 — Consumer evaluation (L6, strategy A/B).** Scope: compare identical authorized
+tasks with/without R03 context on pinned disposable copies of representative existing
+projects: at least one supported ESM task and one supported Python task. Preselect
+the exact projects and dependency-sensitive tasks, preserving their real complexity;
+an authored two-file happy-path fixture is not enough. Select a typed project to establish the next
+needed capability; record unsupported paths without bypassing preflight.
+**Acceptance:** predeclare outcomes, model/host/settings, repeated paired runs,
+independent correctness rubric and stop conditions. Record missed dependencies,
+authorized test results, output bytes/tokens, elapsed time and instruction activation.
+Never execute a target merely to index it. Keep private source outside public evidence;
+only sanitized fixtures/method/results may enter a separately authorized public PR.
+No-benefit is a valid outcome. Decide whether resolver/MCP work is justified and
+whether a default-format switch deserves a separate compatibility PR; one task cannot
+establish general superiority, nor can lower token use compensate for worse correctness.
+**Rollback:** withdraw the recommendation; retire only disposable evaluation artifacts.
+
+### Conditional implementation PRs
+
+**R13 — Typed references (RES-01).** Scope: extract static imports/reexports and
+type-only syntax from the existing Babel AST; resolution stays in `code-index.mjs`.
+**Acceptance:** exact ranges/hashes on TS/TSX/JSX fixtures; malformed/dynamic input
+remains explicitly unresolved. No calls, types or framework behavior inferred; JS
+IDs/graphs stay stable. Extracting imports alone does not remove typed partial status.
+**Rollback:** return to declaration-only inspection with visible limitations.
+
+**R14 — One local resolver mode (RES-01).** Scope: R12 selects one mode and pinned
+source corpus; document its bounded rules/counterexamples before implementation.
+Node ESM retains explicit relative extensions/index paths; CJS and bundler rules
+are not interchangeable. Config reading is bounded, non-executable and root-confined.
+**Acceptance:** exact expected edges/unresolved cases on the corpus, plus collision,
+extension/index, boundary and mode-mismatch fixtures. Report precision, the resolved
+reference denominator and remaining gaps, not an unqualified 95% target. Aliases,
+conditional package exports, workspace packages and further modes need separate PRs.
+**Rollback:** disable/revert the opt-in mode, invalidate its cache and retain diagnostics.
+
+**R15 — Scoped gate (GATE-01).** Scope: implement only the accepted R11 operation
+contract when its required coverage from R13/R14 exists. Preserve legacy strict
+preflight; never relabel global partial as current.
+**Acceptance:** all R11 negative controls fail explicitly; a supported selection may
+pass despite a demonstrably unrelated limitation. Context, receipt and UI agree on
+global/selected status. Installed-target tests reject stale revisions/bindings and
+do not imply a lock or runtime guarantee.
+**Rollback:** remove the opt-in path; version/revision/binding rules invalidate its
+receipts and consumers return to the legacy strict path.
+
+**R16 — Local MCP pilot (HOST-01).** Scope: after R12 shows a useful consumer workflow,
+wrap the same engine with bounded resolve/context/strict-preflight tools over stdio.
+R15 is not required; the pilot can retain the unchanged strict gate.
+**Acceptance:** two explicitly selected hosts use the same bound project/revision and
+return CLI-equivalent evidence. Check budgets, schemas/errors, cancellation, root
+isolation and cleanup. Review launch permissions; stdio is not a sandbox. No global
+auto-registration, source-writing tool or silent target upgrade.
+**Rollback:** remove the optional adapter/registration through its documented local
+lifecycle; CLI/browser keep working with the pinned runtime.
+
+### Audit-theme ledger and decision triggers
+
+This ledger maps all 26 November 11 audit IDs, including DEP-01 in its hygiene
+section. They are planning themes, not 26 validated vulnerabilities or an assertion
+of complete repair. The older baseline review and November 15 CORE/UI repairs use
+separate finding namespaces. Priorities below are delivery choices, distinct from
+the original audit's severity labels; no whole-audit closure is claimed.
+
+| Audit IDs | Bounded disposition and condition for further work |
+|---|---|
+| LOC-01 | R01 is merged; schema-1 locale compatibility is the bounded repair. A new canonical-order schema needs separate compatibility work. |
+| CTX-01 | R02/R03 are merged; bounded output is opt-in, legacy full JSON remains the default. R12 must evaluate consumer benefit before any separate default-format change. Output budgets do not bound indexing cost. |
+| SILENT-01 | R04 adds explicit unsupported-reference diagnostics, not CommonJS resolution or implicit Python source-root discovery. Existing Python informational uncertainty remains visible. |
+| SCOPE-01 | R05/R06/R07 provide the accepted input contract, bounded root-ignore/default exclusions and source priority under existing caps. They do not provide full Git semantics or complete inventory beyond limits. |
+| SENS-01 | Hard sensitive-name guards remain. Source extensions do not prove safe contents; no sensitive-file exception is accepted. A separate exposure design and synthetic no-open/no-disclosure regressions must precede any implementation. |
+| GATE-01 | R11 design and conditional R15 remain pending. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
+| RES-01 | R13/R14 remain conditional on R12's demonstrated demand and selected corpus/mode; no broader resolver or typed-completeness claim. |
+| HOST-01 | R12 precedes conditional R16; no MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
+| SYM-01 | R10 repairs supported class-accessor identities and descendants. Object methods, computed accessors and other duplicate/binding gaps need a concrete task, exact fixtures and their own PR. |
+| UI-04 | R09 removes repository-specific presentation priority and supplies English fallback copy; user naming files and Czech aliases are preserved. This is not a whole-product UX acceptance. |
+| UI-01, UI-02, UI-03, PERF-01 | PR #26/#27 and R08 repair selection/keyboard behavior with scoped regressions. Reproduce remaining SSE/focus/state failures in a browser and profile a failing supported graph before renderer/store splits, workers or delta SSE. UI-RECONCILE-01 remains unapproved; never replace authoritative hashing with mtime alone. |
+| CALL-01, DUP-01 | Concrete imported-call/scope tasks, exact binding fixtures and differential checks must justify work; keep it separate from resolver and identity fixes. |
+| LIFE-01, LIFE-02 | Upgrade/doctor proposals need crash recovery, lease ownership, map preservation and downgrade tests. A dead PID alone never silently transfers custody. Retain explicit lifecycle/update paths. |
+| REL-01, TEST-01 | Candidate release checks and targeted regressions do not establish CI provenance, reproducible tar bytes or full browser coverage. Those and macOS CI require separate scoped proposals; retain Node 22/24 and package/upgrade checks. |
+| DOC-01, STYLE-01 | This reconciliation covers roadmap status/navigation only. Further documentation or touched-module formatting needs scoped link/command checks and behavior-preserving diffs; no whole-repository formatting or history relocation. |
+| GOV-01, PRIV-01, PROC-01, DEP-01 | Reverify live state before scoped changes to settings, author identity, support windows or dependencies. No history rewrite or automatic N−1-only policy; a dependency major version is not itself a vulnerability. |
+
+Architecture rules/impact, npm distribution, new languages, LSP/SCIP and write hooks
+remain demand-led proposals needing separate authority, packaging and evidence
+contracts. The shared human/agent map remains the product; no pivot is authorized.
+
+### Verification for remaining work and release preparation
+
+- Documentation-only PRs: check diff scope, Markdown links/anchors, dependency order,
+  status wording and independent exact-diff review; claim no runtime checks.
+- Implementation PRs: focused regressions and applicable Node 22/24 CI. Context,
+  installation and artifact changes also exercise produced bundles in disposable
+  targets; UI changes require a real-browser check. Never execute a scanned project
+  to discover its structure.
+- Before an authorized release: full `npm test`, `npm run package`,
+  `scripts/smoke-release.mjs` against produced bytes, and every retained upgrade/
+  rollback path, including published 1.3.1 as the immediate baseline. Record exact
+  source/artifact identities, independent review and remaining limits.
+- A check advances only its evidence status. Release preparation does not authorize
+  merge, publication, a target upgrade or any pending R11–R16 implementation.
+
 ## PR sequence
+
+Historical expansion sequence and delivery evidence follow. The current delivery
+ledger and remaining-work contracts above own next priorities; completed rows below
+are not reopened by this reconciliation.
 
 Every row is independently reviewable and reversible. Status changes only with a
 linked PR/commit and its actual checks; a merged planning PR does not mark later
