@@ -61,6 +61,51 @@ typed-analysis.mjs
 const locales = [['en_US.UTF-8', 'en-US'], ['cs_CZ.UTF-8', 'cs-CZ'], ['sk_SK.UTF-8', 'sk-SK'], ['C', 'en-US']];
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
+// These shipped documents use inline Markdown links/images and ATX headings.
+// Resolve against packaged bytes, independently of the production file allowlist.
+function markdownLinkProblems(bundle, relative) {
+  const document = fs.readFileSync(path.join(bundle, relative), 'utf8').replace(/^```[^\n]*\n[\s\S]*?^```[^\n]*$/gm, '');
+  const problems = [];
+  const headings = text => {
+    const seen = new Map();
+    return new Set([...text.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)].map(([, heading]) => {
+      const slug = heading.toLowerCase().replace(/[^\p{L}\p{N}_\-\s]/gu, '').replace(/\s/g, '-');
+      const count = seen.get(slug) || 0;
+      seen.set(slug, count + 1);
+      return count ? `${slug}-${count}` : slug;
+    }));
+  };
+  for (const match of document.matchAll(/!?\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))\s*\)/g)) {
+    const target = match[1] ?? match[2];
+    if (/^https?:\/\//i.test(target)) {
+      const url = new URL(target);
+      if (url.hostname === 'github.com' && url.pathname.startsWith('/OnFiala/agent.mind/blob/')) {
+        if (!/^\/OnFiala\/agent\.mind\/blob\/[a-f0-9]{40}\//.test(url.pathname)) {
+          problems.push(`${relative}: repository documentation must use an immutable commit: ${target}`);
+        }
+      }
+      continue; // No network access: release pages, PRs and other external sites are not fetched.
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) {
+      problems.push(`${relative}: unsupported link scheme: ${target}`);
+      continue;
+    }
+    const [file, anchor] = target.split('#');
+    const resolved = path.resolve(bundle, path.dirname(relative), decodeURIComponent(file.split('?')[0] || path.basename(relative)));
+    const inside = path.relative(bundle, resolved);
+    if (inside.startsWith(`..${path.sep}`) || inside === '..' || path.isAbsolute(inside) || !fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+      problems.push(`${relative}: missing bundled link: ${target}`);
+      continue;
+    }
+    if (anchor && path.extname(resolved) === '.md') {
+      if (!headings(fs.readFileSync(resolved, 'utf8')).has(decodeURIComponent(anchor))) {
+        problems.push(`${relative}: missing Markdown heading: ${target}`);
+      }
+    }
+  }
+  return problems;
+}
+
 test('release builder packages only shared allowlist and verifies the produced runtime', t => {
   const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-package-test-'));
@@ -124,6 +169,16 @@ test('release builder packages only shared allowlist and verifies the produced r
   assert.equal(artifact.digest, built.artifactDigest);
   assert.deepEqual(Object.keys(artifact.files).sort(), [...ARTIFACT_FILES].sort());
   assert(!fs.existsSync(path.join(built.bundle, 'public/owner-private-probe.txt')));
+  const readme = path.join(built.bundle, 'README.md'), originalReadme = fs.readFileSync(readme);
+  try {
+    // This original defect exists in source but not in the release: the check
+    // must not accidentally resolve documentation against the source checkout.
+    fs.appendFileSync(readme, '\n[Selection repair](docs/reviews/2026-11-15-selection-projection.md)\n');
+    assert(markdownLinkProblems(built.bundle, 'README.md').includes('README.md: missing bundled link: docs/reviews/2026-11-15-selection-projection.md'));
+  } finally { fs.writeFileSync(readme, originalReadme); }
+  const documentationProblems = ['README.md', 'public/assets/README.md'].flatMap(relative => markdownLinkProblems(built.bundle, relative));
+  assert.deepEqual(documentationProblems, [], 'shipped README links and images must resolve within the bundle; repository documentation URLs must be immutable');
+  t.diagnostic('shipped README links/images and local headings resolve; original missing-doc negative control was rejected without network access');
   const listing = spawnSync('tar', ['-tzf', built.archive], { encoding: 'utf8' });
   assert.equal(listing.status, 0);
   assert(!listing.stdout.includes('owner-private-probe'));
