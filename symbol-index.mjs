@@ -92,6 +92,7 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
   const lines = source.split(/\r?\n/);
   const evidence = node => ({ path: relative, line: node.loc.start.line, column: node.loc.start.column + 1, snippet: lines[node.loc.start.line - 1]?.trim().slice(0, 220) ?? '' });
   const candidates = [];
+  const identityPaths = new WeakMap();
   const records = [];
   const scopes = [];
   const classMethods = new Map();
@@ -113,10 +114,17 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
     for (let item = current; item; item = item.parent) if (item.bindings.has(name)) return item.bindings.get(name);
     return [];
   };
-  const symbol = (node, name, kind, owner) => {
+  const symbol = (node, name, kind, owner, accessor = null) => {
     if (!name || candidates.length >= SYMBOL_LIMITS.nodes) { truncated = true; return null; }
     const qualifiedName = owner ? `${owner.qualifiedName}.${name}` : name;
-    const result = { id: `symbol:${relative}#${qualifiedName}`, path: relative, name, label: name, qualifiedName, kind, parentId: owner?.id ?? null, line: node.loc.start.line, column: node.loc.start.column + 1, endLine: node.loc.end.line, hash };
+    const legacyId = `symbol:${relative}#${qualifiedName}`;
+    // A leading @ cannot be a top-level JS binding. Structured segments keep
+    // literal names (including dots/marker text) distinct from source ancestry.
+    const identityPath = [...(identityPaths.get(owner) ?? []), accessor ? [name, accessor.accessorKind, accessor.static, accessor.private] : name];
+    const changedIdentity = Boolean(accessor || owner?.legacyId);
+    const id = changedIdentity ? `symbol:${relative}#@accessor:${JSON.stringify(identityPath)}` : legacyId;
+    const result = { id, path: relative, name, label: name, qualifiedName, kind, parentId: owner?.id ?? null, line: node.loc.start.line, column: node.loc.start.column + 1, endLine: node.loc.end.line, hash, ...(changedIdentity ? { legacyId } : {}), ...(accessor ?? {}) };
+    identityPaths.set(result, identityPath);
     candidates.push(result);
     if (kind === 'class' || kind === 'function' && node.type !== 'ArrowFunctionExpression' && !node.async && !node.generator) constructible.add(result);
     return result;
@@ -142,7 +150,8 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
           continue;
         }
         const name = methodName(method);
-        const member = own && name ? symbol(method, name, 'method', own) : null;
+        const accessor = ['get', 'set'].includes(method.kind) ? { accessorKind: method.kind, static: Boolean(method.static), private: method.key.type === 'PrivateIdentifier' } : null;
+        const member = own && name ? symbol(method, name, 'method', own, accessor) : null;
         if (member) {
           const key = `${Boolean(method.static)}:${name}`;
           if (!methods.has(key)) methods.set(key, []);
@@ -244,6 +253,17 @@ export function analyzeSymbolGraph(relative, source, { ast, hash = digest(source
   const valid = new Map([...grouped].filter(([, values]) => values.length === 1).map(([id, values]) => [id, values[0]]));
   for (const [id, values] of grouped) if (values.length > 1) diagnostics.push({ path: relative, line: values[0].line, severity: 'info', message: `Ambiguous symbol name ${values[0].qualifiedName}; duplicate IDs and call targets are omitted` });
   for (const node of candidates) if (node.parentId && !valid.has(node.parentId)) valid.delete(node.id);
+  // Legacy selectors must not become unique merely because another declaration
+  // was withheld by duplicate/parent pruning. Canonical new IDs remain usable.
+  const legacyClaims = new Map();
+  for (const node of candidates) {
+    const legacyId = node.legacyId ?? node.id;
+    if (!legacyClaims.has(legacyId)) legacyClaims.set(legacyId, []);
+    legacyClaims.get(legacyId).push(node);
+  }
+  for (const [legacyId, claims] of legacyClaims) if (claims.length > 1 && claims.some(node => node.legacyId)) {
+    for (const node of claims) if (valid.get(node.id) === node) Object.assign(node, { legacyId, legacyAmbiguous: true });
+  }
   for (const item of scopes) for (const [name, bindings] of item.bindings) if (bindings.length > 1) diagnostics.push({ path: relative, severity: 'info', message: `Ambiguous lexical binding ${name}; calls through this binding are omitted` });
   const edges = new Map();
   let unresolved = 0;
