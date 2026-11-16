@@ -254,12 +254,14 @@ it does not restore the old Alt-left conflict or revert PR #27.
 
 ## R09 — Generic presentation
 
-**Implemented candidate, unmerged and unreleased.** On 2026-11-16 the owner
-requested R09, agent swarm, tests, documentation, CORTEX and a standalone PR with
-independent review, without merge or release. The
-[R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns the behavior,
-checks, limitations and rollback; [PR #32](https://github.com/OnFiala/agent.mind/pull/32)
-owns exact reviewed commits, disposition and CI receipts.
+**Implementation accepted; merge approved, unreleased.** On 2026-11-16 the owner
+requested R09 with agent swarm, tests, documentation, CORTEX and an independently
+reviewed PR, then explicitly approved merging
+[PR #32](https://github.com/OnFiala/agent.mind/pull/32) and verifying CI on the actual
+merge commit. Release and real-target operations remain excluded. The
+[R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns behavior,
+checks, limitations and rollback; PR #32 owns actual merge status/commit,
+exact reviewed commits, disposition and separate pre-/post-merge CI receipts.
 
 Presentation keeps the overview's metadata/source order and orders nested parts
 by source location with stable ID ties. Section/area labels and this repository's

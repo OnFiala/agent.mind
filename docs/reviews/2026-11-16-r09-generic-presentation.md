@@ -1,12 +1,15 @@
 # R09 — Generic presentation
 
 Date: 2026-11-16. Base: `fe0c79e4338e73fdef78cafc03305a2d0d164c4f`.
-Status: **implemented candidate, unmerged and unreleased**. The owner requested
-R09 with agent swarm, tests, documentation, CORTEX and a separate independently
-reviewed PR, without merge or release.
+Status: **implementation accepted; merge approved, unreleased**. The owner
+requested R09 with agent swarm, tests, documentation, CORTEX and an independently
+reviewed PR, then on 2026-11-16 explicitly approved merging PR #32 and verifying CI
+on the actual merge commit. Release and real-target operations remain excluded.
 [ROADMAP](../../ROADMAP.md#r09--generic-presentation) owns stage status;
-[PR #32](https://github.com/OnFiala/agent.mind/pull/32) owns exact reviewed commits,
-disposition and CI receipts.
+[PR #32](https://github.com/OnFiala/agent.mind/pull/32) owns actual merge status,
+exact merge/reviewed commits, independent disposition and separate pre-/post-merge
+CI receipts. Approval is not evidence that merge or CI succeeded. Published 1.3.1
+and existing installations are unchanged.
 
 ## Problem and contract
 
