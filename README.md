@@ -269,6 +269,38 @@ not rewrite naming maps, source IDs or user labels/aliases. See the
 [R09 presentation record](docs/reviews/2026-11-16-r09-generic-presentation.md) for
 checks, English fallback copy and release limits.
 
+### JavaScript accessor identities (unreleased R10)
+
+Supported class getters and setters have separate source IDs, including when only
+one accessor exists. Their descendants also use the accessor identity; unrelated
+function, class and ordinary-method IDs keep their previous form. Original names
+and qualified names remain source text. Getter/setter descriptions distinguish the
+cards, while their IDs carry the identity.
+
+The ID is `symbol:<path>#@accessor:<JSON ancestry>`. Ordinary ancestry segments are
+name strings; an accessor segment is `[name, "get" or "set", static, private]`.
+For example, a public instance getter `Store.value` in `src/store.mjs` has ID
+`symbol:src/store.mjs#@accessor:["Store",["value","get",false,false]]`; its named
+local function `read` appends `,"read"` to that ancestry array. Adding/removing the
+setter or moving source lines preserves the surviving getter's ID. Static and
+private accessors are distinguished, and literal names cannot masquerade as
+ancestry. Copy exact IDs from context when naming parts rather than building them.
+
+Old accessor/descendant IDs remain exact, case-sensitive selectors only when one
+source declaration claims them. A pair, a conflicting ordinary symbol or a
+withheld duplicate makes that legacy selector ambiguous; diagnostics list current
+candidates and no label is assigned through that map entry. Two different map
+targets resolving to one declaration are a naming conflict, not a last-write rule.
+No map file is rewritten. When rolling back to a pre-R10 runtime, retain maps with
+new IDs: their names remain unresolved with diagnostics rather than being deleted
+or rebound. Current source IDs and details remain available under that runtime's
+own rules. See the [R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md).
+
+This is declaration identity, not property-access execution analysis. Reading or
+writing a property does not create a getter/setter call edge; `this.value()` also
+does not make an accessor a callable method target. Object methods, computed
+accessor names and cross-file calls gain no new support.
+
 ## What it can read
 
 Acorn parses JavaScript without executing it. The index reads static imports,

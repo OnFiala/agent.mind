@@ -274,6 +274,31 @@ ordering helpers. Live updates retain positions; explicit Arrange recomputes lay
 No R10 work, new language support, target operation or release is included.
 Rollback reverts presentation/tests/docs without rewriting user maps or positions.
 
+## R10 — Accessor identities
+
+**Implementation and independent review complete; merge authorized, unreleased.**
+On 2026-11-16 the owner approved merging PR #33, checking CI on the actual merge
+commit and updating documentation/CORTEX. Release remains outside that authority.
+The [R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the identity
+transition, validation, limits and rollback;
+[PR #33](https://github.com/OnFiala/agent.mind/pull/33) owns exact reviewed commits,
+independent disposition, actual merge SHA and post-merge CI receipts. Approval
+alone is not evidence of a completed merge or passing merge-commit CI.
+
+Class accessors and their descendants use a structured identity with explicit
+get/set, static and private discriminators. Unrelated source IDs remain stable.
+Legacy selectors resolve only uniquely; ambiguous or conflicting map targets
+retain diagnostics and candidates rather than silently assigning names. Shared
+hierarchy/context consumers use the same resolution. Source names, ranges and
+static call evidence remain authoritative, with no property-execution, object-
+method, computed-accessor or cross-file-call expansion.
+
+Acceptance covers both singleton/pair transitions, descendants, old/new naming
+references, live UI/context parity and an actual installed-CLI rollback to pinned
+published 1.3.1. Revert the identity rule without deleting new-ID maps: older
+runtimes leave those entries unresolved. No version, release or real-target
+operation is included.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while

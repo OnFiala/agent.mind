@@ -124,6 +124,23 @@ function validPartName(part, targets) {
 
 const validPartSection = part => Boolean(part.section && typeof part.sectionId === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(part.sectionId));
 
+function ambiguousSelector(selector, matches, withheld = false) {
+  const candidates = matches.map(({ id, path, qualifiedLabel, qualifiedName, label }) => ({ id, path: path ?? null, qualifiedLabel: qualifiedLabel ?? qualifiedName ?? label }));
+  const error = new Error(`The name or path "${selector}" is ambiguous; matches multiple parts${withheld ? ' or withheld declarations' : ''}. Use a stable ID. Candidates: ${candidates.map(item => `${item.id} (${item.qualifiedLabel})`).join('; ')}`);
+  error.code = 'AMBIGUOUS_SELECTOR';
+  error.candidates = candidates;
+  return error;
+}
+
+// Naming targets and CLI/context selectors share exact source-ID aliases.
+// Never let an old accessor ID silently pick an ordinary canonical ID either.
+function sourcePart(nodes, selector) {
+  const matches = nodes.filter(node => node.id === selector || typeof node.legacyId === 'string' && node.legacyId === selector);
+  const withheld = matches.some(node => node.legacyId === selector && node.legacyAmbiguous);
+  if (matches.length > 1 || withheld) throw ambiguousSelector(selector, matches, withheld);
+  return matches[0] ?? null;
+}
+
 export function buildHierarchy(graph, configuration = null) {
   const diagnostics = [];
   const rawFiles = new Map(graph.nodes.filter(node => node.path).map(node => [node.id, node]));
@@ -140,13 +157,14 @@ export function buildHierarchy(graph, configuration = null) {
   for (const symbol of symbols) {
     const file = rawFiles.get(`file:${symbol.path}`);
     if (!file) continue;
-    const node = { ...symbol, label: symbol.name, sourceName: symbol.name, sourceId: symbol.id, parentId: symbol.parentId && symbolIds.has(symbol.parentId) ? symbol.parentId : file.id, kind: 'symbol', symbolKind: symbol.kind, type: symbol.kind === 'class' ? 'module' : 'process', description: `${({ class: 'Class', method: 'Method', function: 'Function', interface: 'Interface', type: 'Type', enum: 'Enum', namespace: 'Namespace', signature: 'Signature' })[symbol.kind] ?? 'Declaration'} · ${symbol.name}`, aliases: [], fileIds: [file.id], group: 'core', layers: [...new Set(['project', ...(file.kind === 'test' ? ['testing'] : []), ...((file.security ?? []).some(signal => signal.line >= symbol.line && signal.line <= symbol.endLine) ? ['security'] : [])])], hasChildren: false };
+    const node = { ...symbol, label: symbol.name, sourceName: symbol.name, sourceId: symbol.id, parentId: symbol.parentId && symbolIds.has(symbol.parentId) ? symbol.parentId : file.id, kind: 'symbol', symbolKind: symbol.kind, type: symbol.kind === 'class' ? 'module' : 'process', description: `${symbol.accessorKind ? `${symbol.static ? 'Static ' : ''}${symbol.accessorKind === 'get' ? 'Getter' : 'Setter'}` : ({ class: 'Class', method: 'Method', function: 'Function', interface: 'Interface', type: 'Type', enum: 'Enum', namespace: 'Namespace', signature: 'Signature' })[symbol.kind] ?? 'Declaration'} · ${symbol.name}`, aliases: [], fileIds: [file.id], group: 'core', layers: [...new Set(['project', ...(file.kind === 'test' ? ['testing'] : []), ...((file.security ?? []).some(signal => signal.line >= symbol.line && signal.line <= symbol.endLine) ? ['security'] : [])])], hasChildren: false };
     nodes.push(node); byId.set(node.id, node);
   }
   const parts = configuration?.parts ?? [];
   if (!Array.isArray(parts) || parts.length > 512) diagnostics.push(diagnostic('Part names must be a list of at most 512 entries.'));
   else {
     const targets = new Set();
+    const resolved = new Map();
     for (const part of parts) {
       if (!validPartName(part, targets)) {
         diagnostics.push(diagnostic('Invalid or duplicate part name.')); continue;
@@ -154,8 +172,23 @@ export function buildHierarchy(graph, configuration = null) {
       targets.add(part.target);
       const validSection = validPartSection(part);
       if ((part.section !== undefined || part.sectionId !== undefined) && !validSection) diagnostics.push(diagnostic('A named area requires a stable sectionId slug; using Other parts until it is provided.'));
-      const node = byId.get(part.target);
+      let node;
+      try { node = sourcePart(nodes, part.target); }
+      catch (error) {
+        if (error.code !== 'AMBIGUOUS_SELECTOR') throw error;
+        diagnostics.push({ ...diagnostic(error.message), code: 'AMBIGUOUS_NAMING_TARGET', target: part.target, candidates: error.candidates });
+        continue;
+      }
       if (!node || node.kind === 'block') { diagnostics.push(diagnostic(`The named part ${part.target} is missing from the current sources.`)); continue; }
+      if (!resolved.has(node.id)) resolved.set(node.id, []);
+      resolved.get(node.id).push({ node, part, validSection });
+    }
+    for (const entries of resolved.values()) {
+      if (entries.length > 1) {
+        diagnostics.push({ ...diagnostic(`Conflicting part names resolve to ${entries[0].node.id}; none are applied.`), code: 'CONFLICTING_NAMING_TARGET', targets: entries.map(entry => entry.part.target) });
+        continue;
+      }
+      const { node, part, validSection } = entries[0];
       node.label = part.label;
       node.description = part.description;
       if (validSection) { node.section = part.section.trim(); node.sectionId = part.sectionId; }
@@ -186,7 +219,7 @@ export function buildHierarchy(graph, configuration = null) {
 
 export function resolvePart(hierarchy, selector) {
   const nodes = hierarchy?.nodes ?? [];
-  const direct = nodes.find(node => node.id === selector);
+  const direct = sourcePart(nodes, selector);
   if (direct) return direct;
   // An exact source filepath is a filesystem selector, like its file: ID.
   // Human labels and breadcrumbs below share one ambiguity rule.
@@ -203,13 +236,7 @@ export function resolvePart(hierarchy, selector) {
     if (normalizeSelector(node.qualifiedLabel) === name) return true;
     return matchesPath(ancestorPath(hierarchy, node.id, byId), String(selector).split('/').map(normalizeName));
   });
-  if (matches.length > 1) {
-    const candidates = matches.map(({ id, path, qualifiedLabel }) => ({ id, path: path ?? null, qualifiedLabel }));
-    const error = new Error(`The name or path "${selector}" is ambiguous; matches multiple parts. Use a stable ID. Candidates: ${candidates.map(item => `${item.id} (${item.qualifiedLabel})`).join('; ')}`);
-    error.code = 'AMBIGUOUS_SELECTOR';
-    error.candidates = candidates;
-    throw error;
-  }
+  if (matches.length > 1) throw ambiguousSelector(selector, matches);
   return matches[0] ?? null;
 
   // A file label can itself contain '/'. Match complete segments against the
