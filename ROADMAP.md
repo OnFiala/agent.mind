@@ -43,8 +43,9 @@ artifact identities, public-download verification, checks, limits and rollback.
 Real-target upgrades remain separate owner actions; existing installations were
 not changed. Current documentation updates do not replace the frozen archive.
 
-R11 and R12 remain pending; R13–R16 remain conditional proposals. Neither this
-reconciliation nor a successful candidate check authorizes those stages. The
+R11 has a scoped-preflight design proposal; owner acceptance pending; R12 remains pending and
+R13–R16 remain conditional proposals. Neither this reconciliation nor a successful
+candidate check authorizes those stages. The
 [remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
 [audit-theme ledger](#audit-theme-ledger-and-decision-triggers) retain their scope.
 The original audit's 26 themes have differing priorities and are not all release
@@ -325,13 +326,14 @@ project/
 ## Remaining work from the 2026-11-11 repair plan
 
 These contracts retain the approved plan's intent; they do not grant implementation,
-merge, publication, host registration or target-operation authority. R11 and R12 are
-pending. R13–R16 require the stated evidence and separate owner authorization.
+merge, publication, host registration or target-operation authority. R11 is a design
+proposal awaiting owner acceptance; R12 remains pending. R13–R16 require the stated evidence and
+separate owner authorization.
 The historical L0–L6 sequence below remains evidence, not a competing next-work list.
 
 | Work | Priority / state | Prerequisites and next deliverable |
 |---|---|---|
-| R11 | P1, pending design only | R02 contract and accepted R05; reviewed scoped-preflight truth table |
+| R11 | P1, design proposal; owner acceptance pending | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); owner acceptance and R15 implementation remain separate |
 | R12 | P1, pending evaluation | R03/R04; paired consumer evaluation on representative pinned projects |
 | R13 | P2, conditional | R12 demonstrates typed-project demand; typed import/export syntax evidence |
 | R14 | P2, conditional | R12 selects one resolver mode/corpus; R13 for typed input |
@@ -344,18 +346,31 @@ prerequisites; never rewrite published tags/archives or silently downgrade targe
 
 ### Contracts and evidence before expansion
 
-**R11 — Scoped-preflight design (GATE-01).** Scope: define freshness, inventory
-coverage, per-file capabilities and sufficiency for a named operation separately.
-Keep legacy strict preflight and `current` intact; propose a versioned opt-in receipt,
-explicit global blockers and rules for scoping limitations. It is never an edit lock.
-**Acceptance:** a reviewed truth table covers an unparsed incoming importer outside
-selection, unknown dynamic references, source omitted by limits, stale binding,
-unreadable input and an unrelated safely classified asset. Unknown scope cannot
-prove dependency absence. Include inbound/outbound uncertainty, stale continuations
-and UI/CLI parity. Owner acceptance of the contract precedes R15; R11 relaxes nothing.
-**Rollback:** withdraw the proposal; legacy behavior remains available.
+### R11 — Scoped-preflight design
 
-**R12 — Consumer evaluation (L6, strategy A/B).** Scope: compare identical authorized
+**Proposed contract; no implementation or gate relaxation.** The owner authorized
+R11 design, independent review and documentation on 2026-11-16. The
+[contract proposal](docs/reviews/2026-11-16-r11-scoped-preflight.md) separates
+freshness, inventory, completed per-file capabilities and sufficiency for a named
+operation. It preserves strict preflight/current semantics and proposes an explicit
+versioned opt-in receipt, global blockers and 24 decision cases, including unknown
+incoming/outgoing scope, stale continuations and UI/CLI parity.
+
+Text inspection and direct file-boundary review make different promises; a text
+receipt cannot establish dependency completeness or edit safety. The present graph
+lacks sufficient coverage evidence for the proposed boundary operation. Unknown
+scope and missing edges never prove dependency absence; even a safely scoped
+limitation remains visible. R11 proposes no asset-name exception or new read access.
+
+Independent review and its exact artifact/check receipt belong to the proposal PR.
+Owner acceptance of the contract is still required before separately authorized
+R15, together with the operation's required R13/R14 coverage. R12 and the conditional
+roadmap below remain unchanged. Rollback: withdraw/revert the proposal documents;
+legacy behavior and installed targets remain unchanged.
+
+### R12 — Consumer evaluation
+
+**L6, strategy A/B.** Scope: compare identical authorized
 tasks with/without R03 context on pinned disposable copies of representative existing
 projects: at least one supported ESM task and one supported Python task. Preselect
 the exact projects and dependency-sensitive tasks, preserving their real complexity;
@@ -425,7 +440,7 @@ the original audit's severity labels; no whole-audit closure is claimed.
 | SILENT-01 | R04 adds explicit unsupported-reference diagnostics, not CommonJS resolution or implicit Python source-root discovery. Existing Python informational uncertainty remains visible. |
 | SCOPE-01 | R05/R06/R07 provide the accepted input contract, bounded root-ignore/default exclusions and source priority under existing caps. They do not provide full Git semantics or complete inventory beyond limits. |
 | SENS-01 | Hard sensitive-name guards remain. Source extensions do not prove safe contents; no sensitive-file exception is accepted. A separate exposure design and synthetic no-open/no-disclosure regressions must precede any implementation. |
-| GATE-01 | R11 design and conditional R15 remain pending. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
+| GATE-01 | R11 is a [design proposal; owner acceptance pending](docs/reviews/2026-11-16-r11-scoped-preflight.md); owner acceptance and conditional R15 remain pending. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
 | RES-01 | R13/R14 remain conditional on R12's demonstrated demand and selected corpus/mode; no broader resolver or typed-completeness claim. |
 | HOST-01 | R12 precedes conditional R16; no MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
 | SYM-01 | R10 repairs supported class-accessor identities and descendants. Object methods, computed accessors and other duplicate/binding gaps need a concrete task, exact fixtures and their own PR. |
