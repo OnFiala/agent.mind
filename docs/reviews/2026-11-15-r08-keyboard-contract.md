@@ -1,12 +1,15 @@
 # R08 — Keyboard contract acceptance
 
 Date: 2026-11-15. Base: `e6f1de23c5198a1e0c71b3c4f521516e6ee489e4`.
-Status: **acceptance follow-up candidate, unmerged and unreleased**. The owner
-requested R08, agent swarm, tests, documentation, CORTEX and a standalone PR with
-independent review, explicitly without merge or release.
-[ROADMAP](../../ROADMAP.md#r08--keyboard-contract) owns stage status; the follow-up
-[PR #31](https://github.com/OnFiala/agent.mind/pull/31) owns exact reviewed commits,
-independent disposition and CI receipts.
+Status: **acceptance follow-up merge approved, unreleased**. The owner requested
+R08, agent swarm, tests, documentation, CORTEX and a standalone PR with independent
+review, then on 2026-11-16 explicitly approved merging PR #31 and verifying CI on
+the actual merge commit. Release and real-target operations remain excluded.
+[ROADMAP](../../ROADMAP.md#r08--keyboard-contract) owns stage status;
+[PR #31](https://github.com/OnFiala/agent.mind/pull/31) owns actual merge status,
+exact merge/reviewed commits, independent disposition and separate pre-/post-merge
+CI receipts. Approval is not evidence that merge or CI succeeded. Published 1.3.1
+and existing installations are unchanged.
 
 ## Existing implementation and remaining acceptance
 

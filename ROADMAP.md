@@ -233,14 +233,16 @@ allocation order while preserving R06, target data and configuration.
 
 ## R08 — Keyboard contract
 
-**Keyboard behavior implemented by merged PR #27; acceptance follow-up candidate,
-unmerged and unreleased.** R08 is the same Alt-left movement/Back conflict repaired
+**Keyboard behavior implemented by merged PR #27; acceptance follow-up merge
+approved, unreleased.** R08 is the same Alt-left movement/Back conflict repaired
 by [UI-NEW-02 / PR #27](https://github.com/OnFiala/agent.mind/pull/27), not a second
 shortcut design. On 2026-11-15 the owner authorized R08 with agent swarm, tests,
-documentation, CORTEX and a standalone PR with independent review, without merge
-or release. The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md) owns
-current acceptance, limitations and rollback; [PR #31](https://github.com/OnFiala/agent.mind/pull/31)
-owns exact reviewed commits and CI receipts.
+documentation, CORTEX and a standalone PR with independent review, then on
+2026-11-16 explicitly approved merging [PR #31](https://github.com/OnFiala/agent.mind/pull/31)
+and verifying CI on the actual merge commit. Release and real-target operations
+remain excluded. The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md)
+owns acceptance, limitations and rollback; PR #31 owns actual merge status/commit,
+exact reviewed commits, disposition and separate pre-/post-merge CI receipts.
 
 This follow-up exposes the unchanged document key handler to direct tests and
 adds permanent Back/input/bubbling regressions beside existing four-direction
