@@ -258,6 +258,17 @@ Ambiguous short names need a full path or stable ID. Invalid metadata produces
 diagnostics and does not hide parts. Names describe intended responsibilities;
 the source determines connections.
 
+The unreleased R09 presentation keeps the block order supplied by the overview;
+declared blocks follow their order in the naming map. Nested parts use source path,
+line, column and stable ID as deterministic ties, with case-sensitive UTF-16 text
+ordering. Sections and collapsed areas follow their first source member; explicit
+outside context remains last. Display names do not assign priority or roles.
+File headings use literal folder paths and indexed file kinds. Live updates retain
+existing card positions; **Arrange files** recomputes the current order. This does
+not rewrite naming maps, source IDs or user labels/aliases. See the
+[R09 presentation record](docs/reviews/2026-11-16-r09-generic-presentation.md) for
+checks, English fallback copy and release limits.
+
 ## What it can read
 
 Acorn parses JavaScript without executing it. The index reads static imports,

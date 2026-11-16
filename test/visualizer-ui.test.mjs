@@ -403,7 +403,7 @@ test('deep sections are ordered, counted and nonoverlapping while root layout st
   const parts = Array.from({ length: 14 }, (_, i) => ({ id: `part:${i}`, label: `Část ${i}`, kind: 'block', hierarchyKind: 'symbol', group: 'core', line: i * 10, section: i < 4 ? 'Details' : i < 8 ? 'Navigation' : i < 12 ? 'Rendering' : undefined }));
   parts.push({ id: 'outside', label: 'Server', kind: 'block', hierarchyKind: 'boundary', group: 'context' });
   const groups = sectionGroups(parts);
-  assert.deepEqual(groups.map(group => group.label), ['Navigation', 'Rendering', 'Details', 'Other parts', 'Outside']);
+  assert.deepEqual(groups.map(group => group.label), ['Details', 'Navigation', 'Rendering', 'Other parts', 'Outside']);
   assert.equal(groups.reduce((count, group) => count + group.count, 0), parts.length);
   const layout = layoutScope(parts, new Map(), 2);
   assert.deepEqual(layout.groups.map(group => group.count), [4, 4, 4, 2, 1]);
@@ -635,4 +635,131 @@ test('overview relations remain selected from deep scopes across unrelated refre
   const local = { id: 'local' };
   assert.equal(selectedEdge('local', current, { ...deepDisplay, edges: [local] }), local);
   assert.equal(selectedEdge('local', current, { ...deepDisplay, partEdges: [local] }), local);
+});
+
+test('R09 overview respects metadata order without assigning priority to names or repository IDs', () => {
+  const blocks = [
+    { id: 'block:orchard', label: 'Zulu', kind: 'block', group: 'support' },
+    { id: 'block:docs', label: 'Alpha', kind: 'block', group: 'support' },
+    { id: 'block:lagoon', label: 'Alpha', kind: 'block', group: 'core' },
+    { id: 'block:canvas', label: 'First', kind: 'block', group: 'core' },
+    { id: 'block:server', label: 'Before everything', kind: 'block', group: 'core' },
+  ];
+  const original = structuredClone(blocks);
+  const positions = layoutOverview(blocks, new Map(), 2).positions;
+  blocks.forEach((node, index) => assert.deepEqual(positions.get(node.id), { x: index % 2 * 356, y: Math.floor(index / 2) * 244 }));
+  const renamed = blocks.map((node, index) => ({ ...node, label: String(blocks.length - index), group: index % 2 ? 'core' : 'support' }));
+  assert.deepEqual(layoutOverview(renamed, new Map(), 2).positions, positions);
+  assert.deepEqual(layoutScope(blocks, new Map(), 2).positions, positions);
+  assert.deepEqual(blocks, original);
+});
+
+test('R09 metadata reordering and additions retain existing positions without overlapping new blocks', () => {
+  const blocks = ['orchard', 'lagoon', 'harbor', 'meadow'].map(id => ({ id: `block:${id}`, label: id, kind: 'block' }));
+  const first = layoutOverview(blocks, new Map(), 2).positions;
+  first.set(blocks[1].id, { x: 812, y: 222 });
+  const saved = new Map([...first].map(([id, point]) => [id, { ...point }]));
+  const nextNodes = [{ id: 'block:new', label: 'New', kind: 'block' }, ...blocks.toReversed().filter(node => node.id !== 'block:meadow')];
+  const next = layoutOverview(nextNodes, first, 3).positions;
+  for (const node of nextNodes.slice(1)) assert.deepEqual(next.get(node.id), saved.get(node.id));
+  assert.equal(next.has('block:meadow'), false);
+  const added = next.get('block:new');
+  for (const [id, point] of next) if (id !== 'block:new') assert.ok(Math.abs(added.x - point.x) >= 260 || Math.abs(added.y - point.y) >= 136);
+  assert.deepEqual(first, saved);
+});
+
+test('R09 nested parts use source path, line, column and stable ID ties independently of labels', () => {
+  const parts = [
+    { id: 'symbol:last-path', path: 'b.mjs', line: 1, column: 0, label: 'A' },
+    { id: 'symbol:z', path: 'a.mjs', line: 8, column: 9, label: 'A' },
+    { id: 'symbol:A', path: 'a.mjs', line: 8, column: 9, label: 'Zulu' },
+    { id: 'symbol:column', path: 'a.mjs', line: 8, column: 2, label: 'Middle' },
+    { id: 'symbol:first', path: 'a.mjs', line: 2, column: 20, label: 'Zulu' },
+  ].map(node => ({ ...node, kind: 'block', hierarchyKind: 'symbol', section: 'Harvest' }));
+  const expected = ['symbol:first', 'symbol:column', 'symbol:A', 'symbol:z', 'symbol:last-path'];
+  const first = layoutScope(parts, new Map(), 3).positions;
+  assert.deepEqual([...first.keys()], expected);
+  assert.deepEqual(layoutScope(parts.toReversed(), new Map(), 3).positions, first);
+  assert.deepEqual(layoutScope(parts.map(node => ({ ...node, label: `Renamed ${node.id}` })), new Map(), 3).positions, first);
+  const unlocated = ['part:z', 'part:Z', 'part:a'].map(id => ({ id, label: 'Same', kind: 'block', hierarchyKind: 'symbol' }));
+  assert.deepEqual([...layoutScope(unlocated).positions.keys()], ['part:Z', 'part:a', 'part:z']);
+});
+
+test('R09 section order follows its first source member and a name does not imply context', () => {
+  const parts = [
+    ['details', 3, 'Details'], ['outside-name', 1, 'Outside'], ['harvest', 2, 'Harvest'],
+    ['navigation', 4, 'Navigation'], ['unsectioned', 5, undefined],
+  ].map(([id, line, section]) => ({ id, line, path: 'garden.mjs', label: id, section, kind: 'block', hierarchyKind: 'symbol' }));
+  const groups = sectionGroups(parts);
+  assert.deepEqual(groups.map(group => group.label), ['Outside', 'Harvest', 'Details', 'Navigation', 'Other parts']);
+  assert.ok(groups.every(group => !group.context));
+  assert.deepEqual(layoutScope(parts).groups.map(group => group.label), groups.map(group => group.label));
+});
+
+function genericAreaFixture() {
+  return {
+    scopeId: 'file:garden.mjs', scopeNode: { id: 'file:garden.mjs', kind: 'file' },
+    nodes: [
+      { id: 'symbol:navigation', path: 'garden.mjs', line: 50, column: 0, section: 'Navigation', sectionId: 'navigation' },
+      { id: 'symbol:zebra-late', path: 'garden.mjs', line: 10, column: 9, section: 'Zebra', sectionId: 'zebra' },
+      { id: 'symbol:zebra-early', path: 'garden.mjs', line: 10, column: 2, section: 'Zebra', sectionId: 'zebra' },
+      { id: 'symbol:details', path: 'garden.mjs', line: 20, column: 0, section: 'Details', sectionId: 'details' },
+    ].map(node => ({ ...node, sourceId: node.id, label: node.id, kind: 'symbol', type: 'process', fileIds: ['file:garden.mjs'], layers: ['project'] })).concat([
+      { id: 'boundary:remote', label: 'Remote', kind: 'boundary', targetId: 'block:remote', type: 'module', fileIds: [], layers: ['project'] },
+    ]),
+    edges: [],
+  };
+}
+
+test('R09 collapsed and expanded areas follow member source order across section renames', () => {
+  const scope = genericAreaFixture();
+  const original = structuredClone(scope);
+  const collapsed = decorateScope(projectAreas(scope), { nodes: [] });
+  const bySection = new Map(collapsed.areas.map(area => [area.sectionId, area]));
+  const ordered = ['zebra', 'details', 'navigation'].map(id => bySection.get(id));
+  const context = collapsed.areas.find(area => area.context);
+  const positions = layoutAreas(collapsed, new Map(), 3).positions;
+  assert.deepEqual([...positions.keys()], [...ordered.map(area => area.id), context.id]);
+  const renamedScope = { ...scope, nodes: scope.nodes.map(node => ({ ...node, label: `New ${node.id}`, section: node.section ? `New ${node.sectionId}` : undefined })) };
+  const renamed = decorateScope(projectAreas(renamedScope), { nodes: [] });
+  assert.deepEqual(layoutAreas(renamed, new Map(), 3).positions, positions);
+  const mixed = decorateScope(projectAreas(scope, new Set([bySection.get('zebra').id])), { nodes: [] });
+  assert.deepEqual([...layoutAreas(mixed, new Map(), 3).positions.keys()], ['symbol:zebra-early', 'symbol:zebra-late', bySection.get('details').id, bySection.get('navigation').id, context.id]);
+  const expanded = decorateScope(projectAreas(scope, new Set(ordered.map(area => area.id))), { nodes: [] });
+  assert.deepEqual([...layoutAreas(expanded, new Map(), 3).positions.keys()], ['symbol:zebra-early', 'symbol:zebra-late', 'symbol:details', 'symbol:navigation', context.id]);
+  assert.deepEqual(scope, original);
+});
+
+test('R09 area updates retain user positions and stable area IDs while finding space for a new area', () => {
+  const scope = genericAreaFixture();
+  const first = decorateScope(projectAreas(scope), { nodes: [] });
+  const positions = layoutAreas(first, new Map(), 2).positions;
+  const movedId = first.areas.find(area => area.sectionId === 'zebra').id;
+  positions.set(movedId, { x: 912, y: 77 });
+  const before = new Map([...positions].map(([id, point]) => [id, { ...point }]));
+  const added = { ...scope.nodes[0], id: 'symbol:added', sourceId: 'symbol:added', line: 1, section: 'New', sectionId: 'new' };
+  const nextScope = { ...scope, nodes: [added, ...scope.nodes.filter(node => node.sectionId !== 'details').toReversed()] };
+  const next = decorateScope(projectAreas(nextScope), { nodes: [] });
+  const layout = layoutAreas(next, positions, 2).positions;
+  for (const area of next.areas.filter(area => area.sectionId !== 'new')) assert.deepEqual(layout.get(area.id), before.get(area.id));
+  const removed = first.areas.find(area => area.sectionId === 'details').id;
+  assert.equal(layout.has(removed), false);
+  const newId = next.areas.find(area => area.sectionId === 'new').id;
+  const point = layout.get(newId);
+  for (const [id, other] of layout) if (id !== newId) assert.ok(Math.abs(point.x - other.x) >= 260 || Math.abs(point.y - other.y) >= 136);
+  assert.deepEqual(positions, before);
+});
+
+test('R09 file grouping uses source kind and literal paths without assigning a public interface role', () => {
+  const files = [
+    { id: 'file:public/data.mjs', path: 'public/data.mjs', label: 'Data', kind: 'source' },
+    { id: 'file:root.mjs', path: 'root.mjs', label: 'Root', kind: 'source' },
+    { id: 'file:package.json', path: 'package.json', label: 'Package', kind: 'config' },
+    { id: 'external:z', label: 'Same', kind: 'external' },
+    { id: 'external:Z', label: 'Same', kind: 'external' },
+  ];
+  const first = layoutGraph(files);
+  assert.deepEqual(first.groups.map(group => group.label), ['Project root', 'public', 'Configuration', 'External dependencies']);
+  assert.deepEqual(layoutGraph(files.toReversed()).positions, first.positions);
+  assert.ok(first.positions.get('external:Z').y < first.positions.get('external:z').y);
 });

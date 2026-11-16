@@ -1218,16 +1218,6 @@
       "sectionId": "layout"
     },
     {
-      "target": "symbol:public/visualizer.js#layoutOverview.priority",
-      "label": "Block order",
-      "description": "Places core parts before supporting blocks.",
-      "section": "Layout",
-      "aliases": [
-        "Pořadí bloků"
-      ],
-      "sectionId": "layout"
-    },
-    {
       "target": "symbol:public/visualizer.js#layoutScope",
       "label": "Detail layout",
       "description": "Arranges the open parts and separates their surroundings.",
@@ -2198,16 +2188,6 @@
         "Původ grafiky"
       ],
       "sectionId": "artwork"
-    },
-    {
-      "target": "symbol:public/visualizer.js#sectionGroups.rank",
-      "label": "Section order",
-      "description": "Places the main detail areas before other groups.",
-      "section": "Layout",
-      "aliases": [
-        "Pořadí oblastí"
-      ],
-      "sectionId": "layout"
     },
     {
       "target": "symbol:public/hierarchy.mjs#projectAreas",

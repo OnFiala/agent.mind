@@ -117,16 +117,22 @@ export function selectedEdge(id, graph, display) {
   return display.edges.find(edge => edge.id === id) || display.partEdges?.find(edge => edge.id === id) || graph.edges.find(edge => edge.id === id) || displayGraph(graph, 'blocks').edges.find(edge => edge.id === id);
 }
 
+const compareText = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+
+// Source locations determine presentation order; display names never assign roles.
+function compareSourceOrder(a, b) {
+  return compareText(a.path || '', b.path || '') || (a.line || 0) - (b.line || 0)
+    || (a.column || 0) - (b.column || 0) || compareText(a.id, b.id);
+}
+
 export function sectionGroups(nodes) {
   const grouped = new Map();
-  for (const node of nodes) {
+  for (const node of [...nodes].sort(compareSourceOrder)) {
     const label = node.hierarchyKind === 'boundary' ? 'Outside' : node.section?.trim() || 'Other parts';
     if (!grouped.has(label)) grouped.set(label, []);
     grouped.get(label).push(node);
   }
-  const order = ['Entry', 'Interface', 'Navigation', 'Controls', 'Rendering', 'Live data', 'Details', 'Source code', 'Helpers'];
-  const rank = label => order.includes(label) ? order.indexOf(label) : 20;
-  return [...grouped].map(([label, members]) => ({ id: label, label, nodes: members, count: members.length, context: label === 'Outside' })).sort((a, b) => Number(a.context) - Number(b.context) || Number(a.label === 'Other parts') - Number(b.label === 'Other parts') || rank(a.label) - rank(b.label) || a.label.localeCompare(b.label, 'en'));
+  return [...grouped].map(([label, members]) => ({ id: label, label, nodes: members, count: members.length, context: members.every(node => node.hierarchyKind === 'boundary') })).sort((a, b) => Number(a.context) - Number(b.context));
 }
 
 export function layoutScope(nodes, previous = new Map(), columns = 3, grouped = nodes.some(node => ['file', 'symbol'].includes(node.hierarchyKind))) {
@@ -137,7 +143,7 @@ export function layoutScope(nodes, previous = new Map(), columns = 3, grouped = 
     let top = 0;
     const occupied = [...previous.values()];
     for (const group of sectionGroups(internal)) {
-      const members = [...group.nodes].sort((a, b) => (a.line || 0) - (b.line || 0) || a.label.localeCompare(b.label, 'en'));
+      const members = group.nodes;
       members.forEach((node, index) => {
         const point = previous.has(node.id) ? { ...previous.get(node.id) } : { x: index % columns * 356, y: top + Math.floor(index / columns) * 212 };
         if (!previous.has(node.id)) {
@@ -214,8 +220,10 @@ export function layoutAreas(display, previous = new Map(), columns = 3) {
     }
     positions.set(node.id, point); return point;
   };
-  const order = ['$entry', 'navigation', 'controls', 'rendering', 'live-data', 'details', 'source', 'helpers'];
-  const areas = [...display.areas || []].sort((a, b) => Number(a.context) - Number(b.context) || (order.indexOf(a.sectionId) + 1 || 99) - (order.indexOf(b.sectionId) + 1 || 99) || a.label.localeCompare(b.label, 'en'));
+  const parts = new Map((display.partNodes || display.nodes).map(node => [node.id, node]));
+  const firstMembers = new Map((display.areas || []).map(area => [area.id, (area.memberIds || []).map(id => parts.get(id)).filter(Boolean).sort(compareSourceOrder)[0]]));
+  const areas = [...display.areas || []].sort((a, b) => Number(a.context) - Number(b.context)
+    || compareSourceOrder(firstMembers.get(a.id) || a, firstMembers.get(b.id) || b) || compareText(a.id, b.id));
   for (const area of areas) {
     if (!area.expanded) {
       if (column >= columns) { top = rowBottom + 84; column = 0; }
@@ -226,7 +234,7 @@ export function layoutAreas(display, previous = new Map(), columns = 3) {
       continue;
     }
     if (column) { top = rowBottom + 100; column = 0; }
-    const members = display.nodes.filter(node => node.areaId === area.id);
+    const members = display.nodes.filter(node => node.areaId === area.id).sort(compareSourceOrder);
     members.forEach((node, index) => place(node, index % columns * 356, top + Math.floor(index / columns) * 220));
     if (!members.length) continue;
     const points = members.map(node => positions.get(node.id)), left = Math.min(...points.map(point => point.x));
@@ -270,17 +278,13 @@ export function fitScopeCamera(nodes, positions, width, height, panelWidth = 0) 
 
 export function layoutOverview(nodes, previous = new Map(), columns = 3) {
   const positions = new Map();
-  const order = ['block:canvas', 'block:server', 'block:live-index', 'block:agent-context', 'block:code-index', 'block:tests', 'block:settings', 'block:docs'];
-  const sorted = [...nodes].sort((a, b) => {
-    const priority = node => order.includes(node.id) ? order.indexOf(node.id) : node.group === 'core' ? 5 : 9;
-    return priority(a) - priority(b) || a.label.localeCompare(b.label);
-  });
-  sorted.forEach((node, index) => {
+  // The source-derived overview already carries the naming map's block order.
+  nodes.forEach((node, index) => {
     const retained = previous.get(node.id);
     positions.set(node.id, retained && Number.isFinite(retained.x) && Number.isFinite(retained.y) ? { ...retained } : { x: (index % columns) * 356, y: Math.floor(index / columns) * 244 });
   });
   const occupied = nodes.filter(node => previous.has(node.id)).map(node => positions.get(node.id));
-  for (const node of sorted.filter(node => !previous.has(node.id))) {
+  for (const node of nodes.filter(node => !previous.has(node.id))) {
     const point = positions.get(node.id);
     while (occupied.some(other => Math.abs(point.x - other.x) < 280 && Math.abs(point.y - other.y) < 156)) point.y += 244;
     occupied.push(point);
@@ -409,11 +413,10 @@ function groupFor(node) {
   if (node.kind === 'test') return ['4-tests', 'Tests'];
   if (node.kind === 'external') return ['7-external', 'External dependencies'];
   if (node.kind === 'document') return ['6-documents', 'Documentation'];
-  if (node.kind === 'config') return ['5-config', 'Konfigurace'];
+  if (node.kind === 'config') return ['5-config', 'Configuration'];
   const folder = (node.path || '').split('/').slice(0, -1).join('/');
-  if (folder === 'public' || folder.startsWith('public/')) return ['2-public', 'Interface / public'];
   if (node.kind === 'asset') return ['3-assets', 'Assets'];
-  return folder ? [`1-${folder}`, folder] : ['0-core', 'Project core'];
+  return folder ? [`1-${folder}`, folder] : ['0-root', 'Project root'];
 }
 
 /** A deterministic local layout. Reconcile retains positions for unchanged IDs. */
@@ -428,8 +431,8 @@ export function layoutGraph(nodes, previous = new Map(), { columns = 5 } = {}) {
   const groups = [];
   const columnCount = Math.max(1, Math.floor(columns));
   const columnHeights = Array(columnCount).fill(0);
-  for (const group of [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key))) {
-    group.nodes.sort((a, b) => (a.path || a.label).localeCompare(b.path || b.label));
+  for (const group of [...buckets.values()].sort((a, b) => compareText(a.key, b.key))) {
+    group.nodes.sort(compareSourceOrder);
     // Small folder runs form a masonry layout. Long external/module groups
     // continue in another column rather than pushing every group far sideways.
     for (let start = 0; start < group.nodes.length; start += 5) {
@@ -557,7 +560,7 @@ const timeLabel = value => {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'time unavailable';
 };
-const shortHash = value => value ? String(value).slice(0, 12) : 'neuveden';
+const shortHash = value => value ? String(value).slice(0, 12) : 'unavailable';
 
 export function updateCardContent(card, node, count) {
   const signature = JSON.stringify([node.label, node.path, node.line, node.kind, node.type, node.hasChildren, node.isArea, node.partCount, node.internalEdgeCount, node.description, node.fileIds?.length, node.symbols?.length, node.security?.length, count]);

@@ -252,6 +252,28 @@ analysis contracts stay unchanged. No R09 work, target upgrade or release is
 included. Reverting this follow-up restores the inline handler and prior tests/docs;
 it does not restore the old Alt-left conflict or revert PR #27.
 
+## R09 — Generic presentation
+
+**Implementation accepted; merge approved, unreleased.** On 2026-11-16 the owner
+requested R09 with agent swarm, tests, documentation, CORTEX and an independently
+reviewed PR, then explicitly approved merging
+[PR #32](https://github.com/OnFiala/agent.mind/pull/32) and verifying CI on the actual
+merge commit. Release and real-target operations remain excluded. The
+[R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns behavior,
+checks, limitations and rollback; PR #32 owns actual merge status/commit,
+exact reviewed commits, disposition and separate pre-/post-merge CI receipts.
+
+Presentation keeps the overview's metadata/source order and orders nested parts
+by source location with stable ID ties. Section/area labels and this repository's
+block IDs no longer assign priority. Explicit context remains separate; file
+headings use indexed kinds and literal paths rather than inferred interface/core
+roles. Application fallback copy is English; user labels and Czech aliases stay
+intact. Source-identity rules and graph/CLI contracts are unchanged; user naming
+files are never rewritten. The maintainer map drops two references to removed
+ordering helpers. Live updates retain positions; explicit Arrange recomputes layout.
+No R10 work, new language support, target operation or release is included.
+Rollback reverts presentation/tests/docs without rewriting user maps or positions.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while
