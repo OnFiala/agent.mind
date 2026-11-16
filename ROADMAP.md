@@ -280,8 +280,9 @@ Rollback reverts presentation/tests/docs without rewriting user maps or position
 requested R10 with agent swarm, tests, documentation, CORTEX and a separate
 independently reviewed PR, without merge or release. The
 [R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the identity
-transition, validation, limits and rollback; the follow-up PR owns exact reviewed
-commits, independent disposition and CI receipts.
+transition, validation, limits and rollback;
+[PR #33](https://github.com/OnFiala/agent.mind/pull/33) owns exact reviewed commits,
+independent disposition and CI receipts.
 
 Class accessors and their descendants use a structured identity with explicit
 get/set, static and private discriminators. Unrelated source IDs remain stable.
