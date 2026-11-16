@@ -10,9 +10,9 @@ and L3 only separates the existing analysis from indexing.
 
 ## Current delivery status — 2026-11-16
 
-The current source baseline is `main` at
+The release-preparation base is `main` at
 [`03ddb5b`](https://github.com/OnFiala/agent.mind/commit/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a).
-The following bounded changes are **merged, unreleased**. The first-parent merge
+The following bounded changes were **merged, unreleased** before PR #34. The first-parent merge
 commits below establish integration; their PRs and linked records own exact review
 and check evidence. A merge is not publication or a real-target upgrade.
 
@@ -33,11 +33,12 @@ and check evidence. A merge is not publication or a real-target upgrade.
 | UI-NEW-01 — selection projection | [#26](https://github.com/OnFiala/agent.mind/pull/26) | [`e7a1ce4`](https://github.com/OnFiala/agent.mind/commit/e7a1ce486e240a996e119763ca68973ce636e81d) |
 | UI-NEW-02 — keyboard movement used by R08 | [#27](https://github.com/OnFiala/agent.mind/pull/27) | [`e312ff1`](https://github.com/OnFiala/agent.mind/commit/e312ff13bdf64cbd16697fc7a6e85bc231a3166a) |
 
-**1.4.0 is a release-preparation candidate.** The owner authorized versioning,
-documentation, final-bundle/rollback checks and an independently reviewed preparation
-PR. Its [release record](docs/releases/1.4.0.md) owns candidate artifact identities,
-actual checks, limits and rollback. Merge, tag/release publication and real-target
-upgrades are separate owner actions. Published 1.3.1 remains the installation baseline.
+**1.4.0 is an unreleased candidate; the owner approved PR #34's merge on
+2026-11-16.** [PR #34](https://github.com/OnFiala/agent.mind/pull/34) records the
+actual merge commit and its subsequent CI; approval alone does not establish either.
+Its [release record](docs/releases/1.4.0.md) owns candidate artifact identities,
+actual checks, limits and rollback. Tag/release publication and real-target upgrades
+remain separate owner actions. Published 1.3.1 remains the installation baseline.
 
 R11 and R12 remain pending; R13–R16 remain conditional proposals. Neither this
 reconciliation nor a successful candidate check authorizes those stages. The
