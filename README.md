@@ -129,11 +129,12 @@ You can commit the map and descriptor with your project. Keep `.local/` out of
 Git: it belongs to this machine and directory. After moving an installation,
 inspect `status` and explicitly `rebind`/`attach` it to the new location.
 
-A fresh clone needs a local installation. Download the same pinned release,
-then adopt the existing integration; this preserves your map:
+A fresh clone needs a local installation. Obtain the exact archive pinned in its
+descriptor, whether a published release or the same reviewed local candidate.
+Then adopt the existing integration; this preserves your map:
 
 ```sh
-node /path/to/agent-mind-1.3.1/cli.mjs install --project "/absolute/cloned/project" --release /path/to/agent-mind-1.3.1 --adopt --attach
+node /path/to/pinned-release/cli.mjs install --project "/absolute/cloned/project" --release /path/to/pinned-release --adopt --attach
 ```
 
 Use the version pinned in the clone's `agent.mind/project.json`, even if a newer
@@ -559,6 +560,21 @@ release archive for recovery. There is no automatic updater.
 
 ### Update from an older version
 
+Published versions through 1.3.1 retain locale-sensitive digest verification.
+When using one of those frozen CLIs for install, adoption, status, uninstall or
+rollback, prefix the command with `LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8`. First check
+that Node's default collator resolves to `en-US`; if it does not, stop and resolve
+the locale before continuing. Never edit a published manifest or checksum.
+For an existing installation pinned to one of those versions:
+
+```sh
+LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 node -p 'Intl.Collator().resolvedOptions().locale'
+LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 node agent.mind/cli.mjs status
+```
+
+Keep that prefix on every old-runtime command below, including the old installer's
+command when rolling back. The 1.4.0 candidate's digest ordering is locale-independent.
+
 1. Keep both checksum-verified release downloads before changing anything. Stop
    the view and save `agent.mind/project-map.json` outside the project, together with
    any user-authored notes/settings inside the integration that you need afterward.
@@ -592,9 +608,11 @@ the original verified release. If installation/attachment fails after creating a
 integration, inspect it with that release's CLI; resolve conflicts or uninstall
 before moving its remnants aside. Never force another install over partial state.
 The forward, failure/recovery and downgrade paths are exercised by
-`scripts/smoke-upgrade.mjs` using the actual published 1.0.3, 1.1.0, 1.2.0 and 1.2.1
-artifacts and the new bundle, including Python capabilities, corrected JavaScript
-relationships, user-data preservation and rollback.
+`scripts/smoke-upgrade.mjs` using the actual published 1.0.3, 1.1.0, 1.2.0, 1.2.1,
+1.3.0 and 1.3.1 artifacts and the new bundle, including Python capabilities,
+corrected JavaScript relationships, user-data preservation and rollback.
+`scripts/smoke-accessor-rollback.mjs` separately checks old/new accessor maps
+against published 1.3.1, including unresolved new IDs retained after rollback.
 These are caught-failure checks, not crash/power-loss atomicity guarantees.
 Existing installations do not change when a new release is published.
 
