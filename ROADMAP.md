@@ -43,7 +43,7 @@ artifact identities, public-download verification, checks, limits and rollback.
 Real-target upgrades remain separate owner actions; existing installations were
 not changed. Current documentation updates do not replace the frozen archive.
 
-R11 has a scoped-preflight design proposal; owner acceptance pending; R12 remains pending and
+R11 has an owner-accepted scoped-preflight design; R12 remains pending and
 R13–R16 remain conditional proposals. Neither this reconciliation nor a successful
 candidate check authorizes those stages. The
 [remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
@@ -442,7 +442,7 @@ the original audit's severity labels; no whole-audit closure is claimed.
 | SILENT-01 | R04 adds explicit unsupported-reference diagnostics, not CommonJS resolution or implicit Python source-root discovery. Existing Python informational uncertainty remains visible. |
 | SCOPE-01 | R05/R06/R07 provide the accepted input contract, bounded root-ignore/default exclusions and source priority under existing caps. They do not provide full Git semantics or complete inventory beyond limits. |
 | SENS-01 | Hard sensitive-name guards remain. Source extensions do not prove safe contents; no sensitive-file exception is accepted. A separate exposure design and synthetic no-open/no-disclosure regressions must precede any implementation. |
-| GATE-01 | R11 is a [design proposal; owner acceptance pending](docs/reviews/2026-11-16-r11-scoped-preflight.md); owner acceptance and conditional R15 remain pending. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
+| GATE-01 | R11 is an [owner-accepted design](docs/reviews/2026-11-16-r11-scoped-preflight.md); R15 remains conditional and requires separate implementation authority. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
 | RES-01 | R13/R14 remain conditional on R12's demonstrated demand and selected corpus/mode; no broader resolver or typed-completeness claim. |
 | HOST-01 | R12 precedes conditional R16; no MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
 | SYM-01 | R10 repairs supported class-accessor identities and descendants. Object methods, computed accessors and other duplicate/binding gaps need a concrete task, exact fixtures and their own PR. |
