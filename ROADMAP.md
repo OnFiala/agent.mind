@@ -258,8 +258,8 @@ it does not restore the old Alt-left conflict or revert PR #27.
 requested R09, agent swarm, tests, documentation, CORTEX and a standalone PR with
 independent review, without merge or release. The
 [R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns the behavior,
-checks, limitations and rollback; the follow-up PR owns exact reviewed commits,
-disposition and CI receipts.
+checks, limitations and rollback; [PR #32](https://github.com/OnFiala/agent.mind/pull/32)
+owns exact reviewed commits, disposition and CI receipts.
 
 Presentation keeps the overview's metadata/source order and orders nested parts
 by source location with stable ID ties. Section/area labels and this repository's

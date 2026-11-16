@@ -4,8 +4,9 @@ Date: 2026-11-16. Base: `fe0c79e4338e73fdef78cafc03305a2d0d164c4f`.
 Status: **implemented candidate, unmerged and unreleased**. The owner requested
 R09 with agent swarm, tests, documentation, CORTEX and a separate independently
 reviewed PR, without merge or release.
-[ROADMAP](../../ROADMAP.md#r09--generic-presentation) owns stage status; the follow-up
-PR owns exact reviewed commits, disposition and CI receipts.
+[ROADMAP](../../ROADMAP.md#r09--generic-presentation) owns stage status;
+[PR #32](https://github.com/OnFiala/agent.mind/pull/32) owns exact reviewed commits,
+disposition and CI receipts.
 
 ## Problem and contract
 
