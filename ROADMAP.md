@@ -252,6 +252,26 @@ analysis contracts stay unchanged. No R09 work, target upgrade or release is
 included. Reverting this follow-up restores the inline handler and prior tests/docs;
 it does not restore the old Alt-left conflict or revert PR #27.
 
+## R09 — Generic presentation
+
+**Implemented candidate, unmerged and unreleased.** On 2026-11-16 the owner
+requested R09, agent swarm, tests, documentation, CORTEX and a standalone PR with
+independent review, without merge or release. The
+[R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns the behavior,
+checks, limitations and rollback; the follow-up PR owns exact reviewed commits,
+disposition and CI receipts.
+
+Presentation keeps the overview's metadata/source order and orders nested parts
+by source location with stable ID ties. Section/area labels and this repository's
+block IDs no longer assign priority. Explicit context remains separate; file
+headings use indexed kinds and literal paths rather than inferred interface/core
+roles. Application fallback copy is English; user labels and Czech aliases stay
+intact. Source-identity rules and graph/CLI contracts are unchanged; user naming
+files are never rewritten. The maintainer map drops two references to removed
+ordering helpers. Live updates retain positions; explicit Arrange recomputes layout.
+No R10 work, new language support, target operation or release is included.
+Rollback reverts presentation/tests/docs without rewriting user maps or positions.
+
 ## Product and installation constraints
 
 The goal is useful inspection across source languages and environments while
