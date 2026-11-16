@@ -20,8 +20,9 @@ remain separately authorized actions.
 Scope: Shift plus any arrow moves a focused card by 20 canvas units; plain arrows
 retain spatial focus navigation, while Alt plus left arrow retains Back. The
 [keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md) owns the
-contract, validation and rollback. No new graph or platform support is claimed;
-the published baseline remains 1.3.1.
+contract, validation and rollback. This implements the original R08 keyboard
+contract; [R08 below](#r08--keyboard-contract) records its acceptance follow-up.
+No new graph or platform support is claimed; the published baseline remains 1.3.1.
 
 ## UI-NEW-01 — Symbol selection across views
 
@@ -229,6 +230,27 @@ fails strict preflight. No new language support, settings, dependencies or targe
 changes are introduced. Published 1.3.1 and pinned installations are unchanged.
 Rollback before merge is withdrawal; a later authorized revert restores previous
 allocation order while preserving R06, target data and configuration.
+
+## R08 — Keyboard contract
+
+**Keyboard behavior implemented by merged PR #27; acceptance follow-up merge
+approved, unreleased.** R08 is the same Alt-left movement/Back conflict repaired
+by [UI-NEW-02 / PR #27](https://github.com/OnFiala/agent.mind/pull/27), not a second
+shortcut design. On 2026-11-15 the owner authorized R08 with agent swarm, tests,
+documentation, CORTEX and a standalone PR with independent review, then on
+2026-11-16 explicitly approved merging [PR #31](https://github.com/OnFiala/agent.mind/pull/31)
+and verifying CI on the actual merge commit. Release and real-target operations
+remain excluded. The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md)
+owns acceptance, limitations and rollback; PR #31 owns actual merge status/commit,
+exact reviewed commits, disposition and separate pre-/post-merge CI receipts.
+
+This follow-up exposes the unchanged document key handler to direct tests and
+adds permanent Back/input/bubbling regressions beside existing four-direction
+movement tests. Current browser acceptance binds source and produced-bundle UI
+bytes. The shortcuts, pointer handling, selection/camera behavior and all source
+analysis contracts stay unchanged. No R09 work, target upgrade or release is
+included. Reverting this follow-up restores the inline handler and prior tests/docs;
+it does not restore the old Alt-left conflict or revert PR #27.
 
 ## Product and installation constraints
 

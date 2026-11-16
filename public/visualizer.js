@@ -68,6 +68,17 @@ export function nodeSize(node) {
   return node?.kind === 'block' ? { width: 260, height: node.group === 'core' ? 136 : 116 } : CARD;
 }
 
+// Keep document navigation separate from the focused card's movement/focus keys.
+export function handleDocumentKeydown(event, state, { closePanel, goBack, focusSearch, fit, zoom }) {
+  if (event.key === 'Escape') { if (state.panel) closePanel(); else if (!event.target.closest('input,textarea,select')) goBack(); return; }
+  if (!event.target.closest('input,textarea,select') && (event.altKey && event.key === 'ArrowLeft' || event.key === 'Backspace')) { event.preventDefault(); goBack(); return; }
+  if (event.target.closest('input,textarea,select') || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.key === '/') { event.preventDefault(); focusSearch(); }
+  else if (event.key === '0') { event.preventDefault(); fit(); }
+  else if (event.key === '+' || event.key === '=') zoom(1.2);
+  else if (event.key === '-') zoom(1 / 1.2);
+}
+
 export function handleCardKeydown(event, id, state, cards, { placeCard, drawEdges, revealNode }) {
   if (event.altKey || event.ctrlKey || event.metaKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
   event.preventDefault();
@@ -1534,15 +1545,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (event.key === 'Escape') { event.stopPropagation(); event.target.value = ''; state.query = ''; emphasize(); if (state.panel === 'project') renderPanel(); }
     if (event.key === 'Enter' && state.graph) { const match = [...areaSearch(state.display, state.query, state.graph).targets][0]; if (match) { selectNode(match, { center: true }); cards.get(match)?.focus({ preventScroll: true }); } }
   });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { if (state.panel) closePanel(); else if (!event.target.closest('input,textarea,select')) goBack(); return; }
-    if (!event.target.closest('input,textarea,select') && (event.altKey && event.key === 'ArrowLeft' || event.key === 'Backspace')) { event.preventDefault(); goBack(); return; }
-    if (event.target.closest('input,textarea,select') || event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.key === '/') { event.preventDefault(); $('search').focus(); }
-    else if (event.key === '0') { event.preventDefault(); fit(); }
-    else if (event.key === '+' || event.key === '=') zoom(1.2);
-    else if (event.key === '-') zoom(1 / 1.2);
-  });
+  document.addEventListener('keydown', event => handleDocumentKeydown(event, state, { closePanel, goBack, focusSearch: () => $('search').focus(), fit, zoom }));
   canvas.addEventListener('keydown', event => {
     if (event.target !== canvas || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
