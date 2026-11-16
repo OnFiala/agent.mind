@@ -1,12 +1,14 @@
 # R10 — Accessor identities
 
 Date: 2026-11-16. Base: `9fa1263f5ff1b4267a1434f660a8794270c3b2cd`.
-Status: **implemented candidate, unmerged and unreleased**. The owner requested
-R10 with agent swarm, tests, documentation, CORTEX and an independently reviewed
-standalone PR, without merge or release.
+Status: **implementation and independent review complete; merge authorized,
+unreleased**. On 2026-11-16 the owner approved merging PR #33, verifying CI on the
+actual merge commit and updating documentation/CORTEX. Release and real-target
+operations remain excluded.
 [ROADMAP](../../ROADMAP.md#r10--accessor-identities) owns stage status;
 [PR #33](https://github.com/OnFiala/agent.mind/pull/33) owns exact reviewed commits,
-disposition and CI receipts.
+disposition, actual merge SHA and post-merge CI receipts. This approval record
+does not by itself establish a completed merge or successful merge-commit CI.
 
 ## Problem and bounded contract
 
@@ -133,7 +135,7 @@ model, source-ID migration service, performance claim or general accessor runtim
 analysis. Input limits and ordinary unresolved relationships remain visible.
 Fresh source context retains its existing oversized-wordmark warning.
 
-Before merge, withdraw the candidate PR. After a separately authorized merge, a
+Before merge, withdraw the candidate PR. After merge, a separately authorized
 reviewed revert restores the prior identity rule and its known pair omission.
 Preserve naming maps, user data and stored positions. New-ID map entries remain
 unresolved on the old runtime; do not delete or silently retarget them. Use exact

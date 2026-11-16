@@ -276,13 +276,14 @@ Rollback reverts presentation/tests/docs without rewriting user maps or position
 
 ## R10 — Accessor identities
 
-**Implemented candidate, unmerged and unreleased.** On 2026-11-16 the owner
-requested R10 with agent swarm, tests, documentation, CORTEX and a separate
-independently reviewed PR, without merge or release. The
-[R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the identity
+**Implementation and independent review complete; merge authorized, unreleased.**
+On 2026-11-16 the owner approved merging PR #33, checking CI on the actual merge
+commit and updating documentation/CORTEX. Release remains outside that authority.
+The [R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the identity
 transition, validation, limits and rollback;
 [PR #33](https://github.com/OnFiala/agent.mind/pull/33) owns exact reviewed commits,
-independent disposition and CI receipts.
+independent disposition, actual merge SHA and post-merge CI receipts. Approval
+alone is not evidence of a completed merge or passing merge-commit CI.
 
 Class accessors and their descendants use a structured identity with explicit
 get/set, static and private discriminators. Unrelated source IDs remain stable.
