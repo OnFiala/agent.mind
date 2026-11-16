@@ -1,6 +1,6 @@
 # agent.mind roadmap
 
-Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Published baseline: **[1.3.1](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.1)**, 2026-11-03; [PR #18](https://github.com/OnFiala/agent.mind/pull/18) merged as `1558dc0`.
+Status: sequence approved in [PR #1](https://github.com/OnFiala/agent.mind/pull/1), 2026-11-01. Published baseline: **[1.4.0](https://github.com/OnFiala/agent.mind/releases/tag/v1.4.0)**, 2026-11-16; release preparation [PR #34](https://github.com/OnFiala/agent.mind/pull/34) merged as `cb217aa`.
 [GitHub Releases](https://github.com/OnFiala/agent.mind/releases) owns the published
 versions and downloads; source version numbers alone do not establish publication.
 This file owns implementation priorities; the [baseline review](docs/reviews/2026-11-01-architecture-and-code-quality.md)
@@ -12,7 +12,8 @@ and L3 only separates the existing analysis from indexing.
 
 The release-preparation base is `main` at
 [`03ddb5b`](https://github.com/OnFiala/agent.mind/commit/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a).
-The following bounded changes were **merged, unreleased** before PR #34. The first-parent merge
+The following bounded changes are **released in 1.4.0**. They were merged before
+release preparation PR #34. The first-parent merge
 commits below establish integration; their PRs and linked records own exact review
 and check evidence. A merge is not publication or a real-target upgrade.
 
@@ -33,12 +34,14 @@ and check evidence. A merge is not publication or a real-target upgrade.
 | UI-NEW-01 — selection projection | [#26](https://github.com/OnFiala/agent.mind/pull/26) | [`e7a1ce4`](https://github.com/OnFiala/agent.mind/commit/e7a1ce486e240a996e119763ca68973ce636e81d) |
 | UI-NEW-02 — keyboard movement used by R08 | [#27](https://github.com/OnFiala/agent.mind/pull/27) | [`e312ff1`](https://github.com/OnFiala/agent.mind/commit/e312ff13bdf64cbd16697fc7a6e85bc231a3166a) |
 
-**1.4.0 is an unreleased candidate; the owner approved PR #34's merge on
-2026-11-16.** [PR #34](https://github.com/OnFiala/agent.mind/pull/34) records the
-actual merge commit and its subsequent CI; approval alone does not establish either.
-Its [release record](docs/releases/1.4.0.md) owns candidate artifact identities,
-actual checks, limits and rollback. Tag/release publication and real-target upgrades
-remain separate owner actions. Published 1.3.1 remains the installation baseline.
+**1.4.0 was published on 2026-11-16 at 18:08:53 UTC**, after the owner authorized
+publication of the exact verified archive. Tag `v1.4.0` points to preparation
+merge `cb217aa684efda13274c773f1e962e291106ba0c`. Its
+[actual merge CI](https://github.com/OnFiala/agent.mind/actions/runs/43922436506)
+passed on Node 22/24. The [release record](docs/releases/1.4.0.md) owns the exact
+artifact identities, public-download verification, checks, limits and rollback.
+Real-target upgrades remain separate owner actions; existing installations were
+not changed. Current documentation updates do not replace the frozen archive.
 
 R11 and R12 remain pending; R13–R16 remain conditional proposals. Neither this
 reconciliation nor a successful candidate check authorizes those stages. The
@@ -49,7 +52,7 @@ blockers; bounded repairs do not establish that the whole audit is closed.
 
 ## UI-NEW-02 — Keyboard movement without a Back conflict
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #27](https://github.com/OnFiala/agent.mind/pull/27); its review and CI evidence
 remain separate from release and real-target upgrade authority.
 
@@ -58,11 +61,11 @@ retain spatial focus navigation, while Alt plus left arrow retains Back. The
 [keyboard movement record](docs/reviews/2026-11-15-keyboard-movement.md) owns the
 contract, validation and rollback. This implements the original R08 keyboard
 contract; [R08 below](#r08--keyboard-contract) records its acceptance follow-up.
-No new graph or platform support is claimed; the published baseline remains 1.3.1.
+No new graph or platform support is claimed; the published baseline is 1.4.0.
 
 ## UI-NEW-01 — Symbol selection across views
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #26](https://github.com/OnFiala/agent.mind/pull/26); its review and CI evidence
 remain separate from release and real-target upgrade authority.
 
@@ -70,11 +73,11 @@ Scope: retain the precise symbol selection and project it onto the visible ownin
 file or overview block when the symbol or its containing area is not visible.
 The [selection projection record](docs/reviews/2026-11-15-selection-projection.md)
 owns the contract, validation and rollback. UI-NEW-02 and separate R04 work remain
-outside this repair; the published baseline remains 1.3.1.
+outside this repair; the published baseline is 1.4.0.
 
 ## CORE-02 — Exact inventory file boundary
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #25](https://github.com/OnFiala/agent.mind/pull/25); its review and CI evidence
 remain separate from release and real-target upgrade authority.
 
@@ -83,11 +86,11 @@ file. Preserve excluded-path classification, traversal within the separate entry
 and depth budgets, and partial status for actual file overflow. The
 [CORE-02 record](docs/reviews/2026-11-15-inventory-file-limit.md) owns the contract,
 validation and rollback. This repair includes no other audit findings or R04 work;
-the published baseline remains 1.3.1.
+the published baseline is 1.4.0.
 
 ## CORE-01 — Captured HTTP handler writes
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #24](https://github.com/OnFiala/agent.mind/pull/24). This repair excludes the
 other November 15 audit findings and the separate R04 work.
 
@@ -95,11 +98,11 @@ Scope: suppress unsupported HTTP/SSE provider evidence when a nested function
 directly writes the handler's captured request, response or URL binding, while
 preserving lexical shadowing and excluding nested routes/response evidence.
 The [CORE-01 record](docs/reviews/2026-11-15-http-closure-writes.md) owns the contract,
-validation and rollback. Published baseline remains 1.3.1; no target is upgraded.
+validation and rollback. Published baseline is 1.4.0; no target is upgraded.
 
 ## R01 — Locale-stable artifact digest
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #20](https://github.com/OnFiala/agent.mind/pull/20). The
 [R01 record](docs/reviews/2026-11-11-locale-digest.md) owns the contract and
 verification evidence; the PR owns exact review and CI evidence.
@@ -117,7 +120,7 @@ remain separately authorized actions; this source repair does not perform either
 
 ## R02 — Bounded context projection
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #21](https://github.com/OnFiala/agent.mind/pull/21). The
 [R02 record](docs/reviews/2026-11-11-bounded-context.md) owns the response contract,
 reproducible measurements and validation evidence.
@@ -142,7 +145,7 @@ is migrated; existing installed targets remain on their chosen release.
 
 ## R03 — Installed CLI profile and preflight receipt
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #22](https://github.com/OnFiala/agent.mind/pull/22). The
 [R03 record](docs/reviews/2026-11-11-cli-profile-receipt.md) owns the CLI contract
 and validation; the PR owns exact review and CI evidence.
@@ -165,7 +168,7 @@ bindings, installed pins and edited user blocks. No target upgrade is performed.
 
 ## R04 — Explicit unsupported-reference diagnostics
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #23](https://github.com/OnFiala/agent.mind/pull/23), integrated after PR #24–#27.
 The [R04 record](docs/reviews/2026-11-12-reference-diagnostics.md) owns the diagnostic
 contract and dated validation. Release and real-target upgrades remain separate
@@ -200,7 +203,7 @@ configuration migration is needed.
 
 ## R06 — Project exclusions
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #29](https://github.com/OnFiala/agent.mind/pull/29). The
 [R06 record](docs/reviews/2026-11-15-project-exclusions.md) owns implementation,
 checks and limitations; the PR owns exact review and CI evidence.
@@ -210,13 +213,13 @@ revalidation, metadata filtering and live/browser revocation preserve managed
 `project.json`, runtime pins and sensitive-name guards. Invalid policy fails closed.
 No stored settings, dependencies, CLI overrides or target changes are introduced.
 R06 filtering alone does not prioritize source or increase caps; the separately
-authorized, merged R07 work below adds ordering. Published baseline remains 1.3.1;
+authorized, merged R07 work below adds ordering. Published baseline is 1.4.0;
 existing installations retain their pinned behavior. An authorized revert changes
 runtime code only, preserving target ignore files, naming maps, descriptors and all project contents. See the R06 record for details.
 
 ## R07 — Source priority within existing budgets
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #30](https://github.com/OnFiala/agent.mind/pull/30). The
 [R07 record](docs/reviews/2026-11-15-source-priority.md) owns behavior, checks and
 limitations; the PR owns exact review and CI evidence.
@@ -232,7 +235,7 @@ target data and configuration.
 
 ## R08 — Keyboard contract
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #31](https://github.com/OnFiala/agent.mind/pull/31). R08 accepts the keyboard
 behavior implemented by UI-NEW-02 / PR #27; it is not a second shortcut design.
 The [R08 record](docs/reviews/2026-11-15-r08-keyboard-contract.md) owns acceptance,
@@ -248,7 +251,7 @@ it does not restore the old Alt-left conflict or revert PR #27.
 
 ## R09 — Generic presentation
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #32](https://github.com/OnFiala/agent.mind/pull/32). The
 [R09 record](docs/reviews/2026-11-16-r09-generic-presentation.md) owns behavior,
 checks, limitations and rollback; the PR owns exact review and CI evidence.
@@ -266,7 +269,7 @@ Rollback reverts presentation/tests/docs without rewriting user maps or position
 
 ## R10 — Accessor identities
 
-**Merged, unreleased.** The current delivery ledger records
+**Released in 1.4.0.** The current delivery ledger records
 [PR #33](https://github.com/OnFiala/agent.mind/pull/33). The
 [R10 record](docs/reviews/2026-11-16-r10-accessor-identities.md) owns the intentional
 identity transition, validation, limits and rollback; the PR owns exact review

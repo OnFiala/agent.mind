@@ -5,7 +5,7 @@ and named declarations, inspect supported static relationships, and use the same
 project names in the canvas and agent context. Saved source changes refresh the map.
 
 agent.mind reads source files without running your project. It currently analyzes
-JavaScript (`.js`, `.mjs`) and Python (`.py`). This 1.4.0 candidate includes bounded text
+JavaScript (`.js`, `.mjs`) and Python (`.py`). Version 1.4.0 includes bounded text
 inventory, conservative Python source imports/local calls and TypeScript/TSX/JSX
 syntax-only inspection. Framework routing remains unsupported; typed files remain
 explicitly partial. Supported Python source can pass the ordinary context preflight.
@@ -23,15 +23,15 @@ that repeated hierarchy lookup; other parsing and rendering costs remain. See
 the project you want it to inspect, and state whether you want an explanation,
 an installation, or a contribution to agent.mind.
 
-**1.4.0 is a preparation candidate, not a published release.** It includes the
-opt-in bounded agent profile, root input policy/source priority and R01–R10 repairs.
-[PR #34](https://github.com/OnFiala/agent.mind/pull/34) records the exact candidate
-bytes, validation, review and publication boundary. Existing installations keep
-their pinned runtime; a version in source is not evidence of publication.
+**[1.4.0](https://github.com/OnFiala/agent.mind/releases/tag/v1.4.0) was published on
+2026-11-16.** It includes the opt-in bounded agent profile, root input policy/source
+priority and R01–R10 repairs. [PR #34](https://github.com/OnFiala/agent.mind/pull/34)
+records preparation and exact-byte validation; the release page owns published
+downloads and checksums. Existing installations keep their pinned runtime.
 
 ## Support at a glance
 
-| Source | Available in this 1.4.0 candidate | Boundary |
+| Source | Available in 1.4.0 | Boundary |
 |---|---|---|
 | JavaScript `.js`, `.mjs` | Named symbols, static file references, conservative same-file calls, selected security/HTTP signals | No imported-call resolution, arbitrary runtime dispatch or framework routing |
 | TypeScript `.ts`, TSX `.tsx`, JSX `.jsx` | Named declarations, source locations and parser provenance | Syntax-only inspection; every pilot file is `partial` and strict preflight rejects it |
@@ -55,31 +55,43 @@ remain planned.
 
 ## Install into a project
 
-These commands install **this 1.4.0 candidate** from a separately obtained,
-reviewed local archive. It has not been published: do not construct a download URL
-or assume a tag exists. For a local build, use [Development](#development), then
-use the archive, checksum and artifact digest from that same build. For the
-selected preparation archive, use the exact values recorded in
-[PR #34](https://github.com/OnFiala/agent.mind/pull/34).
-
-Requires Node.js 22 or newer on macOS or Linux. Put the selected archive and its
-matching `SHA256SUMS` in a new directory. Replace the target path and artifact
-digest placeholder before running:
+Install the published **[1.4.0 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.4.0)**.
+Requires Node.js 22 or newer on macOS or Linux. Start in a new empty download
+directory, then replace the target project path. Stop if a download or checksum
+check fails; only extract and install after verification succeeds.
 
 ```sh
-cd /absolute/path/to/verified-download-directory
+cd /absolute/path/to/new-empty-download-directory
+curl -fLO https://github.com/OnFiala/agent.mind/releases/download/v1.4.0/agent-mind-1.4.0.tar.gz
+curl -fLO https://github.com/OnFiala/agent.mind/releases/download/v1.4.0/SHA256SUMS
 shasum -a 256 -c SHA256SUMS
+```
+
+Expected archive SHA-256:
+`3567ab254342ddf450901eb479ab565369990375eff5c73093efdb511e0d2609`.
+
+After a successful checksum check:
+
+```sh
 tar -xzf agent-mind-1.4.0.tar.gz
-node agent-mind-1.4.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.4.0" --digest "COPY_THE_REVIEWED_ARTIFACT_DIGEST" --attach
+node agent-mind-1.4.0/cli.mjs install --project "/absolute/path/to/project" --release "$PWD/agent-mind-1.4.0" --digest "74e8af9f4771e7a9443d309f76c1dbc38d3f468d494ce7387a9210082f5c4558" --attach
 ```
 
 The artifact digest identifies the manifest; it is different from the archive
-SHA-256. Obtain both from the same reviewed preparation receipt. After a separately
-authorized publication, the release page owns the downloadable bytes and checksums.
-The currently published [1.3.1](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.1)
+SHA-256. Both public files were downloaded anonymously and matched the approved
+originals byte for byte; an independent reviewer also passed all 16 installed-CLI
+smoke groups on its own public download.
+
+The frozen archive's README retains preparation-time candidate wording.
+Use this current repository README and the release page for publication and
+installation guidance. The approved archive was not rebuilt for these documentation
+updates. A later source build has its own digest and must not be substituted for
+the published archive; see [Development](#development) for local builds.
+
+Published [1.3.1](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.1)
 remains the prior-version rollback target; it does not contain the changes above.
 Its frozen verifier retains the known Czech/Slovak locale defect. Do not substitute
-its archive or install commands for this candidate. The older
+its archive or install commands for 1.4.0. The older
 [1.3.0 release](https://github.com/OnFiala/agent.mind/releases/tag/v1.3.0) also retains
 the Python binding/construction defects repaired in 1.3.1.
 
@@ -88,7 +100,7 @@ choose the source repository deliberately. The installer also checks the full
 runtime manifest and rejects unknown files and symlinks. It will not overwrite
 an existing unowned `agent.mind/` directory.
 
-The 1.4.0 candidate runtime includes Acorn, the bounded Babel parser and Lezer Python with
+The 1.4.0 runtime includes Acorn, the bounded Babel parser and Lezer Python with
 its three supporting packages, all inside `agent.mind/`. No Python interpreter,
 target compiler or build configuration is executed.
 It leaves your project's package.json, lockfile and node_modules alone. `--attach`
@@ -166,7 +178,7 @@ A selected symbol follows its current source range after an update, including
 when restored with Back. A source line chosen manually remains a numeric cursor;
 the symbol's displayed range still follows the current source.
 
-The UI-NEW-01 repair included in this 1.4.0 candidate keeps a selected symbol highlighted when
+The UI-NEW-01 repair included in 1.4.0 keeps a selected symbol highlighted when
 switching to **Files**: its owning file is selected while the inspector retains
 the symbol and source range. A visible symbol or its collapsed area takes
 precedence; otherwise the visible owning file or overview block is highlighted.
@@ -190,7 +202,7 @@ show nearby connections. Hidden lines cannot receive pointer or keyboard focus.
 Search finds members inside collapsed areas, including original function names,
 and expands their area before opening them. Fit includes the whole current map.
 
-The UI-NEW-02 repair included in this 1.4.0 candidate implements the R08 keyboard contract:
+The UI-NEW-02 repair included in 1.4.0 implements the R08 keyboard contract:
 focus a card and use **Shift + arrow keys** to move it by 20 canvas units in any
 direction. Plain arrows move focus between cards. **Alt + left arrow** and
 **Backspace** retain scope navigation; typing in input fields does not navigate
@@ -273,7 +285,7 @@ Ambiguous short names need a full path or stable ID. Invalid metadata produces
 diagnostics and does not hide parts. Names describe intended responsibilities;
 the source determines connections.
 
-The R09 presentation included in this 1.4.0 candidate keeps the block order supplied by the overview;
+The R09 presentation included in 1.4.0 keeps the block order supplied by the overview;
 declared blocks follow their order in the naming map. Nested parts use source path,
 line, column and stable ID as deterministic ties, with case-sensitive UTF-16 text
 ordering. Sections and collapsed areas follow their first source member; explicit
@@ -284,7 +296,9 @@ not rewrite naming maps, source IDs or user labels/aliases. See the
 [R09 presentation record](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-16-r09-generic-presentation.md) for
 checks, English fallback copy and release limits.
 
-### JavaScript accessor identities (R10, 1.4.0 candidate)
+<a id="javascript-accessor-identities-r10-140-candidate"></a>
+
+### JavaScript accessor identities (R10, 1.4.0)
 
 Supported class getters and setters have separate source IDs, including when only
 one accessor exists. Their descendants also use the accessor identity; unrelated
@@ -344,7 +358,7 @@ locations and hashes; they do not establish that a request happened.
 Named class expressions shadow matching API names within that class, including
 its superclass expression, without hiding calls outside it.
 
-The CORE-01 repair included in this 1.4.0 candidate also checks direct writes in nested functions
+The CORE-01 repair included in 1.4.0 also checks direct writes in nested functions
 to the handler's captured request, response and URL bindings. Such a write suppresses
 the affected provider even when the function is never called; local shadowed bindings
 do not count as writes to the outer value. Nested functions still contribute no
@@ -357,9 +371,11 @@ or a safety verdict. Testing shows test files and their static dependencies, not
 coverage or passing results. Unsupported source files, parse failures and unresolved
 references stay visible.
 
-### Unsupported reference diagnostics (R04 source candidate)
+<a id="unsupported-reference-diagnostics-r04-source-candidate"></a>
 
-This is included in the **1.4.0 candidate**; published 1.3.1 does not include these
+### Unsupported reference diagnostics (R04)
+
+This is included in the **1.4.0 release**; published 1.3.1 does not include these
 additional diagnostics. Existing installations keep their pinned runtime.
 
 A `.cjs` file remains inventory/text only: it gains no symbols, reference resolution
@@ -390,10 +406,12 @@ supported links does not establish complete language or runtime coverage. Consul
 file capabilities, diagnostics and scope limits. See the
 [R04 record](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-12-reference-diagnostics.md) for verification and rollback.
 
-### Root input policy (R06, 1.4.0 candidate)
+<a id="root-input-policy-r06-140-candidate"></a>
 
-The source candidate implements the [R05 input contract](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-15-input-policy.md).
-Published **1.3.1 and existing pinned installations do not contain R06**.
+### Root input policy (R06, 1.4.0)
+
+Version 1.4.0 implements the [R05 input contract](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-15-input-policy.md).
+Published **1.3.1 does not contain R06**; existing installations remain on their pinned version.
 Both source and installed modes read only the root `.gitignore`, and softly exclude
 root `/dist/`, `/build/` and `/venv/` directories. A nested `src/build/` remains
 eligible. To restore a legitimate root build directory, use `!/build/` in your
@@ -432,9 +450,11 @@ responses. This does not lock the filesystem, guarantee revocation latency or er
 already delivered data. See the
 [R06 implementation record](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-15-project-exclusions.md).
 
-### Source priority within existing budgets (R07, 1.4.0 candidate)
+<a id="source-priority-within-existing-budgets-r07-140-candidate"></a>
 
-After input filtering, the source candidate gives recognized source suffixes
+### Source priority within existing budgets (R07, 1.4.0)
+
+After input filtering, version 1.4.0 gives recognized source suffixes
 priority over other eligible files when allocating the 1,000 file slots and
 16 MiB read budget. JavaScript, Python, typed pilot files and the existing known
 unsupported source suffixes share that priority. Unsupported languages retain
@@ -467,7 +487,7 @@ limits are 1000 regular files, 512 KiB per file, 16 MiB total bytes read, 10000 
 depth 20. Scope and limitations are available in the UI and context JSON. Large
 projects may hit these limits or pause during synchronous indexing.
 
-The CORE-02 repair included in this 1.4.0 candidate counts only otherwise eligible regular files
+The CORE-02 repair included in 1.4.0 counts only otherwise eligible regular files
 against the 1000-file inventory limit. At exactly that limit, excluded paths and
 empty directories do not by themselves make the inventory partial. Directories
 are still traversed within the separate entry/depth budgets; an additional eligible
@@ -573,7 +593,7 @@ LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 node agent.mind/cli.mjs status
 ```
 
 Keep that prefix on every old-runtime command below, including the old installer's
-command when rolling back. The 1.4.0 candidate's digest ordering is locale-independent.
+command when rolling back. The 1.4.0 digest ordering is locale-independent.
 
 1. Keep both checksum-verified release downloads before changing anything. Stop
    the view and save `agent.mind/project-map.json` outside the project, together with
@@ -725,14 +745,16 @@ source-module references and conservative bare local calls. Framework routing,
 imported calls and dynamic dispatch remain unsupported even when the map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
 
-### Installed agent profile (R03 source candidate)
+<a id="installed-agent-profile-r03-source-candidate"></a>
 
-This is included in the **1.4.0 candidate**. Published 1.3.1 does not accept these
+### Installed agent profile (R03)
+
+This is included in the **1.4.0 release**. Published 1.3.1 does not accept these
 flags. Existing installations keep their pinned runtime; do not assume an update
 from a version string or this source README. Commands without a profile retain the
 legacy full JSON shown above.
 
-An installed runtime built from this candidate can request bounded context:
+An installed 1.4.0 runtime can request bounded context:
 
 ```sh
 node agent.mind/cli.mjs context "Module C" --profile agent --max-bytes 10000
@@ -763,7 +785,7 @@ selector, omit it on retrieval too. Preflight still requires one exact selector.
 Changed revision, binding or cursor snapshot rejects the request; obtain new context.
 `--section` and `--cursor` are context options, not preflight options. New projection
 options without `--profile agent`, duplicate options and unknown options reject.
-For fragmented items, follow the [R02 reconstruction contract](#bounded-agent-context-r02-source-candidate).
+For fragmented items, follow the [R02 reconstruction contract](#bounded-agent-context-r02).
 
 Successful opt-in preflight returns `receipt: "preflight"` and
 `preflight: "verified-at-read"`, with selector/canonical selection, project,
@@ -828,7 +850,7 @@ for development inspection; installed projects should use their own CLI.
 manifest and archive checksum. It refuses to replace existing output. Use
 `npm run package -- --output /absolute/new-directory` for another build.
 
-The R01 repair included in this 1.4.0 candidate makes schema-1 artifact ordering independent of
+The R01 repair included in 1.4.0 makes schema-1 artifact ordering independent of
 process locale: both the builder and verifier use explicit English path collation
 (`localeCompare(..., 'en')`). It preserves the published manifest digests; it does
 not change the schema, runtime allowlist, dependency pins or installed runtime pins.
@@ -859,13 +881,15 @@ collapsed view; `partCanvas` keeps the full source members and edges.
 `public/hierarchy.mjs` supplies both browser and agent views. Agents cooperate by
 running these checks; there is no global hook enforcing them.
 
-### Bounded agent context (R02 source candidate)
+<a id="bounded-agent-context-r02-source-candidate"></a>
 
-This opt-in API is included in the **1.4.0 candidate**. The development command and the installed
+### Bounded agent context (R02)
+
+This opt-in API is included in the **1.4.0 release**. The development command and the installed
 CLI without profile flags still return the original full context. The included R03
-change adds [installed profile usage](#installed-agent-profile-r03-source-candidate),
+change adds [installed profile usage](#installed-agent-profile-r03),
 new managed instructions and concise preflight receipts. Published 1.3.1 includes
-neither R02 nor R03; candidate version 1.4.0 does not establish publication.
+neither R02 nor R03. Existing installations do not update automatically.
 
 ```js
 import { freshContext, contextCursor } from './graph-context.mjs';
