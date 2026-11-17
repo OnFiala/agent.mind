@@ -591,6 +591,71 @@ export function sourcePagingControls(source, onLine) {
   return controls;
 }
 
+// A local page bounds the initial inspector DOM; all occurrences remain reachable.
+export function renderReferenceSyntax(envelope, onLine) {
+  const root = element('div');
+  root.append(element('p', 'hint', 'Restricted syntax only; resolution is unavailable. This does not establish dependency completeness, calls, types, security or runtime behavior.'));
+  if (envelope.extraction === 'withheld') {
+    root.append(element('p', 'hint', 'No facts from this pass: extraction was withheld. See file notes for diagnostics.'));
+    return root;
+  }
+  const facts = envelope.facts || [];
+  const unsupported = envelope.unsupported || [];
+  root.append(element('p', 'hint', `${facts.length} supported occurrences and ${unsupported.length} unsupported occurrences in the restricted pass.`));
+  if (!facts.length && !unsupported.length) {
+    root.append(element('p', 'hint', 'Zero supported occurrences in the restricted pass; this does not establish absence of dependencies.'));
+    return root;
+  }
+  const records = [...facts.map(value => ({ value, supported: true })), ...unsupported.map(value => ({ value, supported: false }))];
+  const pageSize = 40;
+  let page = 0;
+  const content = element('div');
+  root.append(content);
+  const rangeText = range => range ? `${range.start}–${range.end} ${range.unit}, end exclusive: ${range.endExclusive}` : 'unavailable';
+  const renderPage = () => {
+    content.replaceChildren();
+    const start = page * pageSize;
+    const end = Math.min(start + pageSize, records.length);
+    content.append(element('p', 'hint', `Showing ${start + 1}–${end} of ${records.length} occurrences`));
+    for (const { value, supported } of records.slice(start, end)) {
+      const detail = element('details', 'evidence-item');
+      if (supported) {
+        const evidence = value.evidence;
+        const producer = evidence.producer && typeof evidence.producer === 'object'
+          ? [evidence.producer.name, evidence.producer.version, evidence.producer.mode].filter(part => part != null).join(' · ')
+          : evidence.producer;
+        detail.append(element('summary', '', `${value.kind}: ${value.specifier}`));
+        detail.append(element('p', 'hint', `${value.typed.syntaxKind} · type-only syntax: ${value.typed.typeOnly}`));
+        detail.append(element('p', 'hint', `Source: ${evidence.path}:${evidence.line}:${evidence.column}–${evidence.endLine}:${evidence.endColumn} · hash ${evidence.hash} · producer ${producer}`));
+        detail.append(element('p', 'hint', `Source range: ${rangeText(evidence.range)} · declaration range: ${rangeText(evidence.declarationRange)}`));
+        const bindings = value.typed.bindings || [];
+        detail.append(element('pre', 'hint reference-bindings', bindings.length ? `Bindings (${bindings.length}):\n${bindings.map(binding => `${binding.syntaxKind} · local: ${binding.local ?? '—'} · imported: ${binding.imported ?? '—'} · exported: ${binding.exported ?? '—'} · type-only: ${binding.typeOnly} · range: ${rangeText(binding.range)}`).join('\n')}` : 'Bindings: none'));
+        const control = element('button', 'panel-button', `Show line ${evidence.line}`);
+        control.addEventListener('click', () => onLine(evidence.line));
+        detail.append(control);
+      } else {
+        detail.append(element('summary', '', `Unsupported: ${value.syntaxKind}`));
+        detail.append(element('p', 'hint', `Reason: ${value.reason} · range: ${rangeText(value.range)}`));
+      }
+      content.append(detail);
+    }
+    const controls = element('div');
+    if (page > 0) {
+      const previous = element('button', 'panel-button', 'Previous occurrences');
+      previous.addEventListener('click', () => { page--; renderPage(); });
+      controls.append(previous);
+    }
+    if (end < records.length) {
+      const next = element('button', 'panel-button', 'Next occurrences');
+      next.addEventListener('click', () => { page++; renderPage(); });
+      controls.append(next);
+    }
+    content.append(controls);
+  };
+  renderPage();
+  return root;
+}
+
 export function startVisualizer(projectScope = null, projectAreaScope = null, resolveSourceRelations = null) {
   const $ = id => document.getElementById(id);
   const canvas = $('canvas');
@@ -1219,6 +1284,10 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (node.diagnostics?.length) {
       section('File notes', body);
       for (const diagnostic of node.diagnostics) body.append(element('p', 'hint', typeof diagnostic === 'string' ? diagnostic : diagnostic.message || JSON.stringify(diagnostic)));
+    }
+    if (node.referenceSyntax) {
+      section('Typed reference syntax', body);
+      body.append(renderReferenceSyntax(node.referenceSyntax, line => showSourceLine(node, line)));
     }
     if (node.symbols?.length) {
       section(`Symbols (${node.symbols.length})`, body);

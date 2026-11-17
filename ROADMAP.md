@@ -43,9 +43,11 @@ artifact identities, public-download verification, checks, limits and rollback.
 Real-target upgrades remain separate owner actions; existing installations were
 not changed. Current documentation updates do not replace the frozen archive.
 
-R11 has an owner-accepted scoped-preflight design; R12 remains pending and
-R13–R16 remain conditional proposals. Neither this reconciliation nor a successful
-candidate check authorizes those stages. The
+R11 has an owner-accepted scoped-preflight design. R12 completed its private
+evaluation without demonstrated workflow benefit; the full context remains default.
+P1 is merged and unreleased. On 2026-11-17 the owner authorized the separate R13
+implementation after P1, with a review of plan adherence. R14–R16 retain their
+individual evidence and authorization gates. The
 [remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
 [audit-theme ledger](#audit-theme-ledger-and-decision-triggers) retain their scope.
 The original audit's 26 themes have differing priorities and are not all release
@@ -220,19 +222,22 @@ runtime code only, preserving target ignore files, naming maps, descriptors and 
 
 ## P1 — Positive character sets in the root policy
 
-**Authorized implementation candidate; unreleased.** On 2026-11-17 the owner
-accepted the scoped input-policy proposal and authorized P1 alone in a separate
-PR with tests, independent review and documentation. The
+**Merged; unreleased.** The owner separately authorized P1 implementation and
+[PR #37](https://github.com/OnFiala/agent.mind/pull/37) merge on 2026-11-17. Merge
+`c80b8aa6a07c9cdbd6930af8114f78d9f7baca2d` retains the exact reviewed tree;
+[post-merge CI](https://github.com/OnFiala/agent.mind/actions/runs/44128899552) passed
+on Node 22/24, including package and versioned rollback checks. The
 [P1 implementation record](docs/reviews/2026-11-17-positive-policy-sets.md) owns the
-exact grammar, compatibility, checks and rollback; the PR will own reviewed commits
-and CI evidence. No merge, release or real-target change is authorized here.
+exact grammar, compatibility and rollback; the PR owns review and CI receipts.
+No release or real-target change was performed.
 
 `root-ignore-v2` adds positive ASCII alphanumeric sets such as `[cod]`, retaining
 R05/R06 hard guards, whole-policy rejection, fixed budgets and source-read checks.
 Every v2 policy identity changes, even for v1-only rules. Returning to published
 1.4.0 restores v1's rejection of set syntax without editing project-owned rules.
-R13/R14 implementation remains excluded; this change does not relax preflight or
-establish consumer benefit. Published 1.4.0 and pinned installations remain unchanged.
+P1 did not implement R13/R14 or relax preflight, and establishes no consumer benefit.
+The owner subsequently authorized R13 separately below; R14 remains gated.
+Published 1.4.0 and pinned installations remain unchanged.
 
 ## R07 — Source priority within existing budgets
 
@@ -344,17 +349,20 @@ project/
 These contracts retain the approved plan's intent; they do not grant implementation,
 merge, publication, host registration or target-operation authority. The owner
 accepted the R11 design and separately authorized PR #36's merge on 2026-11-16;
-R12 remains pending. R13–R16 require the stated evidence and separate owner authorization.
+R12 completed its private evaluation on 2026-11-17 without demonstrated workflow
+benefit. After the separately accepted P1/R13 design and P1 merge, the owner
+authorized R13 implementation with plan-adherence review on 2026-11-17.
+R14–R16 still require their stated evidence and separate owner authorization.
 The historical L0–L6 sequence below remains evidence, not a competing next-work list.
 
 | Work | Priority / state | Prerequisites and next deliverable |
 |---|---|---|
 | R11 | P1, accepted design; no implementation | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); [PR #36](https://github.com/OnFiala/agent.mind/pull/36) owns actual merge/CI evidence; R15 requires separate authorization |
-| R12 | P1, pending evaluation | R03/R04; paired consumer evaluation on representative pinned projects |
-| R13 | P2, conditional | R12 demonstrates typed-project demand; typed import/export syntax evidence |
-| R14 | P2, conditional | R12 selects one resolver mode/corpus; R13 for typed input |
+| R12 | P1, private evaluation completed; no demonstrated benefit | Historical measurement retained separately; no default-format change or new consumer-benefit claim |
+| R13 | P2, implementation candidate; unreleased | Accepted bounded syntax contract; exact reference evidence, zero new dependency edges and unchanged partial/strict gate |
+| R14 | P2, conditional; candidate identified | R13 plus separately accepted rules/counterexamples for one opt-in local bundler mode; no implementation authority |
 | R15 | P2, conditional | Accepted R11; operation's required coverage from R13/R14 |
-| R16 | P2, conditional | R12 demonstrates integration benefit; R03, with unchanged strict gate permitted |
+| R16 | P2, deferred | R12 did not demonstrate workflow benefit; no MCP implementation or default-format change follows from this evaluation |
 
 Keep UI and CLI on one source-derived graph. Preserve existing source IDs except
 the bounded, intentional R10 accessor transition. Revert dependents before their
@@ -382,11 +390,21 @@ limitation remains visible. R11 proposes no asset-name exception or new read acc
 Independent review, actual merge and subsequent CI receipts belong to
 [PR #36](https://github.com/OnFiala/agent.mind/pull/36); approval alone proves neither
 merge completion nor CI success. R15 still needs separate implementation authority
-and the operation's required R13/R14 coverage. R12 and the conditional roadmap
-below remain unchanged. Rollback: withdraw/revert these design documents;
+and the operation's required R13/R14 coverage. Later R12 results and R13
+syntax extraction do not authorize or implement this gate. Rollback: withdraw/revert these design documents;
 legacy behavior and installed targets remain unchanged.
 
 ### R12 — Consumer evaluation
+
+**Private evaluation completed, 2026-11-17; no workflow benefit demonstrated.**
+The historical runs and independent scoring remain in their separate evaluation
+record. They do not support changing the full-context default or starting R16.
+Typed import/reexport syntax demand supported the separately accepted P1/R13
+design; no runtime dependency or consumer-benefit claim follows from that demand.
+P1 removed the observed root-ignore grammar blocker, but the rechecked private
+projects remain partial from other limits. This status update does not publish
+private source, repeat consumer trials or claim universal lack of benefit.
+The original evaluation contract follows.
 
 **L6, strategy A/B.** Scope: compare identical authorized
 tasks with/without R03 context on pinned disposable copies of representative existing
@@ -406,7 +424,12 @@ establish general superiority, nor can lower token use compensate for worse corr
 
 ### Conditional implementation PRs
 
-**R13 — Typed references (RES-01).** Scope: extract static imports/reexports and
+**R13 — Typed references (RES-01).** Implementation candidate from the accepted
+2026-11-17 bounded syntax contract, with prior-work review. The
+[R13 record](docs/reviews/2026-11-17-typed-reference-syntax.md) owns behavior,
+acceptance and rollback; the separate PR owns exact review/CI receipts.
+No merge or release authority. Only `static-reference-syntax` is added. Typed facts retain unsupported
+resolution and create no local, external, Security or call edges. Scope: extract static imports/reexports and
 type-only syntax from the existing Babel AST; resolution stays in `code-index.mjs`.
 **Acceptance:** exact ranges/hashes on TS/TSX/JSX fixtures; malformed/dynamic input
 remains explicitly unresolved. No calls, types or framework behavior inferred; JS
@@ -454,13 +477,13 @@ the original audit's severity labels; no whole-audit closure is claimed.
 | Audit IDs | Bounded disposition and condition for further work |
 |---|---|
 | LOC-01 | R01 is merged; schema-1 locale compatibility is the bounded repair. A new canonical-order schema needs separate compatibility work. |
-| CTX-01 | R02/R03 are merged; bounded output is opt-in, legacy full JSON remains the default. R12 must evaluate consumer benefit before any separate default-format change. Output budgets do not bound indexing cost. |
+| CTX-01 | R02/R03 are merged; bounded output is opt-in, legacy full JSON remains the default. R12 did not demonstrate consumer benefit; a default-format change needs new evidence and separate authority. Output budgets do not bound indexing cost. |
 | SILENT-01 | R04 adds explicit unsupported-reference diagnostics, not CommonJS resolution or implicit Python source-root discovery. Existing Python informational uncertainty remains visible. |
 | SCOPE-01 | R05/R06/R07 provide the accepted input contract, bounded root-ignore/default exclusions and source priority under existing caps. They do not provide full Git semantics or complete inventory beyond limits. |
 | SENS-01 | Hard sensitive-name guards remain. Source extensions do not prove safe contents; no sensitive-file exception is accepted. A separate exposure design and synthetic no-open/no-disclosure regressions must precede any implementation. |
 | GATE-01 | R11 is an [owner-accepted design](docs/reviews/2026-11-16-r11-scoped-preflight.md); R15 remains conditional and requires separate implementation authority. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
-| RES-01 | R13/R14 remain conditional on R12's demonstrated demand and selected corpus/mode; no broader resolver or typed-completeness claim. |
-| HOST-01 | R12 precedes conditional R16; no MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
+| RES-01 | R13 syntax-only implementation is authorized after accepted design and merged P1. R14 remains separately gated on an explicit resolver contract/corpus; no broader resolver or typed-completeness claim. |
+| HOST-01 | R12 did not demonstrate workflow benefit; R16 remains deferred. No MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
 | SYM-01 | R10 repairs supported class-accessor identities and descendants. Object methods, computed accessors and other duplicate/binding gaps need a concrete task, exact fixtures and their own PR. |
 | UI-04 | R09 removes repository-specific presentation priority and supplies English fallback copy; user naming files and Czech aliases are preserved. This is not a whole-product UX acceptance. |
 | UI-01, UI-02, UI-03, PERF-01 | PR #26/#27 and R08 repair selection/keyboard behavior with scoped regressions. Reproduce remaining SSE/focus/state failures in a browser and profile a failing supported graph before renderer/store splits, workers or delta SSE. UI-RECONCILE-01 remains unapproved; never replace authoritative hashing with mtime alone. |

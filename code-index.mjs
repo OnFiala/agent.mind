@@ -46,7 +46,7 @@ const isText = bytes => isUtf8(bytes) && !bytes.some(byte => byte === 127 || byt
 function capabilitiesFor(relative) {
   const extension = path.extname(relative);
   if (extension === '.js' || extension === '.mjs') return ['text', 'javascript-syntax', 'static-references', 'named-symbols', 'local-calls', 'security-signals'];
-  if (isTypedSource(relative)) return ['text', ...(extension === '.jsx' ? [] : ['typescript-syntax']), ...(extension === '.ts' ? [] : ['jsx-syntax']), 'named-symbols'];
+  if (isTypedSource(relative)) return ['text', ...(extension === '.jsx' ? [] : ['typescript-syntax']), ...(extension === '.ts' ? [] : ['jsx-syntax']), 'named-symbols', 'static-reference-syntax'];
   if (extension === '.py') return ['text', 'python-syntax', 'static-references', 'named-symbols', 'local-calls'];
   if (extension === '.html') return ['text', 'html-assets'];
   if (extension === '.json') return ['text', 'json-validation'];
@@ -561,7 +561,7 @@ export function indexProject(directory, options = {}) {
       if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) analyses.set(relative, analysis);
       const layers = ['project', ...(isTest(relative) ? ['testing'] : []), ...(analysis.security.length ? ['security'] : [])];
       // Clones prevent a consumer modifying its serialized result from poisoning the cache.
-      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, policyId: input.summary.id, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
+      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, policyId: input.summary.id, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), ...(isTypedSource(relative) ? { referenceSyntax: structuredClone(analysis.referenceSyntax) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
       diagnostics.push(...structuredClone(analysis.diagnostics));
     } catch (error) {
       inventoryComplete = false;
@@ -580,6 +580,8 @@ export function indexProject(directory, options = {}) {
   const externalNodes = new Map();
   const groupedEdges = new Map();
   for (const [relative, analysis] of analyses) for (const reference of analysis.references) {
+    // R13 syntax facts are serialized on the file; resolution remains unsupported.
+    if (reference.typed || isTypedSource(relative)) continue;
     const resolved = resolveReference(relative, reference, resolvable, directories);
     if (resolved.info) {
       const diagnostic = { ...structuredClone(reference.evidence), message: resolved.info, severity: 'info' };
@@ -667,7 +669,7 @@ export function indexProject(directory, options = {}) {
       'File and total-byte budgets prioritize recognized source suffixes, then other eligible paths, with ordinal full-path ordering within each group. Priority applies only to observed candidates; entry/depth limits leave unvisited scope unknown. Source priority grants no additional language support.',
       'File capabilities name available operations, not successful analysis or coverage. Text-only files have no inferred symbols or dependencies; source-reference resolution retains the existing .mjs/.js/.json/.html/.css/.md/.py scope. Known unsupported source extensions retain partial diagnostics.',
       ...([...analyses.keys()].some(name => name.endsWith('.py')) ? ['Python provides bounded declarations, literal module imports and conservative bare same-file calls (64 KiB per file), using an editor grammar rather than CPython validation. Imports map project-root modules and regular packages, with internal namespace subdirectories below an indexed regular-package anchor. Relative ascent stops at the highest indexed regular-package ancestor, including an explicit root initializer. Namespace-only modules have no file edge; top-level namespace packages, custom source roots, sys.path and environment resolution are not inferred. From-import members are attributes or submodules, never guessed file edges. Imported/member calls, types, security, framework/runtime behavior, decorator effects, notebooks and .pyi files remain outside scope. Recovery errors and traversal limits withhold relationships; ambiguity remains explicit. Parser limits are not timeouts or a sandbox.'] : []),
-      ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides syntax and bounded named declarations only (64 KiB per file); no import/type/call/security/HTTP analysis. Both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse errors and ambiguity withhold affected symbols; traversal limits withhold all symbols from the file. Parser and traversal limits are not timeouts or a sandbox.'] : []),
+      ...([...analyses.keys()].some(isTypedSource) ? ['TS/TSX/JSX pilot provides bounded named declarations and static-reference syntax (64 KiB per file). Reference facts have unsupported resolution and create no dependency, external-module, call or Security edges. The restricted pass records selected unsupported forms, not exhaustive reference coverage. Import resolution, types, calls, security and HTTP/framework behavior remain unsupported; both directions of cross-language resolution remain disabled. Ambient .d.ts, .mts/.cts, decorators and embedded scripts are outside this pilot. Parse/byte failures withhold all syntax; declaration and reference traversal limits independently withhold their complete results. Parser and traversal limits are not timeouts or a sandbox.'] : []),
       `Scan limits: ${INDEX_LIMITS.files} files, ${INDEX_LIMITS.fileBytes} bytes per file, ${INDEX_LIMITS.totalBytes} total bytes, ${INDEX_LIMITS.entries} directory entries, depth ${INDEX_LIMITS.depth}.`,
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
     ]

@@ -1,10 +1,12 @@
 # P1: positive character sets in the root input policy
 
 Date: 2026-11-17. Base: `57c7c883234904bb7ec1aca96d08fea20f1a0bc2`.
-Status: **authorized implementation candidate; unreleased**. The owner accepted
-the scoped design and authorized P1 implementation in a separate PR with tests,
-independent review, documentation and project-memory recording. R13/R14 are not
-implemented. Merge, release and real-target changes remain outside this authority.
+Status: **merged; unreleased**. The owner separately authorized P1 implementation
+and [PR #37](https://github.com/OnFiala/agent.mind/pull/37) merge. Its exact reviewed
+tree was merged as `c80b8aa6a07c9cdbd6930af8114f78d9f7baca2d`; the
+[post-merge Node 22/24 CI](https://github.com/OnFiala/agent.mind/actions/runs/44128899552)
+passed. P1 implements no R13/R14 behavior. Later R13 work has separate authority;
+release and real-target changes remain outside this P1 delivery.
 [ROADMAP](../../ROADMAP.md#p1--positive-character-sets-in-the-root-policy) owns status.
 The PR owns exact reviewed commits, findings and CI receipts; authorization alone
 is not evidence of passing checks or merge completion.

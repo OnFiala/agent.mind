@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 
 if (!process.argv[2]) throw new Error('Usage: node scripts/smoke-release.mjs /absolute/release-directory');
 const release = fs.realpathSync(process.argv[2]);
@@ -445,7 +447,8 @@ try {
   assert.match(run(cli, ['preflight', 'block:module-c', '--revision', current.revision, '--binding-id', current.binding.id, '--generation', String(current.binding.generation)], false), /expired/i);
   checks.push('source drift and pre-detach receipts rejected; exact owner instructions restored');
 
-  fs.writeFileSync(path.join(project, 'src/typed.ts'), 'export interface Box { value: string; }\nexport function typed(value: Box): string { return value.value; }\n');
+  const typedSource = '// 🧠 Raw evidence retains UTF-16 offsets and CRLF.\r\nimport type { Remote as Alias } from "./remote\\u002ets";\r\nimport fs from "node:fs";\r\nexport { value as publicValue } from "./module-c.mjs";\r\nexport interface Box { value: string; }\r\nexport function typed(value: Box): string { return value.value; }\r\nconst deferred = import("./module-c.mjs");\r\n';
+  fs.writeFileSync(path.join(project, 'src/typed.ts'), typedSource);
   const typedContext = run(cli, ['context', 'src/typed.ts']);
   assert.equal(typedContext.status, 'partial');
   const partialProfile = run(cli, ['context', 'src/typed.ts', '--profile', 'agent']);
@@ -454,7 +457,52 @@ try {
   assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#Box'));
   assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#typed'));
   assert.match(run(cli, ['preflight', 'src/typed.ts', '--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)], false), /partial/i);
-  checks.push('shipped parser extracts typed declarations while installed preflight rejects syntax-only context');
+  const typedFile = typedContext.nodes.find(node => node.id === 'file:src/typed.ts');
+  assert(typedFile.capabilities.includes('static-reference-syntax'));
+  assert(!typedFile.capabilities.includes('static-references'));
+  assert.deepEqual(typedFile.security, []);
+  const syntax = typedFile.referenceSyntax;
+  assert.equal(syntax.version, 'typed-reference-syntax-v1'); assert.equal(syntax.extraction, 'collected');
+  assert.deepEqual(syntax.resolution, { status: 'unsupported', reason: 'typed-resolution-not-enabled' });
+  assert.deepEqual(syntax.facts.map(fact => [fact.kind, fact.specifier, fact.typed.typeOnly]), [['import', './remote.ts', true], ['import', 'node:fs', false], ['reexport', './module-c.mjs', false]]);
+  assert.equal(syntax.facts[0].typed.bindings[0].local, 'Alias');
+  assert.equal(syntax.facts[0].typed.bindings[0].imported, 'Remote');
+  assert.equal(syntax.facts[0].typed.bindings[0].typeOnly, true);
+  const rawSpecifier = '"./remote\\u002ets"';
+  assert.equal(syntax.facts[0].evidence.range.start, typedSource.indexOf(rawSpecifier));
+  assert.equal(typedSource.slice(syntax.facts[0].evidence.range.start, syntax.facts[0].evidence.range.end), rawSpecifier);
+  for (const fact of syntax.facts) {
+    assert.equal(fact.evidence.hash, createHash('sha256').update(typedSource).digest('hex'));
+    assert.equal(fact.evidence.path, 'src/typed.ts');
+    for (const [offset, lineKey, columnKey] of [[fact.evidence.range.start, 'line', 'column'], [fact.evidence.range.end, 'endLine', 'endColumn']]) {
+      const prefix = typedSource.slice(0, offset).split('\n');
+      assert.equal(fact.evidence[lineKey], prefix.length); assert.equal(fact.evidence[columnKey], prefix.at(-1).length + 1);
+    }
+    assert.deepEqual(fact.evidence.producer, { name: '@babel/parser', version: '7.29.12', mode: 'syntax-only' });
+    for (const range of [fact.evidence.range, fact.evidence.declarationRange, ...fact.typed.bindings.map(binding => binding.range)]) { assert.equal(range.unit, 'utf16-code-unit'); assert.equal(range.endExclusive, true); }
+  }
+  assert.equal(syntax.unsupported.length, 1);
+  assert.match(typedSource.slice(syntax.unsupported[0].range.start, syntax.unsupported[0].range.end), /^import\(/);
+  assert(!typedContext.edges.some(edge => edge.from === typedFile.id || edge.to === typedFile.id));
+  assert(!typedContext.symbolGraph.edges.some(edge => edge.from.startsWith('symbol:src/typed.ts#') || edge.to.startsWith('symbol:src/typed.ts#')));
+  assert(!typedContext.nodes.some(node => node.kind === 'external'));
+  for (const node of typedContext.nodes.filter(node => node.path && !/\.(ts|tsx|jsx)$/.test(node.path))) assert.equal(Object.hasOwn(node, 'referenceSyntax'), false);
+  const typedIdentity = ['--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)];
+  const typedPage = run(cli, ['context', 'src/typed.ts', '--profile', 'agent']);
+  const { contextCursor: shippedContextCursor } = await import(pathToFileURL(path.join(runtime, 'graph-context.mjs')));
+  const typedCursor = shippedContextCursor(typedPage, 'diagnostics');
+  assert.equal(run(cli, ['context', 'src/typed.ts', '--profile', 'agent', '--cursor', typedCursor, ...typedIdentity]).snapshot, typedPage.snapshot);
+  const editedTypedSource = `// later source line\r\n${typedSource}`;
+  fs.writeFileSync(path.join(project, 'src/typed.ts'), editedTypedSource);
+  assert.match(run(cli, ['context', 'src/typed.ts', ...typedIdentity], false), /revision changed/i);
+  assert.match(run(cli, ['context', 'src/typed.ts', '--profile', 'agent', '--cursor', typedCursor, ...typedIdentity], false), /revision changed/i);
+  const editedTyped = run(cli, ['context', 'src/typed.ts']);
+  const editedTypedFile = editedTyped.nodes.find(node => node.id === typedFile.id);
+  assert.equal(editedTypedFile.referenceSyntax.facts[0].evidence.line, syntax.facts[0].evidence.line + 1);
+  assert.equal(editedTypedFile.referenceSyntax.facts[0].evidence.hash, createHash('sha256').update(editedTypedSource).digest('hex'));
+  assert.equal(run(cli, ['status']).binding.id, typedContext.binding.id);
+  assert.equal(fs.readFileSync(path.join(project, 'src/typed.ts'), 'utf8'), editedTypedSource);
+  checks.push('shipped typed runtime carries raw reference syntax/capability with explicit unsupported resolution, zero inferred edges/security/calls, partial strict refusal and source/cursor invalidation');
 
   for (const name of ['python', 'common', 'lr', 'highlight']) {
     assert(fs.existsSync(path.join(runtime, 'node_modules/@lezer', name, 'dist/index.js')));

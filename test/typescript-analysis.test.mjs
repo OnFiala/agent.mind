@@ -21,7 +21,7 @@ test('syntax pilot reports named declarations with native kinds, nesting, hashes
   const root=fixture(t,{'view.tsx':source});
   const graph=attachOverview(indexProject(root));
   assert.equal(graph.status,'partial');
-  assert.deepEqual(file(graph,'view.tsx').capabilities,['text','typescript-syntax','jsx-syntax','named-symbols']);
+  assert.deepEqual(file(graph,'view.tsx').capabilities,['text','typescript-syntax','jsx-syntax','named-symbols','static-reference-syntax']);
   assert.match(file(graph,'view.tsx').diagnostics[0].message,/syntax-only/i);
   for(const [name,kind,native] of [['Box','interface','TSInterfaceDeclaration'],['Choice','type','TSTypeAliasDeclaration'],['Flag','enum','TSEnumDeclaration'],['Domain','namespace','TSModuleDeclaration'],['View','function','ArrowFunctionExpression']]) {
     const s=symbol(graph,name);assert(s,name);assert.equal(s.kind,kind);assert.equal(s.languageKind,native);assert.equal(s.hash,file(graph,'view.tsx').hash);assert.equal(s.producer.name,'@babel/parser');assert.equal(s.producer.version,'7.29.12');
@@ -42,13 +42,13 @@ for(const newline of ['\n','\r\n']) test(`typed ranges use raw UTF-16 offsets an
   assert.equal(s.hash,createHash('sha256').update(source).digest('hex'));
 });
 
-test('typed syntax never invents imports, calls, JSX component calls or security analysis',t=>{
+test('typed syntax never resolves imports or invents calls, JSX component calls or security analysis',t=>{
   const root=fixture(t,{'main.mjs':'import "./typed.ts"; export function legacy(){ return 1; }','typed.ts':'import { legacy } from "./main.mjs"; import fs from "node:fs"; export function typed(){ fs.readFileSync("never"); return legacy(); }','view.jsx':'import {typed} from "./typed.ts"; export function View(){ return <typed/>; }'});
   const graph=indexProject(root);assert(symbol(graph,'typed'));assert(symbol(graph,'View'));
   assert.equal(graph.edges.length,0);assert.equal(graph.symbolGraph.edges.length,0);
   assert(graph.diagnostics.some(d=>d.path==='main.mjs' && /Unresolved local reference/.test(d.message)));
   assert.deepEqual(file(graph,'typed.ts').security,[]);assert(!file(graph,'typed.ts').capabilities.includes('security-signals'));
-  assert.deepEqual(file(graph,'view.jsx').capabilities,['text','jsx-syntax','named-symbols']);
+  assert.deepEqual(file(graph,'view.jsx').capabilities,['text','jsx-syntax','named-symbols','static-reference-syntax']);
 });
 
 test('malformed, unsupported ambient/dialect and oversized syntax stays explicit without recovered symbols',t=>{
