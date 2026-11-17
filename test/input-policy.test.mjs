@@ -114,7 +114,7 @@ test('source naming maps obey policy and do not fall back; nested ignores are co
 test('every unsupported active rule invalidates the entire policy without source/map reads or raw diagnostics', t => {
   const root = fixture(t, { 'main.js': 'SOURCE_SENTINEL', 'project-map.json': 'MAP_SENTINEL' });
   const opened = spyOpens(t);
-  for (const invalid of ['**', '[ab]', 'a\\b', '!', '/', 'a//b', '.', '..', 'a/../b', 'a/./b', '\ufeffok', 'ok\u0000', 'ok\t', 'ok\r', 'ok\rnext\n', 'ok\u0085', Buffer.from([0xff])]) {
+  for (const invalid of ['**', '[a-z]', 'a\\b', '!', '/', 'a//b', '.', '..', 'a/../b', 'a/./b', '\ufeffok', 'ok\u0000', 'ok\t', 'ok\r', 'ok\rnext\n', 'ok\u0085', Buffer.from([0xff])]) {
     write(root, '.gitignore', typeof invalid === 'string' ? Buffer.from(invalid.startsWith('\ufeff') ? invalid : 'ignored.js\n' + invalid) : invalid);
     opened.length = 0;
     const graph = indexProject(root);
@@ -278,4 +278,267 @@ test('one direct-read work budget is shared across both policy observations', t 
   // Each observation alone fits; two membership checks together exceed 8M.
   assert.ok(graph.inputPolicy.workUnits < INPUT_POLICY_LIMITS.work);
   assert.throws(() => readIndexedSource(root, node(graph, name)), /policy/);
+});
+
+
+test('P01 positive sets match exactly one suffix code point and prune matching directory basenames', t => {
+  for (const name of ['x.pyc', 'x.pyo', 'x.pyd', 'deep/x.pyc']) {
+    assert.equal(decide('*.py[cod]', name), true, name);
+    assert.equal(decide('*.py[cod]', name, true), true, name);
+  }
+  for (const name of ['x.py', 'x.pycc', 'x.pyC', 'x.pyx', 'x.py😀', 'x.py/c']) {
+    assert.equal(decide('*.py[cod]', name), false, name);
+  }
+  const root = fixture(t, {
+    '.gitignore': '*.py[cod]\n', 'x.pyc': 'EXCLUDED_SENTINEL',
+    'nested/x.pyo': 'EXCLUDED_SENTINEL', 'cache.pyd/child.js': 'EXCLUDED_SENTINEL',
+    'x.py': 'value = 1', 'x.pycc': 'retained', 'case.pyC': 'retained', 'x.pyx': 'retained',
+  });
+  const opened = spyOpens(t);
+  const graph = indexProject(root);
+  assert.equal(graph.inputPolicy.status, 'valid');
+  // Distinct basenames preserve the case negative on case-insensitive filesystems.
+  for (const name of ['x.py', 'x.pycc', 'case.pyC', 'x.pyx']) assert.ok(node(graph, name), name);
+  for (const name of ['x.pyc', 'nested/x.pyo', 'cache.pyd/child.js']) {
+    assert.ok(!node(graph, name), name);
+    assert.ok(!opened.includes(path.join(root, name)), name);
+  }
+  assert.ok(!JSON.stringify(graph).includes('EXCLUDED_SENTINEL'));
+});
+
+test('P02 sets preserve case, anchors, directory-only rules and wildcard neighbors', () => {
+  const cases = [
+    ['[c]', 'c', false, true], ['[c]', 'cc', false, false], ['[c]', '', false, false],
+    ['[cocd]', 'd', false, true], ['[aA09]', 'A', false, true], ['[aA09]', '0', false, true],
+    ['[aA09]', 'a', false, true], ['[aA09]', '9', false, true], ['[aA09]', 'b', false, false],
+    ['[aA09]', 'é', false, false], ['[aA09]', '😀', false, false], ['[aA09]', 'aA', false, false],
+    ['?[ab]*[09]', '😀aXYZ9', false, true], ['?[ab]*[09]', '😀aXYZ8', false, false],
+    ['?[ab]*[09]', 'aXYZ9', false, false], ['[ab][09]', 'b0', false, true],
+    ['/[ab].js', 'a.js', false, true], ['/[ab].js', 'deep/a.js', false, false],
+    ['src/[ab].js', 'src/b.js', false, true], ['src/[ab].js', 'deep/src/b.js', false, false],
+    ['[ab]/', 'deep/b', true, true], ['[ab]/', 'deep/b', false, false],
+    ['č[ab].js', 'deep/čb.js', false, true], ['[ab]/[09]', 'a/9', false, true],
+    ['[ab][09]', 'a/9', false, false],
+  ];
+  for (const [rule, candidate, directory, expected] of cases) {
+    assert.equal(decide(rule, candidate, directory), expected, JSON.stringify({ rule, candidate, directory }));
+  }
+  for (const members of ['aA09', '90Aa', 'aaAA0099']) {
+    for (const candidate of ['a', 'A', '0', '9', 'b', 'é', '', 'a0']) {
+      assert.equal(decide(`[${members}]`, candidate), ['a', 'A', '0', '9'].includes(candidate));
+    }
+  }
+});
+
+test('P03 unsupported sets invalidate the whole policy even after a valid matching prefix', t => {
+  const root = fixture(t, { 'main.js': 'SOURCE_SENTINEL', 'project-map.json': 'MAP_SENTINEL' });
+  const opened = spyOpens(t);
+  const invalid = ['[]', '[', ']', '[ab', 'ab]', '[[ab]]', '[a[b]]', '[a-z]', '[0-9]',
+    '[!a]', '[^a]', '[[:alpha:]]', '[a/b]', '[é]', '[😀]', '[a*]', '[a?]', '[a.]',
+    '[a_]', '[a ]', '[a\\b]', '[a\\]]', '[a]**', '![!a]', '[a\t]', '[a\u0000]'];
+  for (const rule of invalid) {
+    write(root, '.gitignore', `main.js\n${rule}\n`);
+    opened.length = 0;
+    const graph = indexProject(root);
+    assertEmpty(graph);
+    assert.ok(opened.every(name => name === path.join(root, '.gitignore')), rule);
+    assert.ok(!JSON.stringify(graph).includes('SENTINEL'), rule);
+  }
+});
+
+test('P04 set negations preserve parent pruning, root defaults and hard no-open boundaries', t => {
+  const outside = fixture(t, { 'payload.mjs': 'OUTSIDE_SENTINEL' });
+  const root = fixture(t, {
+    '.gitignore': '!/build/[k]eep.js\n!*[s]\n!node_module[s]/\n!agent.min[d]/\n!.privat[e]/\n',
+    'build/keep.js': 'PRUNED_SENTINEL', 'src/build/keep.js': 'export const nested=1;',
+    'main.mjs': 'export const main=1;', 'env.mjs': 'HARD_SENTINEL',
+    'secret_manager.mjs': 'HARD_SENTINEL', '.private/x.mjs': 'HARD_SENTINEL',
+    'node_modules/x.mjs': 'HARD_SENTINEL', 'agent.mind/private.mjs': 'HARD_SENTINEL',
+    'agent.mind/project-map.json': '{"schemaVersion":1,"blocks":[]}',
+    'agent.mind-copy/keep.mjs': 'export const copy=1;', 'special.mjs': 'SPECIAL_SENTINEL',
+  });
+  fs.symlinkSync(path.join(outside, 'payload.mjs'), path.join(root, 'linked.mjs'));
+  // Model a special directory entry without creating or opening an actual FIFO.
+  const originalOpenDirectory = fs.opendirSync;
+  t.mock.method(fs, 'opendirSync', (...args) => {
+    const handle = originalOpenDirectory(...args);
+    return {
+      readSync() {
+        const entry = handle.readSync();
+        return entry?.name === 'special.mjs'
+          ? { ...entry, isSymbolicLink: () => false, isFile: () => false, isDirectory: () => false } : entry;
+      },
+      closeSync() { handle.closeSync(); },
+    };
+  });
+  const opened = spyOpens(t);
+  const options = { generic: true, excludePaths: ['agent.mind'], metadataPath: 'agent.mind/project-map.json' };
+  const graph = indexProject(root, options);
+  assert.equal(graph.inputPolicy.status, 'valid');
+  assert.equal(graph.metadata.status, 'current');
+  assert.ok(node(graph, 'src/build/keep.js'));
+  assert.ok(node(graph, 'agent.mind-copy/keep.mjs'));
+  for (const name of ['build/keep.js', 'env.mjs', 'secret_manager.mjs', '.private/x.mjs', 'node_modules/x.mjs', 'agent.mind/private.mjs', 'special.mjs', 'linked.mjs']) {
+    assert.ok(!node(graph, name), name);
+    assert.ok(!opened.includes(path.join(root, name)), name);
+  }
+  assert.ok(!JSON.stringify(graph).includes('SENTINEL'));
+  write(root, '.gitignore', '!/build/\n/build/*\n!/build/[k]eep.js\n/agent.min[d]/\n');
+  opened.length = 0;
+  const restored = indexProject(root, options);
+  assert.ok(node(restored, 'build/keep.js'));
+  assert.equal(restored.metadata.status, 'excluded');
+  assert.equal(restored.metadata.configuration, null);
+  assert.ok(!opened.includes(path.join(root, 'agent.mind/project-map.json')));
+});
+
+test('P05 a set is one charged matcher step regardless of duplicate members, with the initial row charged', () => {
+  for (const rule of ['[a]', '[aA09]', '[aaaaaaaaa]']) {
+    const work = { units: 0 };
+    policyMatchDecision(parseInputPolicy(Buffer.from(rule)).rules, '😀', false, work);
+    assert.equal(work.units, 4, rule); // two token-prefixes by two code-point-prefixes
+  }
+  for (const rule of ['[a]', '[aA09]', '[aaaaaaaaa]']) {
+    const { rules } = parseInputPolicy(Buffer.from('x'.repeat(998) + rule));
+    const work = { units: 0 };
+    assert.equal(policyMatchDecision(rules, 'b'.repeat(7999), false, work), false);
+    assert.equal(work.units, INPUT_POLICY_LIMITS.work);
+    assert.throws(() => policyMatchDecision(rules, 'b', false, work), error => error.reason === 'work-limit');
+    assert.equal(work.units, INPUT_POLICY_LIMITS.work);
+    const over = { units: 0 };
+    assert.throws(() => policyMatchDecision(rules, 'b'.repeat(8000), false, over), error => error.reason === 'work-limit');
+    assert.equal(over.units, INPUT_POLICY_LIMITS.work);
+  }
+});
+
+// A bounded recursive language oracle, independent of the production DP/token representation.
+// Only v1-valid single-component rules are generated here; path/precedence cases are explicit below.
+function legacyComponentMatches(pattern, value) {
+  const symbols = [...pattern], candidate = [...value];
+  function visit(i, j) {
+    if (i === symbols.length) return j === candidate.length;
+    if (symbols[i] === '*') return visit(i + 1, j) || j < candidate.length && candidate[j] !== '/' && visit(i, j + 1);
+    return j < candidate.length && (symbols[i] === '?' ? candidate[j] !== '/' : symbols[i] === candidate[j]) && visit(i + 1, j + 1);
+  }
+  return visit(0, 0);
+}
+
+test('P06 v1-valid matching agrees with a bounded independent oracle and path/ordering table', () => {
+  const strings = alphabet => ['', ...alphabet, ...alphabet.flatMap(a => alphabet.map(b => a + b))];
+  const patterns = strings(['a', 'é', '?', '*']).filter(value => value && !value.includes('**'));
+  const candidates = strings(['a', 'b', 'é', '😀']);
+  for (const pattern of patterns) for (const candidate of candidates) {
+    assert.equal(decide(pattern, candidate), legacyComponentMatches(pattern, candidate), `${pattern} against ${candidate}`);
+  }
+  for (const [rules, candidate, directory, expected] of [
+    ['*.js\n!keep.js\n', 'nested/keep.js', false, false],
+    ['!keep.js\n*.js\n', 'nested/keep.js', false, true],
+    ['/a.js', 'deep/a.js', false, false], ['a.js', 'deep/a.js', false, true],
+    ['a/b', 'a/b', false, true], ['a/b', 'deep/a/b', false, false],
+    ['build/', 'deep/build', true, true], ['build/', 'deep/build', false, false],
+    ['', 'build', true, true], ['', 'deep/build', true, false],
+    ['# comment\n a.js  \r\n', ' a.js', false, true],
+    ['é', 'e\u0301', false, false], ['?', '😀', false, true],
+  ]) assert.equal(decide(rules, candidate, directory), expected, JSON.stringify({ rules, candidate, directory }));
+});
+
+test('P07 v2 is explicit for missing, empty, comment-only and v1-only policies with byte-bound identities', t => {
+  const root = fixture(t, { 'main.js': 'export const main=1;' });
+  const identities = new Set();
+  for (const policy of [null, '', '# comment\n', '# comment\r\n', '*.log\n']) {
+    if (policy !== null) write(root, '.gitignore', policy);
+    const summary = inspectInputPolicy(root);
+    const graph = indexProject(root);
+    assert.equal(summary.version, 'root-ignore-v2');
+    assert.equal(graph.inputPolicy.version, 'root-ignore-v2');
+    assert.equal(summary.status, 'valid');
+    assert.equal(graph.inputPolicy.id, summary.id);
+    assert.ok(node(graph, 'main.js'));
+    assert.ok(!identities.has(summary.id));
+    identities.add(summary.id);
+  }
+});
+
+test('P08 set-policy edits, failure, naming exclusion/removal and recovery discard stale warm state', t => {
+  const root = fixture(t, {
+    '.gitignore': '[a].js\n', 'a.js': 'export const a=1;', 'b.js': 'export const b=1;',
+    'project-map.json': '{"schemaVersion":1,"blocks":[]}',
+  });
+  let previous = indexProject(root);
+  assert.equal(previous.inputPolicy.status, 'valid');
+  assert.ok(!node(previous, 'a.js'));
+  assert.ok(node(previous, 'b.js'));
+  for (const [policy, expected, mapStatus] of [
+    ['[b].js\n', ['a.js'], 'current'],
+    ['[b].js\n/project-ma[p].json\n', ['a.js'], 'excluded'],
+    ['[a-z].js\n', [], null],
+    ['# recovery\n', ['a.js', 'b.js'], 'current'],
+  ]) {
+    const before = fs.statSync(path.join(root, '.gitignore'));
+    write(root, '.gitignore', policy);
+    fs.utimesSync(path.join(root, '.gitignore'), before.atime, before.mtime);
+    for (const old of previous.nodes) assert.throws(() => readIndexedSource(root, old), /policy/);
+    const warm = indexProject(root, { previous });
+    const cold = indexProject(root);
+    assert.equal(warm.revision, cold.revision);
+    assert.notEqual(warm.revision, previous.revision);
+    for (const name of ['a.js', 'b.js']) assert.equal(Boolean(node(warm, name)), expected.includes(name), name);
+    if (mapStatus === null) assertEmpty(warm);
+    else assert.equal(warm.metadata.status, mapStatus);
+    previous = warm;
+  }
+  fs.unlinkSync(path.join(root, 'project-map.json'));
+  const removed = indexProject(root, { previous });
+  assert.equal(removed.metadata.status, 'missing');
+  assert.equal(removed.metadata.configuration, null);
+  assert.equal(removed.metadata.hash, null);
+  assert.equal(removed.revision, indexProject(root).revision);
+});
+
+test('P08 an in-flight set rule revokes source bytes and graph publication', t => {
+  const root = fixture(t, { '.gitignore': '# initial\n', 'main.js': 'export const main=1;' });
+  const previous = indexProject(root);
+  const originalRead = fs.readSync;
+  const sourceInode = fs.statSync(path.join(root, 'main.js')).ino;
+  const changeDuringRead = policy => {
+    let changed = false;
+    t.mock.method(fs, 'readSync', (descriptor, ...args) => {
+      const count = originalRead(descriptor, ...args);
+      if (!changed && fs.fstatSync(descriptor).ino === sourceInode) {
+        changed = true;
+        write(root, '.gitignore', policy);
+      }
+      return count;
+    });
+  };
+  changeDuringRead('/[m]ain.js\n');
+  assert.throws(() => readIndexedSource(root, node(previous, 'main.js')), /policy/);
+  t.mock.restoreAll();
+  write(root, '.gitignore', '# initial\n');
+  changeDuringRead('/[m]ain.js\n');
+  const revoked = indexProject(root);
+  assertEmpty(revoked);
+  assert.equal(revoked.inputPolicy.reason, 'policy-changed');
+  t.mock.restoreAll();
+  write(root, '.gitignore', '[x].js\n');
+  const recovered = indexProject(root, { previous: revoked });
+  assert.equal(recovered.inputPolicy.status, 'valid');
+  assert.equal(recovered.stats.cachedFiles, 0);
+  assert.equal(readIndexedSource(root, node(recovered, 'main.js')), 'export const main=1;');
+});
+
+
+test('P05 set-policy scan work exhaustion withholds source and naming bytes at the unchanged cap', t => {
+  const root = fixture(t, {
+    '.gitignore': ('a'.repeat(998) + '[a]\n').repeat(64),
+    'main.js': 'SOURCE_SENTINEL', 'project-map.json': 'MAP_SENTINEL',
+  });
+  for (let i = 0; i < 20; i++) write(root, 'b'.repeat(200) + i + '.js', 'SOURCE_SENTINEL');
+  const opened = spyOpens(t);
+  const graph = indexProject(root);
+  assertEmpty(graph);
+  assert.equal(graph.inputPolicy.reason, 'work-limit');
+  assert.equal(graph.inputPolicy.workUnits, INPUT_POLICY_LIMITS.work);
+  assert.ok(opened.every(name => name === path.join(root, '.gitignore')));
+  assert.ok(!JSON.stringify(graph).includes('SENTINEL'));
 });
