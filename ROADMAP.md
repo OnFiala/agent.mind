@@ -218,6 +218,22 @@ authorized, merged R07 work below adds ordering. Published baseline is 1.4.0;
 existing installations retain their pinned behavior. An authorized revert changes
 runtime code only, preserving target ignore files, naming maps, descriptors and all project contents. See the R06 record for details.
 
+## P1 — Positive character sets in the root policy
+
+**Authorized implementation candidate; unreleased.** On 2026-11-17 the owner
+accepted the scoped input-policy proposal and authorized P1 alone in a separate
+PR with tests, independent review and documentation. The
+[P1 implementation record](docs/reviews/2026-11-17-positive-policy-sets.md) owns the
+exact grammar, compatibility, checks and rollback; the PR will own reviewed commits
+and CI evidence. No merge, release or real-target change is authorized here.
+
+`root-ignore-v2` adds positive ASCII alphanumeric sets such as `[cod]`, retaining
+R05/R06 hard guards, whole-policy rejection, fixed budgets and source-read checks.
+Every v2 policy identity changes, even for v1-only rules. Returning to published
+1.4.0 restores v1's rejection of set syntax without editing project-owned rules.
+R13/R14 implementation remains excluded; this change does not relax preflight or
+establish consumer benefit. Published 1.4.0 and pinned installations remain unchanged.
+
 ## R07 — Source priority within existing budgets
 
 **Released in 1.4.0.** The current delivery ledger records

@@ -200,6 +200,9 @@ try {
     'dist/generated.mjs', 'build/generated.mjs', 'venv/generated.mjs',
     'src/build/legitimate.mjs', 'agent.mind-copy/visible.mjs',
     'src/agent.mind/visible.mjs', 'src/revocable.mjs',
+    'src/policy.pyc', 'src/policy.pyo', 'src/policy.pyd',
+    'src/policy.py', 'src/policy.pycc', 'src/upper-policy.pyC', 'src/policy.pyx',
+    'src/credentials.mjs', '.hidden-policy.mjs',
   ];
   const policyDirectories = ['dist', 'build', 'venv', 'src/build', 'agent.mind-copy', 'src/agent.mind'];
   const sourceMarker = 'R06_REVOKABLE_SOURCE_SENTINEL';
@@ -257,7 +260,7 @@ try {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, relative === 'src/revocable.mjs'
         ? `export const revocable = "${sourceMarker}";\n`
-        : 'export const harmless = true;\n');
+        : relative === 'src/policy.py' ? '\n' : 'export const harmless = true;\n');
     }
     const naming = JSON.parse(originalMap);
     naming.blocks.push({ id: 'r06-revocable', label: labelMarker, aliases: [], description: '', type: 'module', group: 'core', files: ['src/revocable.mjs'], prefixes: [] });
@@ -265,6 +268,7 @@ try {
     const initial = run(cli, ['context', 'block:module-c']);
     const initialGraph = await waitGraph(current => current.revision === initial.revision);
     assert.equal(initialGraph.inputPolicy.status, 'valid');
+    for (const relative of ['src/policy.pyc', 'src/policy.pyo', 'src/policy.pyd', 'src/policy.py', 'src/policy.pycc', 'src/upper-policy.pyC', 'src/policy.pyx']) assert(initialGraph.nodes.some(node => node.path === relative), relative);
     const installedPolicyContext = run(cli, ['context']);
     assert.equal(installedPolicyContext.inputPolicy.id, initialGraph.inputPolicy.id);
     assert.deepEqual(installedPolicyContext.nodes.map(node => node.id), initialGraph.nodes.map(node => node.id));
@@ -299,6 +303,58 @@ try {
     assert.equal(commentSource.policyId, commentGraph.inputPolicy.id);
     assert.equal(commentSource.revision, commentGraph.revision);
     assert.equal(commentSource.hash, unchangedNode.hash);
+
+    // P1: the installed v2 runtime must apply sets through the same live boundary.
+    // All fixture files are harmless text; the hidden/sensitive negative controls
+    // stay inaccessible even when an explicit set rule attempts to include them.
+    const setPolicy = Buffer.concat([originalIgnore, Buffer.from('*.py[cod]\r\n!agent.[m]ind/\r\n!src/credential[s].mjs\r\n!.hidden-policy.[m]js\r\n')]);
+    fs.writeFileSync(ignorePath, setPolicy);
+    const setContext = run(cli, ['context', 'block:module-c']);
+    const setGraph = await waitGraph(current => current.revision === setContext.revision);
+    assert.equal(setGraph.inputPolicy.version, 'root-ignore-v2');
+    assert.equal(setGraph.inputPolicy.status, 'valid');
+    assert.equal(setContext.inputPolicy.id, setGraph.inputPolicy.id);
+    assert(!setGraph.nodes.some(node => node.path?.startsWith('agent.mind/')));
+    assert.deepEqual(run(cli, ['context']).nodes.map(node => node.id), setGraph.nodes.map(node => node.id));
+    for (const relative of ['src/policy.pyc', 'src/policy.pyo', 'src/policy.pyd', 'src/credentials.mjs', '.hidden-policy.mjs']) {
+      assert(!setGraph.nodes.some(node => node.path === relative), relative);
+      assert.equal((await fetch(sourceURL(relative, setGraph))).status, 409);
+    }
+    for (const relative of ['src/policy.py', 'src/policy.pycc', 'src/upper-policy.pyC', 'src/policy.pyx']) assert(setGraph.nodes.some(node => node.path === relative), relative);
+    const setReceipt = ['--revision', setContext.revision, '--binding-id', setContext.binding.id, '--generation', String(setContext.binding.generation)];
+    const setProfile = run(cli, ['preflight', 'block:module-c', '--profile', 'agent', ...setReceipt]);
+    const setCursor = setProfile.diagnostics.find(item => item.section === 'diagnostics').cursor;
+    assert.equal((await fetch(sourceURL('src/module-c.mjs', commentGraph))).status, 409);
+    const setSourceURL = sourceURL('src/module-c.mjs', setGraph);
+    assert.equal((await fetch(setSourceURL)).status, 200);
+    assert.deepEqual(fs.readFileSync(ignorePath), setPolicy);
+    fs.writeFileSync(ignorePath, Buffer.concat([setPolicy, Buffer.from('# v2 comment-only edit\r\n')]));
+    const setComment = await getGraph();
+    assert.notEqual(setComment.inputPolicy.id, setGraph.inputPolicy.id);
+    assert.notEqual(setComment.revision, setGraph.revision);
+    assert.equal(setComment.nodes.find(node => node.id === unchangedNode.id).hash, unchangedNode.hash);
+    assert.equal((await fetch(setSourceURL)).status, 409);
+    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'block:module-c', ...flags, ...setReceipt], false), /revision changed/i);
+    assert.match(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', setCursor, ...setReceipt], false), /revision changed/i);
+    fs.writeFileSync(ignorePath, Buffer.concat([setPolicy, Buffer.from('unobserved/[a-z]\n')]));
+    assertWithheld(await getGraph());
+    assertWithheld(await firstSSEState());
+    assert.equal((await fetch(setSourceURL)).status, 409);
+    const setInvalid = run(cli, ['context']);
+    assert.equal(setInvalid.inputPolicy.status, 'invalid');
+    assert.deepEqual(setInvalid.nodes, []);
+    assert.match(run(cli, ['preflight', 'block:module-c', ...setReceipt], false), /partial|current context|active index/i);
+    const recoveredSetPolicy = Buffer.concat([setPolicy, Buffer.from('# recovered v2 policy\r\n')]);
+    fs.writeFileSync(ignorePath, recoveredSetPolicy);
+    const setRecovered = await getGraph();
+    assert.equal(setRecovered.inputPolicy.status, 'valid');
+    assert.equal((await fetch(sourceURL('src/module-c.mjs', setRecovered))).status, 200);
+    assert.equal((await fetch(setSourceURL)).status, 409);
+    const recoveredSetContext = run(cli, ['context', 'block:module-c']);
+    assert.equal(run(cli, ['preflight', 'block:module-c', '--revision', recoveredSetContext.revision, '--binding-id', recoveredSetContext.binding.id, '--generation', String(recoveredSetContext.binding.generation)]).preflight, 'verified-at-read');
+    assert.deepEqual(fs.readFileSync(ignorePath), recoveredSetPolicy);
+    assert.deepEqual(fs.readFileSync(descriptorPath), originalDescriptor);
+    checks.push('installed v2 sets exclude exact suffix members, preserve hard guards, reject stale policy/source/continuation/preflight, fail closed on unsupported sets and recover without changing owner bytes');
 
     fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('/src/revocable.mjs\n')]));
     const excluded = await getGraph();

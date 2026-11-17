@@ -78,3 +78,12 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           node scripts/smoke-upgrade.mjs "$previous/agent-mind-1.3.1" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
           node scripts/smoke-accessor-rollback.mjs "$previous/agent-mind-1.3.1" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
+      - name: Policy v1/v2 upgrade, failure recovery and rollback from published 1.4.0
+        run: |
+          previous="$RUNNER_TEMP/agent-mind-policy-previous-1.4.0"
+          mkdir "$previous"
+          curl --fail --location --retry 2 --output "$previous/agent-mind-1.4.0.tar.gz" https://github.com/OnFiala/agent.mind/releases/download/v1.4.0/agent-mind-1.4.0.tar.gz
+          echo "3567ab254342ddf450901eb479ab565369990375eff5c73093efdb511e0d2609  $previous/agent-mind-1.4.0.tar.gz" | sha256sum --check
+          tar -xzf "$previous/agent-mind-1.4.0.tar.gz" -C "$previous"
+          version="$(node -p "require('./package.json').version")"
+          node scripts/smoke-policy-rollback.mjs "$previous/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"

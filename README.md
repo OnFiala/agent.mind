@@ -410,15 +410,15 @@ file capabilities, diagnostics and scope limits. See the
 
 ### Root input policy (R06, 1.4.0)
 
-Version 1.4.0 implements the [R05 input contract](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-15-input-policy.md).
+Published 1.4.0 implements the [R05 input contract](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-15-input-policy.md).
 Published **1.3.1 does not contain R06**; existing installations remain on their pinned version.
 Both source and installed modes read only the root `.gitignore`, and softly exclude
 root `/dist/`, `/build/` and `/venv/` directories. A nested `src/build/` remains
 eligible. To restore a legitimate root build directory, use `!/build/` in your
 own policy. Child negations cannot restore a pruned parent.
 
-This is a restricted, versioned subset, not full Git ignore support: literal
-components, `*`, `?`, leading/root-relative `/`, trailing directory `/`, ordered
+Published 1.4.0 uses `root-ignore-v1`, a restricted subset rather than full Git
+ignore support: literal components, `*`, `?`, leading/root-relative `/`, trailing directory `/`, ordered
 `!` negation, comments and blank lines; LF/CRLF, strict UTF-8, case-sensitive Unicode
 matching. Leading spaces are literal, trailing ASCII spaces are removed. `**`,
 classes (`[]`), backslashes/escapes, tabs, BOM and malformed components invalidate
@@ -449,6 +449,31 @@ polling. Observed changes clear retained graph/UI/source data and reject late
 responses. This does not lock the filesystem, guarantee revocation latency or erase
 already delivered data. See the
 [R06 implementation record](https://github.com/OnFiala/agent.mind/blob/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a/docs/reviews/2026-11-15-project-exclusions.md).
+
+### Positive character sets (P1, unreleased source candidate)
+
+The current source candidate uses `root-ignore-v2`. It adds only nonempty positive
+ASCII letter/digit sets such as `[cod]`, `[aA09]` and `[c]` to the v1 rules above.
+A set matches exactly one listed code point; member order and duplicates do not
+matter. For example, `*.py[cod]` excludes `.pyc`, `.pyo` and `.pyd` suffixes at any
+eligible depth, while `.py`, `.pycc` and `.pyC` remain eligible. A trailing `/`
+still restricts a rule to directories, and parent pruning/ordered negation is unchanged.
+
+Ranges, negated/empty/nested/POSIX sets, punctuation/non-ASCII set members,
+unmatched brackets, escapes and `**` still invalidate the whole policy.
+`[a-z]`, `[!a]`, `[]`, `[a/b]` and `[é]` are unsupported. All limits, hard guards,
+source/naming withholding and freshness rules above remain in force. One compiled
+set counts as one matcher token with constant-size ASCII membership; the existing
+8,000,000-state budget is unchanged. This is not full Git ignore support.
+
+Every v2 policy has a new identity, including missing or v1-only rules; obtain fresh
+context and receipts after a runtime transition. No target ignore file is edited,
+no CLI override or stored setting is added, and existing installations stay pinned.
+The source package version remains 1.4.0 during this PR, but its payload differs
+from the frozen published archive. Nothing in this section announces a release.
+Returning to the original 1.4.0 runtime also restores its explicit rejection of
+`[cod]`; rollback never rewrites the owner's policy to manufacture a successful scan.
+Typed references, resolver expansion and scoped-preflight behavior are unchanged.
 
 <a id="source-priority-within-existing-budgets-r07-140-candidate"></a>
 

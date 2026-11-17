@@ -103,9 +103,30 @@ function indexingPolicy({ generic = false, excludePaths = [], metadataPath = 'pr
 const excludedByPolicy = (relative, policy, exemption = null) => relative.split('/').some(component => policy.excludedDirs.has(component)) || policy.excludePaths.some(excluded => excluded !== exemption && (relative === excluded || relative.startsWith(`${excluded}/`)));
 
 export const INPUT_POLICY_LIMITS = Object.freeze({ bytes: 65536, lines: 1024, lineBytes: 1024, work: 8000000 });
-const POLICY_VERSION = 'root-ignore-v1';
+const POLICY_VERSION = 'root-ignore-v2';
 const SOFT_DIRECTORIES = ['build', 'dist', 'venv'];
 const policyFailure = (reason, line) => Object.assign(new Error('Input policy is invalid'), { policyFailure: true, reason, ...(line ? { line } : {}) });
+
+// Literal/wildcard code points or one constant-size ASCII set per token.
+function policyTokens(pattern, line) {
+  const chars = [...pattern];
+  const tokens = [];
+  for (let i = 0; i < chars.length; i++) {
+    if (chars[i] === ']') throw policyFailure('grammar', line);
+    if (chars[i] !== '[') { tokens.push(chars[i]); continue; }
+    const members = new Uint8Array(128);
+    let count = 0;
+    for (i++; i < chars.length && chars[i] !== ']'; i++) {
+      const code = chars[i].codePointAt(0);
+      if (!(code >= 48 && code <= 57 || code >= 65 && code <= 90 || code >= 97 && code <= 122)) throw policyFailure('grammar', line);
+      members[code] = 1;
+      count++;
+    }
+    if (!count || i === chars.length) throw policyFailure('grammar', line);
+    tokens.push(members);
+  }
+  return tokens;
+}
 
 /** Strict bounded root-only dialect; no project code or Git state is consulted. */
 export function parseInputPolicy(bytes) {
@@ -132,8 +153,8 @@ export function parseInputPolicy(bytes) {
     if (directoryOnly) line = line.slice(0, -1);
     const anchored = line.startsWith('/') || line.includes('/');
     if (line.startsWith('/')) line = line.slice(1);
-    if (!line || line.includes('**') || /[\\[\]]/u.test(line) || line.split('/').some(part => !part || part === '.' || part === '..')) throw policyFailure('grammar', index + 1);
-    rules.push({ tokens: [...line], negate, directoryOnly, anchored });
+    if (!line || line.includes('**') || line.includes('\\') || line.split('/').some(part => !part || part === '.' || part === '..')) throw policyFailure('grammar', index + 1);
+    rules.push({ tokens: policyTokens(line, index + 1), negate, directoryOnly, anchored });
   }
   return { rules, lines: lines.length };
 }
@@ -150,9 +171,11 @@ function globMatch(tokens, candidate, work) {
     const current = new Uint8Array(chars.length + 1);
     for (let j = 0; j <= chars.length; j++) {
       charge();
-      current[j] = token === '*'
-        ? Number(Boolean(previous[j] || j && chars[j - 1] !== '/' && current[j - 1]))
-        : Number(Boolean(j && previous[j - 1] && (token === '?' ? chars[j - 1] !== '/' : token === chars[j - 1])));
+      if (token === '*') current[j] = Number(Boolean(previous[j] || j && chars[j - 1] !== '/' && current[j - 1]));
+      else if (j && previous[j - 1]) {
+        const char = chars[j - 1];
+        current[j] = Number(token === '?' ? char !== '/' : typeof token === 'string' ? token === char : token[char.codePointAt(0)] === 1);
+      }
     }
     previous = current;
   }

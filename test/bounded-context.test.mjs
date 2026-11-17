@@ -49,19 +49,21 @@ function traverse(graph, selector, initial, section, maxBytes = 7000) {
   return { values: [...results].sort(([a], [b]) => a - b).map(([, value]) => value), pageCount, fragments, suffixPages };
 }
 
-test('full default retains its shape with R06 policy identity and R07 allocation scope', t => {
+test('full default retains its shape with P1 v2 policy identity and R07 allocation scope', t => {
   const root = fixture(t, { 'main.mjs': 'import "./other.mjs";\nexport function run() { return helper(); }\nfunction helper() { return 1; }\n', 'other.mjs': 'export const other = 2;\n' });
   const graph = indexProject(root, { generic: true });
   graph.project = { name: 'fixture', root: '/fixture' };
   graph.generatedAt = '2026-01-01T00:00:00.000Z';
   const full = projectContext(graph, 'main.mjs');
-  // R06 adds inputPolicy/node.policyId and a root-only scope limit; R07 adds
-  // one allocation-scope explanation. Removing that sentence reproduces the
-  // prior R06 oracle (12406 bytes); no other full-context shape change is intended.
+  // P1 changes only the policy version/IDs and derived revision in the prior
+  // R07 full-context oracle (same 12704 bytes). The v1 snapshot hash was
+  // afabec304d3376cda0958f80609404069502bf02ed9f1a620e03423908718c05.
+  // Verified against the exact published 1.4.0 runtime; no shape change intended.
   assert.equal(full.inputPolicy.id, graph.inputPolicy.id);
   assert.equal(full.inputPolicy.status, 'valid');
+  assert.equal(full.inputPolicy.version, 'root-ignore-v2');
   assert.equal(bytes(full), 12704);
-  assert.equal(createHash('sha256').update(JSON.stringify(full)).digest('hex'), 'afabec304d3376cda0958f80609404069502bf02ed9f1a620e03423908718c05');
+  assert.equal(createHash('sha256').update(JSON.stringify(full)).digest('hex'), '161a95b9dcb3df2e09d8e7d5b3237d312578b6fd6f96414c30b35d3453a6183e');
   assert.deepEqual(projectContext(graph, 'main.mjs', {}), full);
   assert.equal(full.profile, undefined);
 });
