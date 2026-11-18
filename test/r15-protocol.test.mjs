@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { freshContext, contextCursor } from '../graph-context.mjs';
-import { scopedResponse, scopedObservation, scopedEvidenceCursor } from '../scoped-context.mjs';
+import { scopedResponse, scopedObservation, scopedEvidenceCursor, scopedPage } from '../scoped-context.mjs';
 import { scopedDigest } from '../scoped-preflight.mjs';
 
 const resolver = { generic: true, resolver: 'bundler-local-v1', resolverConfig: 'tsconfig.json' };
@@ -176,4 +176,26 @@ test('R15 text works without enabling resolver and a selected parse failure rema
   const result = preflight(root, request, { generic: true }).receipt;
   assert.equal(result.decision, 'sufficient-at-read', JSON.stringify(result.blockingReasons));
   assert.equal(result.globalStatus, 'partial');
+});
+
+
+test('R15 PAGE-03 exact terminal budget fits without a cursor, including final fragments', t => {
+  const root = fixture(t), { request } = requestFor(root);
+  const observation = scopedObservation(root, request, { indexOptions: resolver });
+  const full = scopedPage(observation);
+  assert.equal(full.page.items.length, 1); assert.equal(full.page.next, null);
+  const exact = Buffer.byteLength(JSON.stringify(full));
+  assert.deepEqual(scopedPage({ ...observation, maxBytes: exact }), full);
+  assert.equal(scopedPage({ ...observation, maxBytes: exact - 1 }).error.code, 'SCOPED_BUDGET_TOO_SMALL');
+  const position = JSON.parse(Buffer.from(scopedEvidenceCursor(observation.envelope, 'selection'), 'base64url'));
+  const value = observation.sections.selection[0];
+  const canonical = JSON.stringify(Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)));
+  position.fragment = canonical.length - 2;
+  const cursor = Buffer.from(JSON.stringify(position)).toString('base64url');
+  const terminal = scopedPage(observation, { cursor });
+  assert.equal(terminal.page.next, null); assert.equal(terminal.page.fragments.length, 1);
+  assert.equal(terminal.page.fragments[0].text, canonical.slice(position.fragment));
+  const fragmentBytes = Buffer.byteLength(JSON.stringify(terminal));
+  assert.deepEqual(scopedPage({ ...observation, maxBytes: fragmentBytes }, { cursor }), terminal);
+  assert.equal(scopedPage({ ...observation, maxBytes: fragmentBytes - 1 }, { cursor }).error.code, 'SCOPED_BUDGET_TOO_SMALL');
 });

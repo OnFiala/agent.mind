@@ -194,7 +194,17 @@ export function scopedPage(observation, request = {}) {
     return response;
   };
   const requiredBytes = bytes(result(position.offset, position.fragment));
-  if (requiredBytes > maxBytes) return budgetError(maxBytes, requiredBytes);
+  if (requiredBytes > maxBytes) {
+    // Completing the section drops the cursor and may fit a smaller budget.
+    if (!position.fragment) {
+      response.page.items = values.slice(position.offset).map((value, index) => ({ index: position.offset + index, value }));
+    } else if (position.offset === values.length - 1) {
+      const text = canonical(values[position.offset]);
+      response.page.fragments.push({ index: position.offset, offset: position.fragment, total: text.length, encoding: 'json-text', text: text.slice(position.fragment) });
+    } else return budgetError(maxBytes, requiredBytes);
+    const terminalBytes = bytes(result(values.length, 0));
+    return terminalBytes <= maxBytes ? response : budgetError(maxBytes, Math.min(requiredBytes, terminalBytes));
+  }
   let offset = position.offset;
   if (!position.fragment) while (offset < values.length) {
     response.page.items.push({ index: offset, value: values[offset] });

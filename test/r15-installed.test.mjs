@@ -153,3 +153,36 @@ test('R15 V09 binding lifecycle and exact runtime integrity revoke old scoped ev
   const detached = f.json(['scoped-preflight', ...f.args(renewed.input)], 1);
   assert(detached.error); assert.match(detached.error.message, /detached/);
 });
+
+
+test('R15 ID-02 descriptor and all public binding fields revoke long-lived HTTP identity', async t => {
+  const f = fixture(t), resolved = resolveInstallation(f.integration);
+  const { createVisualizer } = await import(pathToFileURL(path.join(resolved.runtime, 'server.mjs')));
+  const app = createVisualizer({ root: resolved.root, indexOptions: { ...resolved.indexOptions, ...resolver }, binding: resolved.binding, intervalMs: 60000 });
+  t.after(() => app.close()); app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
+  const { input } = f.prepare(textOperation);
+  const url = new URL('http://127.0.0.1:' + app.server.address().port + '/api/scoped');
+  for (const [key, value] of Object.entries({ stage: 'preflight', ...input })) url.searchParams.set(key, String(value));
+  assert.equal((await fetch(url)).status, 200);
+  const descriptorPath = path.join(f.integration, 'project.json'), descriptor = fs.readFileSync(descriptorPath);
+  const changed = JSON.parse(descriptor); changed.runtime.version = 'changed-descriptor-only';
+  fs.writeFileSync(descriptorPath, JSON.stringify(changed));
+  assert.throws(() => resolved.binding.verifyScoped(), /expired/);
+  assert.throws(() => resolveInstallation(f.integration).binding.verifyScoped(), /expired/);
+  assert.equal((await fetch(url)).status, 409);
+  assert.match(f.json(['scoped-preflight', ...f.args(input)], 1).error.message, /expired/);
+  fs.writeFileSync(descriptorPath, descriptor);
+  const receiptPath = path.join(f.integration, '.local/install.json'), original = fs.readFileSync(receiptPath);
+  for (const change of [value => { value.installId = '00000000-0000-4000-8000-000000000000'; }, value => { value.binding.extraIdentity = 'changed'; }]) {
+    const receipt = JSON.parse(original); change(receipt); fs.writeFileSync(receiptPath, JSON.stringify(receipt));
+    assert.throws(() => resolved.binding.verifyScoped(), /expired/);
+    assert.equal((await fetch(url)).status, 409);
+    fs.writeFileSync(receiptPath, original);
+  }
+  assert.equal((await fetch(url)).status, 200);
+  const relaxed = resolveInstallation(f.integration, { verifyRuntime: false, requireAttached: false });
+  const modulePath = path.join(relaxed.runtime, 'scoped-preflight.mjs'), originalModule = fs.readFileSync(modulePath);
+  fs.appendFileSync(modulePath, '\n// Disposable mutation after an unchecked resolution.\n');
+  assert.throws(() => relaxed.binding.verifyScoped(), /mismatch/);
+  fs.writeFileSync(modulePath, originalModule); f.assertCustody();
+});
