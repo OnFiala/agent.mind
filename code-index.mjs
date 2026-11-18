@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { isUtf8 } from 'node:buffer';
 import { execFileSync } from 'node:child_process';
 import { analyzeSource, securityModule } from './source-analysis.mjs';
+import { COVERAGE_LIMITS, analysisObservation, attachScopedCoverage, cloneScopedDiagnostics, markScopedDiagnostic, pushScopedDiagnostics } from './scoped-coverage.mjs';
+export { getScopedCoverage } from './scoped-coverage.mjs';
 import { isTypedSource } from './typed-analysis.mjs';
 import { normalizeResolverOptions, validateResolverConfig, resolveTypedReference, TYPED_RESOLVER_LIMITS, TYPED_RESOLUTION_VERSION, TYPED_CANDIDATE_DOMAIN_VERSION } from './typed-resolution.mjs';
 import { sanitizeNamingMetadata } from './project-map.mjs';
@@ -27,6 +29,7 @@ const isInside = (root, candidate) => candidate === root || candidate.startsWith
 // Bind source-mode and installed-mode resolution to the executing implementation.
 // These are this runtime's own files, never files from the scanned project.
 const RESOLVER_RUNTIME_ID = sha(['code-index.mjs', 'typed-resolution.mjs', 'typed-analysis.mjs', 'source-analysis.mjs'].map(name => sha(fs.readFileSync(fileURLToPath(new URL(name, import.meta.url))))).join(':'));
+const SCOPED_RUNTIME_ID = sha(['code-index.mjs', 'typed-resolution.mjs', 'typed-analysis.mjs', 'source-analysis.mjs', 'python-analysis.mjs', 'scoped-coverage.mjs'].map(name => sha(fs.readFileSync(fileURLToPath(new URL(name, import.meta.url))))).join(':'));
 const posix = name => name.split(path.sep).join('/');
 const isTest = name => /(^|\/)(test|tests)\//.test(name) || /\.(test|spec)\.(m?js|py|ts|tsx|jsx)$/.test(name) || /(?:^|\/)(?:test_[^/]+|[^/]+_test)\.py$/.test(name);
 const sensitive = name => /(?:^|\.)env(?:[.-]|$)/i.test(name)
@@ -110,10 +113,10 @@ function relativePath(value) {
   return typeof value === 'string' && value.length > 0 && !value.endsWith('/') && value === path.posix.normalize(value) && !path.isAbsolute(value) && !value.includes('\\') && !value.split('/').some(component => component === '..' || component.startsWith('.') || sensitive(component));
 }
 
-function indexingPolicy({ generic = false, excludePaths = [], metadataPath = 'project-map.json', resolver } = {}) {
+function indexingPolicy({ generic = false, excludePaths = [], metadataPath = 'project-map.json', resolver, scopedEvidence = false } = {}) {
   if (!Array.isArray(excludePaths) || !excludePaths.every(relativePath)) throw new Error('excludePaths must contain safe relative paths without trailing slashes.');
   if (!relativePath(metadataPath) || path.posix.extname(metadataPath) !== '.json' || metadataPath.split('/').includes('node_modules')) throw new Error('metadataPath must be a safe relative JSON path.');
-  return { residentOnly: resolver === 'bundler-local-v1', generic: Boolean(generic), excludePaths: [...new Set(excludePaths)].sort(), metadataPath, excludedDirs: generic ? GENERIC_EXCLUDED_DIRS : EXCLUDED_DIRS };
+  return { residentOnly: resolver === 'bundler-local-v1' || scopedEvidence === true, generic: Boolean(generic), excludePaths: [...new Set(excludePaths)].sort(), metadataPath, excludedDirs: generic ? GENERIC_EXCLUDED_DIRS : EXCLUDED_DIRS };
 }
 
 const excludedByPolicy = (relative, policy, exemption = null) => relative.split('/').some(component => policy.excludedDirs.has(component)) || policy.excludePaths.some(excluded => excluded !== exemption && (relative === excluded || relative.startsWith(`${excluded}/`)));
@@ -300,7 +303,7 @@ function namingMetadata(root, policy, diagnostics, explicitlySelected, excluded)
   const result = { path: policy.metadataPath, hash: null, status: 'missing', configuration: null };
   if (excluded) {
     result.status = 'excluded';
-    diagnostics.push({ path: policy.metadataPath, code: 'NAMING_MAP_EXCLUDED', message: 'Selected naming map is excluded by input policy; source-derived names are used.', severity: 'info' });
+    pushScopedDiagnostics(diagnostics, 'naming-limitation', { path: policy.metadataPath, code: 'NAMING_MAP_EXCLUDED', message: 'Selected naming map is excluded by input policy; source-derived names are used.', severity: 'info' });
     return result;
   }
   try {
@@ -315,7 +318,7 @@ function namingMetadata(root, policy, diagnostics, explicitlySelected, excluded)
   } catch (error) {
     if (error.code !== 'ENOENT' || explicitlySelected) {
       result.status = 'error';
-      diagnostics.push({ path: policy.metadataPath, message: 'Cannot load names: selected naming map is unavailable or invalid.', severity: 'warning' });
+      pushScopedDiagnostics(diagnostics, 'naming-limitation', { path: policy.metadataPath, message: 'Cannot load names: selected naming map is unavailable or invalid.', severity: 'warning' });
     }
   }
   return result;
@@ -416,7 +419,7 @@ export function readIndexedSource(directory, node, indexOptions = {}) {
     if (input.summary.status !== 'valid' || input.summary.id !== node.policyId || softPathExcluded(relative, policy, input)) throw policyFailure('stale');
     const resolver = selection ? inspectResolverConfiguration(root, indexOptions) : null;
     if (resolver && (resolver.status !== 'valid' || resolver.id !== node.resolverId)) throw new Error('Resolver configuration changed; refresh before reading');
-    const bytes = readBounded(root, relative, INDEX_LIMITS.fileBytes, INDEX_LIMITS.fileBytes, Boolean(selection));
+    const bytes = readBounded(root, relative, INDEX_LIMITS.fileBytes, INDEX_LIMITS.fileBytes, policy.residentOnly);
     if (sha(bytes) !== node.hash) throw new Error('Indexed source changed; refresh the graph before reading');
     if (!isText(bytes)) throw new Error('Indexed file is not supported UTF-8 text');
     const after = loadInputPolicy(root, policy);
@@ -429,16 +432,17 @@ export function readIndexedSource(directory, node, indexOptions = {}) {
   }
 }
 
-function inventory(root, diagnostics, excluded, policy, unsupported, records, input, ledger = null) {
+function inventory(root, diagnostics, excluded, policy, unsupported, records, input, ledger = null, coverageBoundaries = []) {
   const files = [];
   let entries = 0;
   let exhausted = false;
   function visit(relative, depth) {
-    if (entries > INDEX_LIMITS.entries) { if (ledger) ledger.complete = false; return; }
+    if (entries > INDEX_LIMITS.entries) { if (ledger) ledger.complete = false; coverageBoundaries.push({ path: relative || '.', reason: 'entry-limit' }); return; }
     if (depth > INDEX_LIMITS.depth) {
       if (ledger) ledger.complete = false;
+      coverageBoundaries.push({ path: relative || '.', reason: 'depth-limit' });
       records.push({ path: relative + '/', state: 'unscanned', reason: 'depth-limit' });
-      diagnostics.push({ path: relative, message: 'Directory depth budget exceeded', severity: 'warning' });
+      pushScopedDiagnostics(diagnostics, 'inventory-omission', { path: relative, message: 'Directory depth budget exceeded', severity: 'warning' });
       return;
     }
     try {
@@ -452,8 +456,9 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
           if (++entries > INDEX_LIMITS.entries) {
             if (!exhausted) {
               records.push({ path: relative || '.', state: 'unscanned', reason: 'entry-limit' });
-              diagnostics.push({ path: relative || '.', message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+              pushScopedDiagnostics(diagnostics, 'inventory-omission', { path: relative || '.', message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
             }
+            coverageBoundaries.push({ path: relative || '.', reason: 'entry-limit' });
             exhausted = true;
             if (ledger) ledger.complete = false;
             break;
@@ -465,7 +470,7 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
       }
       const afterDirectory = ledger ? fs.statSync(relative ? checkedPath(root, relative) : root) : null;
       const directoryChanged = ledger && ['dev', 'ino', 'mtimeMs', 'ctimeMs'].some(key => beforeDirectory[key] !== afterDirectory[key]);
-      if (directoryChanged) ledger.complete = false;
+      if (directoryChanged) { ledger.complete = false; coverageBoundaries.push({ path: relative || '.', reason: 'directory-changed' }); }
       const directoryProof = ledger ? { path: relative || '.', complete: !exhausted && !directoryChanged, entries: [] } : null;
       if (ledger) ledger.directories.push(directoryProof);
       for (const entry of directoryEntries.sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
@@ -474,7 +479,7 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
         const name = posix(path.join(relative, entry.name));
         if (entry.name === '.gitignore' && relative) {
           input.summary.nestedIgnoreCount++;
-          diagnostics.push({ path: name, code: 'NESTED_IGNORE_NOT_LOADED', message: 'Nested ignore is not loaded; only the root .gitignore is supported.', severity: 'info' });
+          pushScopedDiagnostics(diagnostics, 'domain-notice', { path: name, code: 'NESTED_IGNORE_NOT_LOADED', message: 'Nested ignore is not loaded; only the root .gitignore is supported.', severity: 'info' });
         }
         if (entry.isSymbolicLink()) {
           if (proof) Object.assign(proof, { admitted: false, reason: 'symlink' });
@@ -502,8 +507,9 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
     } catch (error) {
       if (error.policyFailure) throw error;
       if (ledger) ledger.complete = false;
+      coverageBoundaries.push({ path: relative || '.', reason: 'directory-unreadable' });
       records.push({ path: relative || '.', state: 'unreadable', reason: error.message });
-      diagnostics.push({ path: relative || '.', message: `Cannot list directory: ${error.message}`, severity: 'warning' });
+      pushScopedDiagnostics(diagnostics, 'inventory-omission', { path: relative || '.', message: `Cannot list directory: ${error.message}`, severity: 'warning' });
     }
   }
   visit('', 0);
@@ -514,7 +520,7 @@ function inventory(root, diagnostics, excluded, policy, unsupported, records, in
   const omitted = files.slice(INDEX_LIMITS.files);
   if (omitted.length) {
     if (ledger) ledger.complete = false;
-    diagnostics.push({ path: omitted[0], message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
+    pushScopedDiagnostics(diagnostics, 'inventory-omission', { path: omitted[0], message: 'Inventory budget exceeded; some files are omitted', severity: 'warning' });
     // These paths were observed, but their contents, sizes and hashes are unknown.
     for (const name of omitted) records.push({ path: name, state: 'unscanned', reason: 'file-limit' });
   }
@@ -627,24 +633,28 @@ function resolveReference(relative, reference, available, directories) {
 export function indexProject(directory, options = {}) {
   const { previous } = options;
   const selection = normalizeResolverOptions(options);
-  const ledger = selection ? { complete: true, directories: [] } : null;
+  const ledger = selection || options.scopedEvidence === true ? { complete: true, directories: [] } : null;
+  const coverageBoundaries = [];
   const policy = indexingPolicy(options);
   const started = performance.now();
   const root = checkedRoot(directory);
   const input = loadInputPolicy(root, policy);
   const policyGraph = (summary, reason) => {
     const graph = emptyPolicyGraph(root, summary, reason);
-    return selection ? emptyResolverGraph(graph, resolverDescriptor(selection, summary, null, { status: 'invalid', reason: 'config-policy-invalid' })) : graph;
+    for (const diagnostic of graph.diagnostics) markScopedDiagnostic(diagnostic, 'invalid-policy');
+    const result = selection ? emptyResolverGraph(graph, resolverDescriptor(selection, summary, null, { status: 'invalid', reason: 'config-policy-invalid' })) : graph;
+    for (const diagnostic of result.diagnostics) markScopedDiagnostic(diagnostic, 'invalid-policy');
+    return completeScopedGraph(result, options, null, new Map(), [{ path: '.', reason }]);
   };
   if (input.summary.status !== 'valid') return policyGraph(input.summary, 'policy-invalid');
-  const diagnostics = [{ path: '.gitignore', code: 'ROOT_IGNORE_SCOPE', message: 'Only the root .gitignore is loaded; nested ignores, Git tracking and global excludes are outside scope.', severity: 'info' }];
+  const diagnostics = [markScopedDiagnostic({ path: '.gitignore', code: 'ROOT_IGNORE_SCOPE', message: 'Only the root .gitignore is loaded; nested ignores, Git tracking and global excludes are outside scope.', severity: 'info' }, 'domain-notice')];
   const excluded = new Set([...policy.excludedDirs].map(name => `${name}/`).concat(policy.excludePaths.map(name => `${name}/`)));
   const unsupported = new Set();
   const inventoryEntries = [];
   let files;
   let metadataExcluded;
   try {
-    files = inventory(root, diagnostics, excluded, policy, unsupported, inventoryEntries, input, ledger);
+    files = inventory(root, diagnostics, excluded, policy, unsupported, inventoryEntries, input, ledger, coverageBoundaries);
     metadataExcluded = softPathExcluded(policy.metadataPath, policy, input, true);
   } catch (error) {
     if (!error.policyFailure) throw error;
@@ -658,7 +668,7 @@ export function indexProject(directory, options = {}) {
       ? { path: name, code: 'COMMONJS_REFERENCE_ANALYSIS_UNSUPPORTED', capability: 'static-references', reason: 'cjs-extension', message: 'The .cjs extension is outside supported reference analysis; readable text has no inferred symbols or dependencies.', severity: 'warning' }
       : { path: name, message: 'Unsupported source language; file is outside source analysis.', severity: 'warning' };
     if (diagnostic.reason === 'cjs-extension') commonJSFiles.set(name, diagnostic);
-    diagnostics.push(diagnostic);
+    pushScopedDiagnostics(diagnostics, 'analysis-limitation', diagnostic);
   }
   const beforeReads = loadInputPolicy(root, policy);
   if (beforeReads.summary.status !== 'valid' || beforeReads.summary.id !== input.summary.id) return policyGraph(invalidatePolicy(input, policy, 'policy-changed'), 'policy-changed');
@@ -672,14 +682,14 @@ export function indexProject(directory, options = {}) {
   let config = { hash: null, validation: { status: 'invalid', reason: 'config-not-indexed' } };
   for (const relative of files) {
     try {
-      const bytes = readBounded(root, relative, INDEX_LIMITS.totalBytes - totalBytes, relative === selection?.configPath ? TYPED_RESOLVER_LIMITS.configBytes : INDEX_LIMITS.fileBytes, Boolean(selection));
+      const bytes = readBounded(root, relative, INDEX_LIMITS.totalBytes - totalBytes, relative === selection?.configPath ? TYPED_RESOLVER_LIMITS.configBytes : INDEX_LIMITS.fileBytes, policy.residentOnly);
       totalBytes += bytes.length;
       const hash = sha(bytes);
       const text = isText(bytes);
       if (relative === selection?.configPath) config = { hash, validation: text ? validateResolverConfig(bytes.toString('utf8')) : { status: 'invalid', reason: 'config-encoding' } };
       inventoryEntries.push({ path: relative, state: text ? 'text' : 'binary', bytes: bytes.length, hash });
       if (!text) {
-        if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) diagnostics.push({ path: relative, message: 'Non-text or unsupported encoding; source analysis skipped.', severity: 'warning' });
+        if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) pushScopedDiagnostics(diagnostics, 'analysis-limitation', { path: relative, message: 'Non-text or unsupported encoding; source analysis skipped.', severity: 'warning' });
         continue;
       }
       const cached = priorCache?.get(relative);
@@ -688,15 +698,15 @@ export function indexProject(directory, options = {}) {
       if (EXTENSIONS.has(path.extname(relative)) || isTypedSource(relative)) analyses.set(relative, analysis);
       const layers = ['project', ...(isTest(relative) ? ['testing'] : []), ...(analysis.security.length ? ['security'] : [])];
       // Clones prevent a consumer modifying its serialized result from poisoning the cache.
-      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, policyId: input.summary.id, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), ...(isTypedSource(relative) ? { referenceSyntax: structuredClone(analysis.referenceSyntax) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: structuredClone([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
+      nodes.push({ id: fileId(relative), path: relative, label: path.posix.basename(relative), kind: kindFor(relative), language: languageFor(relative), hash, policyId: input.summary.id, bytes: bytes.length, capabilities: capabilitiesFor(relative), ...(analysis.producer ? { producer: structuredClone(analysis.producer) } : {}), ...(isTypedSource(relative) ? { referenceSyntax: structuredClone(analysis.referenceSyntax) } : {}), layers, symbols: structuredClone(analysis.symbols), security: structuredClone(analysis.security), diagnostics: cloneScopedDiagnostics([...analysis.diagnostics, ...(commonJSFiles.has(relative) ? [commonJSFiles.get(relative)] : [])]) });
       const node = nodes.at(-1);
-      if (selection && isTypedSource(relative)) for (const diagnostic of node.diagnostics) if (diagnostic.message.startsWith('Syntax-only pilot:')) diagnostic.message = 'Typed syntax pilot with optional model-relative local resolution; types, calls, security and HTTP/framework behavior remain unsupported. Global coverage remains partial.';
-      diagnostics.push(...structuredClone(node.diagnostics.slice(0, analysis.diagnostics.length)));
+      if (selection && isTypedSource(relative)) for (const diagnostic of node.diagnostics) if (diagnostic.message.startsWith('Syntax-only pilot:')) { diagnostic.message = 'Typed syntax pilot with optional model-relative local resolution; types, calls, security and HTTP/framework behavior remain unsupported. Global coverage remains partial.'; markScopedDiagnostic(diagnostic, 'analysis-limitation'); }
+      diagnostics.push(...cloneScopedDiagnostics(node.diagnostics.slice(0, analysis.diagnostics.length)));
     } catch (error) {
       if (relative === selection?.configPath) config.validation = { status: 'invalid', reason: error.inventoryState === 'too-large' ? 'config-byte-limit' : 'config-unavailable' };
       inventoryComplete = false;
       inventoryEntries.push({ path: relative, state: error.inventoryState || 'unreadable', ...(error.bytes === undefined ? {} : { bytes: error.bytes }), reason: error.message });
-      diagnostics.push({ path: relative, message: `Cannot index file: ${error.message}`, severity: 'warning' });
+      pushScopedDiagnostics(diagnostics, 'inventory-omission', { path: relative, message: `Cannot index file: ${error.message}`, severity: 'warning' });
     }
   }
   const available = new Map(nodes.map(node => [node.path, node]));
@@ -715,13 +725,13 @@ export function indexProject(directory, options = {}) {
     const resolved = resolveReference(relative, reference, resolvable, directories);
     if (resolved.info) {
       const diagnostic = { ...structuredClone(reference.evidence), message: resolved.info, severity: 'info' };
-      diagnostics.push(diagnostic);
+      pushScopedDiagnostics(diagnostics, 'analysis-limitation', diagnostic);
       available.get(relative).diagnostics.push(diagnostic);
     }
     if (resolved.ignored) continue;
     if (resolved.error) {
       const diagnostic = { ...(reference.python ? structuredClone(reference.evidence) : { path: relative, line: reference.evidence.line }), message: resolved.error, severity: 'warning' };
-      diagnostics.push(diagnostic);
+      pushScopedDiagnostics(diagnostics, 'analysis-limitation', diagnostic);
       available.get(relative).diagnostics.push(diagnostic);
       continue;
     }
@@ -754,7 +764,7 @@ export function indexProject(directory, options = {}) {
     // A policy matcher failure caught by the helper must revoke the whole scan.
     if (policyError) return policyGraph(invalidatePolicy(input, policy, policyError.reason, policyError.line), 'policy-invalid');
     if (work.exceeded) {
-      diagnostics.push({ path: '.', code: 'TYPED_RESOLVER_LIMIT', message: 'Resolver work limit exceeded; all local outcomes and edges are withheld.', severity: 'warning' });
+      pushScopedDiagnostics(diagnostics, 'analysis-limitation', { path: '.', code: 'TYPED_RESOLVER_LIMIT', message: 'Resolver work limit exceeded; all local outcomes and edges are withheld.', severity: 'warning' });
       for (const node of nodes) if (node.referenceResolution) {
         node.referenceResolution.extraction = 'withheld';
         node.referenceResolution.reason = 'resolver-work-limit';
@@ -768,7 +778,7 @@ export function indexProject(directory, options = {}) {
       if (!groupedEdges.has(key)) groupedEdges.set(key, { id: `edge:${sha(key).slice(0, 24)}`, from, to, kind: outcome.kind, label: outcome.kind, layers, provenance: 'typed-local-resolution', certainty: 'model-relative', resolverId: resolver.id, evidence: [] });
       groupedEdges.get(key).evidence.push({ ...structuredClone(outcome.evidence), typed: structuredClone(outcome.typed), specifier: outcome.specifier });
     }
-    if (resolver.status !== 'valid') diagnostics.push({ path: selection.configPath, code: 'TYPED_RESOLVER_INVALID', reason: resolver.reason, message: 'Selected resolver configuration is unavailable or outside the supported contract; local resolution is blocked.', severity: 'warning' });
+    if (resolver.status !== 'valid') pushScopedDiagnostics(diagnostics, 'invalid-resolver', { path: selection.configPath, code: 'TYPED_RESOLVER_INVALID', reason: resolver.reason, message: 'Selected resolver configuration is unavailable or outside the supported contract; local resolution is blocked.', severity: 'warning' });
     input.summary.workUnits = input.work.units;
   }
   const providers = [...analyses].flatMap(([relative, analysis]) => (analysis.contracts?.providers ?? []).map(provider => ({ relative, ...provider })));
@@ -780,7 +790,7 @@ export function indexProject(directory, options = {}) {
     else if (consumer.kind === 'event-stream' && !candidates[0].eventStream) message = `No static text/event-stream response evidence for ${consumer.pathname}`;
     if (message) {
       const diagnostic = { path: relative, line: consumer.evidence.line, message, severity: 'warning' };
-      diagnostics.push(diagnostic);
+      pushScopedDiagnostics(diagnostics, 'analysis-limitation', diagnostic);
       available.get(relative).diagnostics.push(diagnostic);
       continue;
     }
@@ -810,7 +820,7 @@ export function indexProject(directory, options = {}) {
   symbolGraph.nodes.sort((a, b) => a.id.localeCompare(b.id, 'en'));
   symbolGraph.edges.sort((a, b) => a.id.localeCompare(b.id, 'en'));
   for (const diagnostic of symbolGraph.diagnostics) if (['warning', 'error'].includes(diagnostic.severity) && !diagnostics.some(item => item.path === diagnostic.path && item.line === diagnostic.line && item.message === diagnostic.message)) {
-    diagnostics.push(structuredClone(diagnostic));
+    pushScopedDiagnostics(diagnostics, 'analysis-limitation', structuredClone(diagnostic));
     available.get(diagnostic.path)?.diagnostics.push(structuredClone(diagnostic));
   }
   for (const edge of edges) edge.evidence.sort((a, b) => a.line - b.line || a.column - b.column);
@@ -837,7 +847,7 @@ export function indexProject(directory, options = {}) {
       'Source reads reject symlinks and check each file\'s real path and inode. Files can still change during a scan; incomplete reads are reported in diagnostics.'
     ]
   };
-  const inventorySnapshot = { ...(ledger ? { enumeration: ledger } : {}), status: inventoryComplete ? 'complete' : 'partial', entries: inventoryEntries.sort((a, b) => a.path.localeCompare(b.path, 'en') || a.state.localeCompare(b.state, 'en')) };
+  const inventorySnapshot = { ...(selection ? { enumeration: ledger } : {}), status: inventoryComplete ? 'complete' : 'partial', entries: inventoryEntries.sort((a, b) => a.path.localeCompare(b.path, 'en') || a.state.localeCompare(b.state, 'en')) };
   const result = {
     schemaVersion: 1,
     inputPolicy: input.summary,
@@ -850,7 +860,9 @@ export function indexProject(directory, options = {}) {
     stats: { files: available.size, edges: edges.length, tests: [...available.values()].filter(node => node.kind === 'test').length, security: [...available.values()].filter(node => node.security.length).length, parseMs: Math.round((performance.now() - started) * 100) / 100, cachedFiles },
     scope
   };
+  const namingDiagnosticStart = result.diagnostics.length;
   sanitizeNamingMetadata(result, relative => !relativePath(relative) || excludedByPolicy(relative, policy));
+  for (const diagnostic of result.diagnostics.slice(namingDiagnosticStart)) markScopedDiagnostic(diagnostic, 'naming-limitation');
   result.diagnostics.sort((a, b) => a.path.localeCompare(b.path, 'en') || (a.line ?? 0) - (b.line ?? 0) || a.message.localeCompare(b.message, 'en'));
   result.revision = sha(JSON.stringify({ inputPolicy: input.summary, ...(resolver ? { resolver } : {}), inventory: inventorySnapshot, nodes, edges, symbolGraph, diagnostics: result.diagnostics, excluded: scope.excluded, generic: policy.generic, metadata: result.metadata }));
   const finalPolicy = loadInputPolicy(root, policy);
@@ -859,12 +871,65 @@ export function indexProject(directory, options = {}) {
     const current = inspectResolverConfiguration(root, options, { available: INDEX_LIMITS.totalBytes - totalBytes });
     if (current.status !== 'valid' || current.id !== resolver.id) {
       const { bytesRead, ...observed } = current;
-      return emptyResolverGraph(result, resolverDescriptor(selection, input.summary, observed.configHash, { status: 'invalid', reason: 'config-changed' }));
+      const invalid = emptyResolverGraph(result, resolverDescriptor(selection, input.summary, observed.configHash, { status: 'invalid', reason: 'config-changed' }));
+      for (const diagnostic of invalid.diagnostics) markScopedDiagnostic(diagnostic, 'invalid-resolver');
+      return completeScopedGraph(invalid, options, null, new Map(), [{ path: '.', reason: 'config-changed' }]);
     }
   }
   if (resolver) {
     result.scope.limitations = result.scope.limitations.map(message => message.startsWith('TS/TSX/JSX pilot') ? 'TS/TSX/JSX retains bounded syntax evidence and global partial. Explicit bundler-local-v1 adds conservative model-relative local file relations only; types, imported calls, security, runtime behavior and complete incoming coverage remain unsupported.' : message);
   }
   CACHE.set(result, nextCache);
-  return result;
+  return completeScopedGraph(result, options, ledger, nextCache, coverageBoundaries);
+}
+
+function completeScopedGraph(graph, options, enumeration, cache, boundaries) {
+  if (options.scopedEvidence !== true) return graph;
+  const directoryBoundaries = new Set(boundaries.map(item => item.path));
+  const nodes = new Map(graph.nodes.filter(node => node.path).map(node => [node.path, node]));
+  const origins = [];
+  let referenceObservations = 0, evidenceBytes = 1024 + Buffer.byteLength(JSON.stringify(boundaries), 'utf8'), budget;
+  for (const entry of graph.inventory.entries) {
+    if (entry.state === 'excluded' || entry.path.endsWith('/') || directoryBoundaries.has(entry.path)) continue;
+    if (origins.length >= COVERAGE_LIMITS.origins) { budget = { status: 'exceeded', reason: 'reference-observations' }; break; }
+    const observation = analysisObservation(cache.get(entry.path)?.analysis);
+    const node = nodes.get(entry.path);
+    const analysis = observation ? { ...observation } : { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'not-observed', referenceTraversal: 'not-observed', unsupported: [{ reason: 'model-analysis-unavailable' }] };
+    let classification = node?.referenceSyntax ? 'typed-origin' : 'unknown';
+    let jsonRole;
+    if (analysis.producer === 'strict-json-v1') {
+      jsonRole = analysis.jsonRole;
+      delete analysis.jsonRole;
+      const knownConfig = graph.resolver?.status === 'valid' && graph.resolver.configPath === entry.path && graph.resolver.configHash === entry.hash;
+      const knownMap = graph.metadata?.status === 'current' && graph.metadata.path === entry.path && graph.metadata.hash === entry.hash;
+      if (analysis.parse === 'complete' && (knownConfig || knownMap)) jsonRole = 'known-control';
+      if (analysis.parse === 'complete' && jsonRole !== 'unknown-control') classification = 'json-non-origin';
+    }
+    const unsupported = [...(analysis.unsupported ?? [])];
+    if (node?.referenceResolution && (node.referenceResolution.extraction !== 'collected' || node.referenceResolution.outcomes.length !== node.referenceSyntax.facts.length)) {
+      analysis.status = 'unknown';
+      unsupported.push({ reason: 'resolver-reference-withheld' });
+    }
+    delete analysis.unsupported;
+    const references = node?.referenceResolution?.outcomes ?? [];
+    referenceObservations += Math.max(references.length, node?.referenceSyntax?.facts.length ?? 0) + unsupported.length;
+    if (referenceObservations > COVERAGE_LIMITS.referenceObservations) { budget = { status: 'exceeded', reason: 'reference-observations' }; break; }
+    const origin = { path: entry.path, hash: entry.hash ?? null, read: { state: entry.state, ...(entry.reason ? { reason: entry.reason } : {}) }, classification, analysis, references: [], unsupported: [], ...(jsonRole ? { jsonRole } : {}) };
+    evidenceBytes += Buffer.byteLength(JSON.stringify(origin), 'utf8') + 1;
+    // Debit each existing occurrence before copying it into the sidecar. No new
+    // resolution or guessed endpoint evidence is produced here.
+    for (const [field, items] of [['references', references], ['unsupported', unsupported]]) {
+      for (const item of items) {
+        evidenceBytes += Buffer.byteLength(JSON.stringify(item), 'utf8') + 1;
+        if (evidenceBytes > COVERAGE_LIMITS.evidenceBytes) { budget = { status: 'exceeded', reason: 'evidence-bytes' }; break; }
+        origin[field].push(structuredClone(item));
+      }
+      if (budget) break;
+    }
+    if (budget || evidenceBytes > COVERAGE_LIMITS.evidenceBytes) { budget ??= { status: 'exceeded', reason: 'evidence-bytes' }; break; }
+    origins.push(structuredClone(origin));
+  }
+  origins.sort((a, b) => ordinalCompare(a.path, b.path));
+  return attachScopedCoverage(graph, { schemaVersion: 1, version: 'scoped-origin-ledger-v1', runtimeId: SCOPED_RUNTIME_ID,
+    enumeration: { complete: enumeration?.complete === true && !budget, boundaries: [...new Map(boundaries.map(item => [JSON.stringify(item), item])).values()] }, origins, ...(budget ? { budget } : {}) });
 }

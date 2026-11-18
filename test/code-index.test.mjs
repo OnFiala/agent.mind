@@ -1286,6 +1286,8 @@ test('Python adapter lookup metadata rejects invalid present values without fall
   // and avoids adding a public resolver API just for invalid producer output.
   const runtime = fixture(t, {
     'code-index.mjs': fs.readFileSync(new URL('../code-index.mjs', import.meta.url)),
+    'scoped-coverage.mjs': fs.readFileSync(new URL('../scoped-coverage.mjs', import.meta.url)),
+    'python-analysis.mjs': fs.readFileSync(new URL('../python-analysis.mjs', import.meta.url)),
     'typed-analysis.mjs': fs.readFileSync(new URL('../typed-analysis.mjs', import.meta.url)),
     'typed-resolution.mjs': fs.readFileSync(new URL('../typed-resolution.mjs', import.meta.url)),
     'project-map.mjs': fs.readFileSync(new URL('../project-map.mjs', import.meta.url)),

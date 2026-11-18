@@ -1,4 +1,5 @@
 import { parse } from '@babel/parser';
+import { recordAnalysisObservation, observeTypedProgram, TYPED_SCOPED_PRODUCER } from './scoped-coverage.mjs';
 
 // Syntax-only pilot. Input text has already crossed the index's read boundary.
 // This module never loads project configuration, resolves imports or runs source.
@@ -114,6 +115,7 @@ export function collectTypedReferenceSyntax(relative, source, hash, program) {
 export function analyzeTypedSource(relative, source, hash) {
   const diagnostics = [{ path: relative, severity: 'warning', message: 'Syntax-only pilot: named declarations and static-reference syntax only; import resolution, type relationships, calls, security and HTTP/framework behavior are not analyzed.' }];
   const result = { parseStatus: 'withheld', references: [], referenceSyntax: referenceEnvelope('withheld'), symbols: [], security: [], diagnostics, symbolGraph: { nodes: [], edges: [], diagnostics: [] }, producer: { ...PRODUCER } };
+  recordAnalysisObservation(result, { status: 'unknown', producer: { ...TYPED_SCOPED_PRODUCER }, parse: 'withheld', referenceTraversal: 'withheld', unsupported: [{ reason: 'typed-parse-withheld' }] });
   const warn = (message, node) => diagnostics.push({ path: relative, ...(node?.loc ? { line: node.loc.start.line, column: node.loc.start.column + 1 } : {}), severity: 'warning', message });
   if (Buffer.byteLength(source, 'utf8') > TYPED_LIMITS.bytes) {
     warn(`Syntax analysis limit: ${TYPED_LIMITS.bytes} bytes per file; text remains available.`);
@@ -130,6 +132,7 @@ export function analyzeTypedSource(relative, source, hash) {
   const extracted = collectTypedReferenceSyntax(relative, source, hash, ast.program);
   result.referenceSyntax = extracted.referenceSyntax;
   result.references = extracted.referenceSyntax.facts;
+  recordAnalysisObservation(result, observeTypedProgram(ast.program, extracted.referenceSyntax, TYPED_REFERENCE_LIMITS));
   diagnostics.push(...extracted.diagnostics);
   const candidates = [];
   const omitted = new Set();

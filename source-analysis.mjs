@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { markAnalysisDiagnostics, recordAnalysisObservation, observeStrictJSON } from './scoped-coverage.mjs';
 import { parse } from 'acorn';
 import { analyzeSymbolGraph } from './symbol-index.mjs';
 import { analyzeTypedSource, isTypedSource } from './typed-analysis.mjs';
@@ -339,6 +340,7 @@ function serverContracts(callback, factory, relative, lines, globalURLAvailable)
 
 function analyzeJavaScript(relative, source, hash, testFile) {
   const analysis = { references: [], symbols: [], security: [], diagnostics: [], contracts: { consumers: [], providers: [] }, parseStatus: 'withheld' };
+  recordAnalysisObservation(analysis, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'withheld', referenceTraversal: 'withheld', unsupported: [{ reason: 'outside-typed-model' }] });
   const lines = source.split(/\r?\n/);
   let ast;
   try {
@@ -349,6 +351,7 @@ function analyzeJavaScript(relative, source, hash, testFile) {
     return analysis;
   }
   analysis.parseStatus = 'complete';
+  recordAnalysisObservation(analysis, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'complete', referenceTraversal: 'withheld', unsupported: [{ reason: 'outside-typed-model' }] });
   const imported = new Map();
   const moduleBindings = new Set();
   function reference(specifier, kind, node) {
@@ -465,6 +468,7 @@ function analyzeJavaScript(relative, source, hash, testFile) {
     });
   }
   analysis.symbolGraph = analyzeSymbolGraph(relative, source, { ast, hash });
+  recordAnalysisObservation(analysis, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'complete', referenceTraversal: 'complete', unsupported: [{ reason: 'outside-typed-model' }] });
   return analysis;
 }
 
@@ -497,6 +501,7 @@ function analyzeHTML(relative, source) {
       tag.lastIndex = end ? close.lastIndex : source.length;
     }
   }
+  recordAnalysisObservation(analysis, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'not-observed', referenceTraversal: 'complete', unsupported: [{ reason: 'outside-typed-model' }] });
   return analysis;
 }
 
@@ -510,7 +515,7 @@ function analyzeHTML(relative, source) {
  * Acorn offsets are 0-based UTF-16 units; they stay internal. No newline rewriting.
  * HTML only extracts script src/link href; embedded code remains unanalyzed.
  */
-export function analyzeSource(relative, source, hash, testFile = false) {
+function analyzeCheckedSource(relative, source, hash, testFile = false) {
   const extension = path.extname(relative);
   if (extension === '.js' || extension === '.mjs') return analyzeJavaScript(relative, source, hash, testFile);
   if (isTypedSource(relative)) return analyzeTypedSource(relative, source, hash);
@@ -520,5 +525,12 @@ export function analyzeSource(relative, source, hash, testFile = false) {
   if (extension === '.json') try { JSON.parse(source); } catch (error) {
     result.diagnostics.push({ path: relative, message: `JSON parse error: ${error.message}`, severity: 'warning' });
   }
+  return result;
+}
+
+export function analyzeSource(relative, source, hash, testFile = false) {
+  const result = analyzeCheckedSource(relative, source, hash, testFile);
+  if (path.extname(relative) === '.json') recordAnalysisObservation(result, observeStrictJSON(source));
+  markAnalysisDiagnostics(result);
   return result;
 }
