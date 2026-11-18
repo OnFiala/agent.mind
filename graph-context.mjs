@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { indexProject } from './code-index.mjs';
+import { normalizeResolverOptions } from './typed-resolution.mjs';
 import { attachOverview, resolvePart } from './project-map.mjs';
 import { ancestorPath, descendantIds, scopeGraph, projectAreas } from './public/hierarchy.mjs';
 
@@ -30,6 +31,7 @@ export function projectContext(graph, selector, projectionOptions = {}) {
     ...(graph.binding ? { binding: graph.binding } : {}),
     project: graph.project, revision: graph.revision, generatedAt: graph.generatedAt,
     ...(graph.inputPolicy ? { inputPolicy: graph.inputPolicy } : {}),
+    ...(graph.resolver ? { resolver: graph.resolver } : {}),
     status: graph.status, inventory: graph.inventory, runtime: graph.runtime, target: selector ?? null,
     selection: selected ? { ...selected, blockId: owner.id, blockLabel: owner.label } : null,
     ancestry: ancestry.map(({ id, label, qualifiedLabel }) => ({ id, label, qualifiedLabel })),
@@ -92,7 +94,7 @@ function agentContext(graph, selector, options) {
   const localDiagnostics = full.diagnostics.filter(item => !selectedIds || selectedIds.has(`file:${item.path}`));
   const sections = {
     context: ordered([
-      ...localSources.map(({ id, path, hash, bytes, capabilities }) => ({ kind: 'sourceCoverage', value: { id, path, hash, bytes, capabilities } })),
+      ...localSources.map(({ id, path, hash, bytes, capabilities, resolverId }) => ({ kind: 'sourceCoverage', value: { id, path, hash, bytes, capabilities, ...(resolverId !== undefined ? { resolverId } : {}) } })),
       ...full.nodes.map(value => ({ kind: 'node', value })),
       ...full.edges.map(value => ({ kind: 'edge', value })),
       ...full.symbolGraph.nodes.map(value => ({ kind: 'symbol', value })),
@@ -110,7 +112,7 @@ function agentContext(graph, selector, options) {
     overview: [full.overview],
     scope: [full.scope]
   };
-  const snapshot = createHash('sha256').update(canonicalJSON({ profile: 'agent', version: 1, project: full.project, revision: full.revision, binding: full.binding ?? null, selection: selection?.id ?? null, status: full.status, runtime: full.runtime ?? null, sections })).digest('hex');
+  const snapshot = createHash('sha256').update(canonicalJSON({ profile: 'agent', version: 1, project: full.project, revision: full.revision, binding: full.binding ?? null, selection: selection?.id ?? null, status: full.status, runtime: full.runtime ?? null, ...(full.resolver ? { resolver: full.resolver } : {}), sections })).digest('hex');
   const position = token !== undefined ? readCursor(token, snapshot, sections, requestedSection) : { version: 1, snapshot, section: requestedSection ?? 'context', offset: 0, fragment: 0 };
   if (!Object.hasOwn(sections, position.section)) throw cursorError('Unknown bounded context section.');
   const stateCounts = {};
@@ -119,6 +121,7 @@ function agentContext(graph, selector, options) {
   const base = {
     schemaVersion: 1, profile: 'agent', snapshot,
     project: full.project, revision: full.revision,
+    ...(full.resolver ? { resolver: full.resolver } : {}),
     ...(full.inputPolicy ? { inputPolicy: { id: full.inputPolicy.id, status: full.inputPolicy.status, version: full.inputPolicy.version } } : {}),
     ...(full.binding ? { binding: full.binding } : {}),
     ...(full.runtime ? { runtime: full.runtime } : {}),
@@ -217,7 +220,19 @@ export function freshContext(root, relative, indexOptions = {}, projectionOption
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   try {
     if (fs.existsSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'artifact.json'))) throw new Error('Use the installed agent.mind/cli.mjs context command to verify the target project binding.');
-    const context = freshContext(process.env.AGENT_MIND_PROJECT || path.dirname(fileURLToPath(import.meta.url)), process.argv[2]);
+    const argv = process.argv.slice(2), indexOptions = {};
+    for (const [name, key] of [['--resolver', 'resolver'], ['--resolver-config', 'resolverConfig']]) {
+      if (argv.filter(value => value === name).length > 1) throw new Error(`Duplicate ${name} option.`);
+      const at = argv.indexOf(name);
+      if (at < 0) continue;
+      const value = argv[at + 1];
+      if (!value || value.startsWith('--')) throw new Error(`Missing ${name} value.`);
+      indexOptions[key] = value;
+      argv.splice(at, 2);
+    }
+    normalizeResolverOptions(indexOptions);
+    if (argv.length > 1 || argv.some(value => value.startsWith('--'))) throw new Error('Pass one exact selector; unknown options are not selectors.');
+    const context = freshContext(process.env.AGENT_MIND_PROJECT || path.dirname(fileURLToPath(import.meta.url)), argv[0], indexOptions);
     process.stdout.write(`${JSON.stringify(context, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`${error.message}\n`);

@@ -68,8 +68,16 @@ naming metadata. `typed-analysis.mjs` owns the bounded syntax-only TS/TSX/JSX pi
 uncertainty. It extracts declarations and bounded static import/reexport syntax,
 with an explicit unsupported-resolution envelope and no new dependency/Security/call
 edges. Only `static-reference-syntax` is claimed; partial/strict refusal remains.
-No typed import/call/type/security resolution is inferred. Keep reference/declaration
-limits independent and preserve exact hash/UTF-16 evidence through cache and context.
+Default typed resolution stays disabled. The pure `typed-resolution.mjs` owns
+only the explicit `bundler-local-v1` config guard and candidate decisions over
+passed evidence; it performs no I/O. `code-index.mjs` owns safe config reads,
+directory completeness and fresh model-relative local edges. Preserve the separate
+`referenceResolution` envelope, all occurrence evidence, no substitution/precedence,
+and unknown rather than absent for denied scope. Config/mode/policy/runtime identity
+must revoke stale context/source data and survive live scan failure without fallback.
+No imported calls, types, Security, R11 coverage or R15 scoped gate are inferred.
+Keep reference/declaration limits independent and preserve exact hash/UTF-16 evidence
+through cache and context. Never cache resolution only by origin hash.
 `python-analysis.mjs` owns bounded Python declarations, import syntax and conservative
 same-file bare-call bindings; `code-index.mjs` resolves indexed regular-package modules
 from the project root and explicit relative imports. Never execute Python, infer

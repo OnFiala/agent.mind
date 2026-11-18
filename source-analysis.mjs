@@ -338,7 +338,7 @@ function serverContracts(callback, factory, relative, lines, globalURLAvailable)
 }
 
 function analyzeJavaScript(relative, source, hash, testFile) {
-  const analysis = { references: [], symbols: [], security: [], diagnostics: [], contracts: { consumers: [], providers: [] } };
+  const analysis = { references: [], symbols: [], security: [], diagnostics: [], contracts: { consumers: [], providers: [] }, parseStatus: 'withheld' };
   const lines = source.split(/\r?\n/);
   let ast;
   try {
@@ -348,6 +348,7 @@ function analyzeJavaScript(relative, source, hash, testFile) {
     analysis.symbolGraph = { nodes: [], edges: [], diagnostics: structuredClone(analysis.diagnostics) };
     return analysis;
   }
+  analysis.parseStatus = 'complete';
   const imported = new Map();
   const moduleBindings = new Set();
   function reference(specifier, kind, node) {

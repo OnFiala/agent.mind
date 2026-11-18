@@ -41,10 +41,10 @@ assert(publishedDigests.has(oldArtifact.version), 'Only pinned published previou
 assert.equal(oldArtifact.digest, publishedDigests.get(oldArtifact.version), `The old artifact must be the exact published ${oldArtifact.version} payload`);
 assert.notEqual(newArtifact.version, oldArtifact.version);
 assert.notEqual(newArtifact.digest, oldArtifact.digest);
-// These releases keep the same payload allowlist. Version identity comes from
-// the verified manifest/digest, not the version of the verifier importing it.
-if (['1.2.0', '1.2.1', '1.3.0', '1.3.1'].includes(oldArtifact.version)) assert.equal(newVerifier.verifyArtifact(oldRelease).digest, oldArtifact.digest);
-else assert.throws(() => newVerifier.verifyArtifact(oldRelease), /missing required file|unapproved|versions do not match/i);
+// R14 adds a required runtime module absent from every pinned published baseline.
+// Each baseline remains verified by its own verifier and exact published digest;
+// the current verifier must reject its older payload, never weaken the allowlist.
+assert.throws(() => newVerifier.verifyArtifact(oldRelease), /missing required file|unapproved|versions do not match/i);
 
 const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mind-upgrade-smoke-')));
 const backups = path.join(temporary, 'parked outside projects');
@@ -52,7 +52,7 @@ const unrelated = path.join(temporary, 'unrelated cwd');
 fs.mkdirSync(backups); fs.mkdirSync(unrelated);
 const env = { ...process.env };
 delete env.AGENT_MIND_PROJECT;
-const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; ${['1.2.0', '1.2.1', '1.3.0', '1.3.1'].includes(oldArtifact.version) ? 'compatible allowlist preserves distinct manifest/digest identities' : 'current allowlist rejects the older payload shape'}`];
+const checks = [`published ${oldArtifact.version} and candidate verified by their own verifiers; current allowlist rejects the older payload shape`];
 const receipts = [];
 let view, report;
 const run = (cli, argv, expectedError) => {
