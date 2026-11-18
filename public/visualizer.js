@@ -525,6 +525,28 @@ export function sourceMatchesSnapshot(source, node, snapshot, current) {
     && source.path === node.path && source.hash === node.hash && Array.isArray(source.lines));
 }
 
+// Preserve only ID-based presentation preferences while resolver data is withheld.
+// No source, labels, evidence, graph, or DOM is retained in this snapshot.
+export function captureResolverView(state) {
+  return {
+    view: copyView(state), fitted: state.fitted,
+    navigation: { scopeId: state.navigation.scopeId, notice: null, history: [...state.navigation.history],
+      snapshots: new Map([...state.navigation.snapshots].map(([id, view]) => [id, copyView(view)])) },
+  };
+}
+
+export function restoreResolverView(state, saved) {
+  const view = copyView(saved.view);
+  state.positions = view.positions;
+  state.camera = view.camera;
+  state.selection = view.selection;
+  state.relationMode = view.relationMode;
+  state.expandedAreaIds = view.expandedAreaIds;
+  state.focusedAreaId = view.focusedAreaId;
+  state.fitted = saved.fitted;
+  state.navigation = saved.navigation;
+}
+
 /** Clear authorization and cached source before replacing any derived presentation. */
 export function revokeClientSource(state) {
   state.sourceAbort?.abort();
@@ -666,11 +688,15 @@ export function renderReferenceSyntax(envelope, onLine, hasResolution = false) {
 
 // The original producer facts remain separate; every model-relative outcome and its
 // evidence is reachable without interpreting any project-supplied string as HTML.
+export function renderTypedEvidence(typed) {
+  return element('pre', 'hint reference-bindings', `Typed evidence:\n${JSON.stringify(typed, null, 2)}`);
+}
+
 export function renderReferenceResolution(envelope, onLine) {
   const root = element('div');
   const resolver = envelope.resolver || {};
   root.append(element('p', 'hint', 'Model-relative local resolution; this is not runtime, type, security or dependency-completeness evidence.'));
-  root.append(element('pre', 'hint', `Resolver identity and configuration:\n${JSON.stringify(resolver, null, 2)}`));
+  root.append(element('pre', 'hint reference-bindings', `Resolver identity and configuration:\n${JSON.stringify(resolver, null, 2)}`));
   if (envelope.extraction === 'withheld') {
     root.append(element('p', 'hint', 'Resolution outcomes withheld; see file notes for diagnostics.'));
     return root;
@@ -693,7 +719,7 @@ export function renderReferenceResolution(envelope, onLine) {
       const detail = element('details', 'evidence-item');
       detail.append(element('summary', '', `${outcome.kind}: ${outcome.specifier} · ${outcome.status}`));
       detail.append(element('p', 'hint', `Type-only syntax: ${outcome.typed?.typeOnly} · target: ${outcome.target ?? '—'}`));
-      detail.append(element('pre', 'hint', `Complete outcome evidence:\n${JSON.stringify(outcome, null, 2)}`));
+      detail.append(element('pre', 'hint reference-bindings', `Complete outcome evidence:\n${JSON.stringify(outcome, null, 2)}`));
       if (Number.isInteger(outcome.evidence?.line)) {
         const control = element('button', 'panel-button', `Show line ${outcome.evidence.line}`);
         control.addEventListener('click', () => onLine(outcome.evidence.line));
@@ -732,6 +758,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   let fetchSequence = 0;
   let version = 0;
   let panelReturnFocus = null;
+  let resolverView = null;
 
   function setMessage(title, description, error = false) {
     const message = $('canvas-message');
@@ -1507,7 +1534,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         if (!reference.evidence?.length) item.append(element('p', 'hint', 'No source lines available for this link.'));
         if (reference.provenance === 'typed-local-resolution') item.append(element('p', 'hint', `Model-relative local resolution · resolver ${reference.resolverId || 'unavailable'} · ${reference.certainty || 'uncertain'}`));
         for (const evidence of reference.evidence || []) {
-          if (evidence.typed) item.append(element('pre', 'hint', `Typed evidence:\n${JSON.stringify(evidence.typed, null, 2)}`));
+          if (evidence.typed) item.append(renderTypedEvidence(evidence.typed));
           item.append(element('p', 'primary-text', `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}`));
           if (evidence.snippet) item.append(element('p', '', evidence.snippet));
           pathButton(evidence.path, evidence.line, 'Open source line', item);
@@ -1524,7 +1551,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         const item = element('div', 'evidence-item');
         item.append(element('p', 'primary-text', `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}`));
         if (evidence.snippet) item.append(element('p', '', evidence.snippet));
-        if (evidence.typed) item.append(element('pre', 'hint', `Typed evidence:\n${JSON.stringify(evidence.typed, null, 2)}`));
+        if (evidence.typed) item.append(renderTypedEvidence(evidence.typed));
         pathButton(evidence.path, evidence.line, 'Open source line', item); body.append(item);
       }
     }
@@ -1602,16 +1629,22 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (!shouldAcceptGraph(state.graph, graph, retiredInstances)) return;
     const previousInstance = state.runtime?.instanceId;
     if (previousInstance && previousInstance !== graph.runtime?.instanceId) retiredInstances.add(previousInstance);
-    if (state.graph && (state.graph.resolver?.id !== graph.resolver?.id
-      || (graph.resolver && graph.resolver.status !== 'valid'))) {
-      state.sourceAbort?.abort();
-      state.sourceAbort = null;
-      state.sourceRequest++;
-      state.source = null;
-    }
-    if (state.graph && (state.graph.inputPolicy?.id !== graph.inputPolicy?.id || graph.inputPolicy?.status !== 'valid')) {
-      revokeClientSource(state);
-      // Rebuild listeners as well as text: retained DOM closures may own old labels.
+    const policyRevoked = state.graph && (state.graph.inputPolicy?.id !== graph.inputPolicy?.id || graph.inputPolicy?.status !== 'valid');
+    const resolverRevoked = state.graph && (state.graph.resolver?.id !== graph.resolver?.id
+      || (graph.resolver && graph.resolver.status !== 'valid'));
+    const resolverWithheld = !policyRevoked && graph.runtime?.status === 'error' && !graph.nodes.length
+      && graph.diagnostics?.some(item => item.code === 'TYPED_RESOLVER_INVALID');
+    if (policyRevoked) resolverView = null;
+    else if (resolverWithheld && !resolverView) resolverView = captureResolverView(state);
+    if (policyRevoked || resolverRevoked || resolverWithheld) {
+      if (policyRevoked) revokeClientSource(state);
+      else {
+        state.sourceAbort?.abort();
+        state.sourceAbort = null;
+        state.sourceRequest++;
+        state.source = null;
+      }
+      // Retained closures and rendered labels can contain revoked source data.
       for (const collection of [cards, detailButtons, links]) {
         for (const node of collection.values()) node.remove();
         collection.clear();
@@ -1619,6 +1652,14 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       $('panel-body').replaceChildren();
       $('panel-title').textContent = '';
       panelReturnFocus = null;
+    }
+    if (resolverView && !resolverWithheld && !policyRevoked
+      && graph.resolver?.status === 'valid' && graph.runtime?.status !== 'error') {
+      restoreResolverView(state, resolverView);
+      resolverView = null;
+      // Avoid treating the withheld empty graph as a user-selected mode change.
+      state.display = null;
+      setCamera(state.camera);
     }
     version++;
     syncGraph(graph);

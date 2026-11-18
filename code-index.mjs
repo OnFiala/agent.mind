@@ -72,14 +72,18 @@ function checkedPath(root, relative) {
   return candidate;
 }
 
-function readBounded(root, relative, available, fileLimit = INDEX_LIMITS.fileBytes, residentOnly = false) {
-  const absolute = checkedPath(root, relative);
+function requireResidentFile(absolute) {
   // Node does not expose Darwin st_flags. Query only metadata using the OS tool;
   // never open a dataless file or request a provider download in opt-in scans.
-  if (residentOnly && process.platform === 'darwin') {
+  if (process.platform === 'darwin') {
     const flags = Number(execFileSync('/usr/bin/stat', ['-f', '%f', absolute], { encoding: 'utf8', timeout: 2000, maxBuffer: 1024 }).trim());
     if (!Number.isSafeInteger(flags) || flags & 0x40000000) throw new Error('Cloud-only file is unavailable; no hydration is requested');
   }
+}
+
+function readBounded(root, relative, available, fileLimit = INDEX_LIMITS.fileBytes, residentOnly = false) {
+  const absolute = checkedPath(root, relative);
+  if (residentOnly) requireResidentFile(absolute);
   const descriptor = fs.openSync(absolute, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const stat = fs.fstatSync(descriptor);
@@ -106,10 +110,10 @@ function relativePath(value) {
   return typeof value === 'string' && value.length > 0 && !value.endsWith('/') && value === path.posix.normalize(value) && !path.isAbsolute(value) && !value.includes('\\') && !value.split('/').some(component => component === '..' || component.startsWith('.') || sensitive(component));
 }
 
-function indexingPolicy({ generic = false, excludePaths = [], metadataPath = 'project-map.json' } = {}) {
+function indexingPolicy({ generic = false, excludePaths = [], metadataPath = 'project-map.json', resolver } = {}) {
   if (!Array.isArray(excludePaths) || !excludePaths.every(relativePath)) throw new Error('excludePaths must contain safe relative paths without trailing slashes.');
   if (!relativePath(metadataPath) || path.posix.extname(metadataPath) !== '.json' || metadataPath.split('/').includes('node_modules')) throw new Error('metadataPath must be a safe relative JSON path.');
-  return { generic: Boolean(generic), excludePaths: [...new Set(excludePaths)].sort(), metadataPath, excludedDirs: generic ? GENERIC_EXCLUDED_DIRS : EXCLUDED_DIRS };
+  return { residentOnly: resolver === 'bundler-local-v1', generic: Boolean(generic), excludePaths: [...new Set(excludePaths)].sort(), metadataPath, excludedDirs: generic ? GENERIC_EXCLUDED_DIRS : EXCLUDED_DIRS };
 }
 
 const excludedByPolicy = (relative, policy, exemption = null) => relative.split('/').some(component => policy.excludedDirs.has(component)) || policy.excludePaths.some(excluded => excluded !== exemption && (relative === excluded || relative.startsWith(`${excluded}/`)));
@@ -221,6 +225,7 @@ function loadInputPolicy(root, policy) {
       if (before.isSymbolicLink()) throw policyFailure('symlink');
       if (!before.isFile()) throw policyFailure('special-file');
       if (before.size > INPUT_POLICY_LIMITS.bytes) throw policyFailure('byte-limit');
+      if (policy.residentOnly) requireResidentFile(absolute);
       descriptor = fs.openSync(absolute, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
       const stat = fs.fstatSync(descriptor);
       const current = fs.lstatSync(absolute);
@@ -299,7 +304,7 @@ function namingMetadata(root, policy, diagnostics, explicitlySelected, excluded)
     return result;
   }
   try {
-    const bytes = readBounded(root, policy.metadataPath, INDEX_LIMITS.fileBytes);
+    const bytes = readBounded(root, policy.metadataPath, INDEX_LIMITS.fileBytes, INDEX_LIMITS.fileBytes, policy.residentOnly);
     result.hash = sha(bytes);
     result.configuration = JSON.parse(bytes.toString('utf8'));
     if (!result.configuration || typeof result.configuration !== 'object' || Array.isArray(result.configuration)) {

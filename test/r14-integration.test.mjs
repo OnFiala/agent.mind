@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { indexProject, readIndexedSource, INDEX_LIMITS } from '../code-index.mjs';
 import { freshContext, projectContext, contextCursor } from '../graph-context.mjs';
 import { LiveIndex } from '../live-index.mjs';
@@ -215,4 +217,38 @@ test('V08 repeated path decisions reuse immutable policy checks without bypassin
   assert.equal(g.inputPolicy.status, 'valid'); assert(g.inputPolicy.workUnits < 8000000);
   assert.equal(outcomes(g).length, 1000); assert(outcomes(g).every(o => o.status === 'resolved'));
   assert.equal(localEdges(g)[0].evidence.length, 1000);
+});
+
+for (const relative of ['.gitignore', 'project-map.json', 'tsconfig.json', 'value.ts']) test(`V07 resident-only checks precede every opt-in open of ${relative}`, t => {
+  const { root } = fixture(t, { '.gitignore': '# resident policy fixture\n', 'project-map.json': '{"schemaVersion":1,"blocks":[]}' });
+  // Simulated Darwin metadata only: no actual cloud placeholder is hydrated.
+  // Covers the independent review finding in policy/naming pre-scan read paths.
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const stat = childProcess.execFileSync, open = fs.openSync, opened = [], checked = [];
+  let deny = true;
+  Object.defineProperty(process, 'platform', { ...platform, value: 'darwin' });
+  childProcess.execFileSync = (command, args) => {
+    assert.equal(command, '/usr/bin/stat'); assert.deepEqual(args.slice(0, 2), ['-f', '%f']);
+    checked.push(args[2]); return deny && args[2] === path.join(root, relative) ? '1073741824\n' : '0\n';
+  };
+  fs.openSync = function(p, ...args) { opened.push(String(p)); return open.call(this, p, ...args); };
+  syncBuiltinESMExports();
+  try {
+    const g = indexProject(root, options);
+    assert(checked.includes(path.join(root, relative)), 'guard was actually reached');
+    assert.equal(opened.includes(path.join(root, relative)), false, 'no dataless open');
+    if (relative === '.gitignore') { assert.equal(g.inputPolicy.status, 'invalid'); assert.deepEqual(g.nodes, []); }
+    else if (relative === 'project-map.json') { assert.equal(g.metadata.status, 'error'); assert.equal(localEdges(g).length, 1); }
+    else assert.equal(localEdges(g).length, 0);
+    // Resident control: the same bytes become eligible without any limit/config change.
+    deny = false; const valid = indexProject(root, options); assert.equal(localEdges(valid).length, 1);
+    if (relative === 'value.ts') {
+      opened.length = 0; deny = true;
+      assert.throws(() => readIndexedSource(root, node(valid, relative), options), /Cloud-only/);
+      assert.equal(opened.includes(path.join(root, relative)), false);
+    }
+    // Default mode retains its exact historical read behavior.
+    deny = true; opened.length = 0; checked.length = 0;
+    indexProject(root, { generic: true }); assert.equal(checked.length, 0); assert(opened.includes(path.join(root, relative)));
+  } finally { childProcess.execFileSync = stat; fs.openSync = open; Object.defineProperty(process, 'platform', platform); syncBuiltinESMExports(); }
 });

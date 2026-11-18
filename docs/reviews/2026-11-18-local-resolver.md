@@ -86,6 +86,18 @@ requires all resolution outcomes/edges to be withheld while preserving 46,000 fa
 | V16 | Disposable installed R13 → R14 default → opt-in → default → exact R13; stale receipts/source reads, owner/source/map/AGENTS/recovery custody |
 | V17 | Explicit runtime allowlist, package source/payload checks, smoke, Node 22/24 CI and pinned R13 rollback |
 
+Independent review found that the first opt-in resident guard did not cover the
+existing policy/naming pre-scan reads. The repair applies the same guard before
+`.gitignore`, naming map, config and source opens. Simulated Darwin metadata tests
+check zero opens for each denied path and positive resident/default controls;
+no real cloud placeholder is used. Actual Chrome found clipped evidence hashes
+and lost selection during the temporary empty graph on config revocation. Wrapped
+preformatted text and an ID-only presentation snapshot repair both. Source/DOM and
+listeners are revoked; only selection, layout, camera and navigation preferences
+survive for validation against the fresh graph. Policy revocation discards them.
+The browser rerun checks pagination, unchanged total evidence under filters,
+selection/camera and rejection of a deliberately delayed old source response.
+
 Commands are `npm test`, `npm run package`, `scripts/smoke-release.mjs` and
 `scripts/smoke-resolver-rollback.mjs` with the two exact artifact directories.
 Unit/CLI tests use disposable fixtures and loopback only. The PR records actual

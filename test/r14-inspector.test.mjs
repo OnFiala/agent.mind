@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderReferenceSyntax, renderReferenceResolution, sourceMatchesSnapshot, shouldAcceptGraph } from '../public/visualizer.js';
+import { renderReferenceSyntax, renderReferenceResolution, renderTypedEvidence, captureResolverView, restoreResolverView, reconcileNavigation, sourceMatchesSnapshot, shouldAcceptGraph } from '../public/visualizer.js';
 
 class FakeElement {
   constructor(tag) { this.tag = tag; this.children = []; this.listeners = {}; this.ownText = ''; }
@@ -67,4 +67,36 @@ test('source acceptance requires matching resolver identity across graph, node a
   const plainSource = { ...source }; delete plainSource.resolverId;
   assert.equal(sourceMatchesSnapshot(plainSource, plainNode, plainGraph, plainGraph), true);
   assert.equal(sourceMatchesSnapshot(source, plainNode, plainGraph, plainGraph), false);
+});
+
+
+test('all resolver and edge evidence preformatted text uses the wrapping class', () => {
+  const root = renderReferenceResolution({ resolver, extraction: 'collected', outcomes: [outcome(0)] }, () => {});
+  const pre = descendants(root).filter(item => item.tag === 'pre');
+  assert.equal(pre.length, 2);
+  pre.push(renderTypedEvidence(outcome(0).typed));
+  for (const item of pre) assert.match(item.className, /(?:^|\s)reference-bindings(?:\s|$)/);
+});
+
+test('resolver recovery saves only presentation IDs and restores detached view preferences', () => {
+  const old = { positions: new Map([['file:a', { x: 9, y: 10 }]]), camera: { x: 3, y: 4, scale: 0.8 },
+    selection: { type: 'node', id: 'file:a', line: 2 }, fitted: true, relationMode: 'focus',
+    expandedAreaIds: new Set(['area:a']), focusedAreaId: 'area:a',
+    navigation: { scopeId: 'scope:a', history: [null], notice: 'old', snapshots: new Map([[null, { positions: new Map(), selection: { type: 'node', id: 'file:a' } }]]) },
+    source: { lines: [{ text: 'secret' }] }, graph: { nodes: [{ label: 'old label' }] } };
+  const saved = captureResolverView(old);
+  assert.equal(JSON.stringify(saved).includes('secret'), false);
+  assert.equal(JSON.stringify(saved).includes('old label'), false);
+  old.positions.get('file:a').x = 999;
+  old.selection.id = 'changed';
+  const state = {};
+  restoreResolverView(state, saved);
+  assert.deepEqual(state.positions.get('file:a'), { x: 9, y: 10 });
+  assert.deepEqual(state.camera, { x: 3, y: 4, scale: 0.8 });
+  assert.deepEqual(state.selection, { type: 'node', id: 'file:a', line: 2 });
+  assert.equal(state.relationMode, 'focus');
+  assert.equal(state.navigation.scopeId, 'scope:a');
+  assert.equal(reconcileNavigation(state.navigation, [{ id: 'scope:a', hasChildren: true }]).scopeId, 'scope:a');
+  assert.equal(reconcileNavigation(state.navigation, []).scopeId, null);
+  assert.equal(state.source, undefined);
 });
