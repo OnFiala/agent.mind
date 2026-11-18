@@ -107,11 +107,11 @@ function uninstallAndPark(label) {
   assert(fs.readFileSync(path.join(integration, 'README.md'), 'utf8').endsWith(suffix));
   const receipt = JSON.parse(fs.readFileSync(path.join(integration, '.local/install.json')));
   assert(receipt.recovery.length > 0);
+  assert(receipt.recovery.some(entry => entry.source === 'AGENTS.md' && fs.readFileSync(path.join(integration, entry.path)).equals(Buffer.from(host['AGENTS.md']))));
   for (const entry of receipt.recovery) {
     assert.equal(entry.phase, 'retained');
     const data = fs.readFileSync(path.join(integration, entry.path));
-    if (entry.source === 'AGENTS.md') assert.deepEqual(data, Buffer.from(host['AGENTS.md']));
-    else assert.equal(sha(data), receipt.owned[entry.source]);
+    if (entry.source !== 'AGENTS.md') assert.equal(sha(data), receipt.owned[entry.source]);
   }
   const contents = snapshot(integration), destination = path.join(parked, label);
   assert(!fs.existsSync(destination)); fs.renameSync(integration, destination);
