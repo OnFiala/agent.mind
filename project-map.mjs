@@ -4,6 +4,7 @@ import { ancestorPath } from './public/hierarchy.mjs';
 
 const TYPES = new Set(['interface', 'service', 'process', 'tests', 'config', 'document', 'module']);
 const GROUPS = new Set(['core', 'tests', 'support']);
+const UNRESOLVED_PATH_WORK = 64 * 1024;
 export const normalizeName = value => String(value).normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase('cs').replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 const sha = value => createHash('sha256').update(value).digest('hex');
 const safePath = value => typeof value === 'string' && value.length > 0 && value.length <= 240 && !value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..');
@@ -262,7 +263,8 @@ export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
   const configuration = graph.metadata?.configuration;
   if (!graph.inputPolicy || !configuration) return graph;
   const boundaries = (graph.inventory?.entries ?? []).filter(entry => entry.state === 'excluded').map(entry => entry.path.replace(/\/$/, ''));
-  const denied = value => typeof value === 'string' && (hardDenied(value.replace(/\/$/, '')) || boundaries.some(boundary => value === boundary || value.startsWith(`${boundary}/`)));
+  const excludedBoundary = value => boundaries.some(boundary => value === boundary || value.startsWith(`${boundary}/`));
+  const denied = value => typeof value === 'string' && (hardDenied(value.replace(/\/$/, '')) || excludedBoundary(value));
   let validParts;
   const partMessages = new Set();
   try {
@@ -303,8 +305,35 @@ export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
     if ((block.files.length || block.prefixes.length) && !files.length && !prefixes.length) return [];
     return [{ id: block.id, label: block.label, type: block.type, group: block.group, description: block.description, aliases: [...block.aliases], files, prefixes }];
   });
-  const partPath = target => typeof target !== 'string' ? null : target.startsWith('file:') ? target.slice(5) : target.startsWith('symbol:') ? target.slice(7).split('#')[0] : null;
-  const parts = configuration.parts != null ? validParts.filter(part => !denied(partPath(part?.target))).map(part => {
+  // IDs are opaque: both source paths and private/literal member names can
+  // contain '#'. Prefer the symbol's structured owner, including legacy aliases.
+  const symbolPaths = new Map(validParts.filter(part => part.target.startsWith('symbol:')).map(part => [part.target, new Set()]));
+  for (const symbol of graph.symbolGraph?.nodes ?? []) for (const target of [symbol.id, symbol.legacyId]) {
+    const paths = symbolPaths.get(target);
+    if (paths && typeof symbol.path === 'string') paths.add(symbol.path);
+  }
+  const partDenied = target => {
+    if (target.startsWith('file:')) return denied(target.slice(5));
+    if (!target.startsWith('symbol:')) return false;
+    const value = target.slice(7);
+    const owners = symbolPaths.get(target);
+    if (!value.includes('#')) return denied(value);
+    // An excluded owner has no symbol record. Check complete excluded paths
+    // directly; even a known eligible ID must not override such a claim.
+    if (boundaries.some(boundary => value === boundary || value.startsWith(`${boundary}#`) || value.startsWith(`${boundary}/`))) return true;
+    // Do not interpret a known accessor's JSON/member name as a filesystem path.
+    if (owners?.size) return [...owners].some(denied);
+    // Without a structured owner, every delimiter can end the source path.
+    // Bound total prefix work; an unresolved over-budget identity is withheld.
+    let remaining = UNRESOLVED_PATH_WORK;
+    for (let index = value.indexOf('#'); index !== -1; index = value.indexOf('#', index + 1)) {
+      if (index > remaining) return true;
+      remaining -= index;
+      if (denied(value.slice(0, index))) return true;
+    }
+    return false;
+  };
+  const parts = configuration.parts != null ? validParts.filter(part => !partDenied(part.target)).map(part => {
     if (!part || typeof part !== 'object') return part;
     return Object.fromEntries(['target', 'label', 'description', 'aliases', 'section', 'sectionId'].filter(key => Object.hasOwn(part, key)).map(key => [key, structuredClone(part[key])]));
   }) : configuration.parts;
