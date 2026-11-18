@@ -29,7 +29,8 @@ priority and R01–R10 repairs. [PR #34](https://github.com/OnFiala/agent.mind/p
 records preparation and exact-byte validation; the release page owns published
 downloads and checksums. Existing installations keep their pinned runtime.
 Unreleased source additionally contains R13 reference syntax and the explicit
-[R14 local resolver pilot](#unreleased-local-resolver-r14). Neither is part of the
+[R14 local resolver pilot](#unreleased-local-resolver-r14), plus the explicit
+[R15 scoped preflight pilot](#unreleased-scoped-preflight-r15). These are not part of the
 published 1.4.0 artifact.
 
 ## Support at a glance
@@ -1147,11 +1148,70 @@ Resolution is recomputed on each fresh scan even when parsing is cached. Two
 matching scans observe stability; they do not lock the filesystem.
 
 **Every typed file still makes the project partial and strict preflight refuses it.**
-R14 supplies neither R11 incoming coverage nor R15 scoped preflight; R16 and consumer
+R14 alone supplies neither R11 incoming coverage nor R15 scoped preflight. The separate R15 pilot below adds explicit evidence and decisions; R16 and consumer
 workflow benefit remain unproven. Functional rollback omits the flag pair; code
 rollback reverts only R14 and retains P1/R13. Artifact rollback requires the exact
 previously verified artifact. Unreleased R13 and published 1.4.0 have different
 payloads despite sharing a version string. No real installation changes automatically.
+
+
+#### Unreleased scoped preflight (R15)
+
+R15 is an explicit source pilot; it is not in the published 1.4.0 archive.
+It adds two named promises while preserving the original global status and
+legacy strict preflight:
+
+- `inspect-selected-source@1`: complete bounded UTF-8 text for all owning files
+  of one exact file/block/symbol selection.
+- `review-direct-file-boundary@1` with `typed-static-local-v1@1`: direct incoming
+  and outgoing references accounted for within the explicit R13/R14 static model
+  and admitted domain. Every unknown possible importer still blocks.
+
+With an authorized installed runtime containing R15, first obtain the existing
+agent context. Keep the same selector and explicit resolver pair throughout:
+
+```sh
+node agent.mind/cli.mjs context file:frontend/main.ts --profile agent --resolver bundler-local-v1 --resolver-config frontend/tsconfig.json
+node agent.mind/cli.mjs scoped-context file:frontend/main.ts --schema-version 1 --operation inspect-selected-source@1 --revision RETURNED_REVISION --snapshot RETURNED_R02_SNAPSHOT --binding-id RETURNED_BINDING_ID --generation RETURNED_GENERATION --resolver bundler-local-v1 --resolver-config frontend/tsconfig.json
+node agent.mind/cli.mjs scoped-preflight file:frontend/main.ts --schema-version 1 --operation inspect-selected-source@1 --revision RETURNED_REVISION --snapshot RETURNED_R02_SNAPSHOT --binding-id RETURNED_BINDING_ID --generation RETURNED_GENERATION --scoped-snapshot RETURNED_SCOPED_SNAPSHOT --requirements-digest RETURNED_REQUIREMENTS_DIGEST --resolver bundler-local-v1 --resolver-config frontend/tsconfig.json
+```
+
+Use the returned values, not the placeholder text. For boundary review, use
+`--operation review-direct-file-boundary@1 --model typed-static-local-v1@1`
+in both scoped commands. The resolver pair is required for boundary review and
+optional for text inspection; the original context must use that same choice.
+A symbol expands to its whole owning file; a block expands to every owning file.
+Areas, ambiguous or unavailable selections reject.
+
+The first scoped-context output is preparation only. Later `scoped-context`
+calls with `--section SECTION` or `--cursor CURSOR` require both snapshots and
+the requirements digest. Evidence pages and fragments are reconstructable and
+bound to one observation. Receipt reason codes/counts and complete diagnostic,
+inventory and detail references stay visible. The UTF-8 JSON wire budget defaults
+to 32768 bytes, accepts `--max-bytes` from 256 through 1048576, and fails explicitly
+when mandatory data cannot fit. It never changes indexing limits.
+
+Only a scoped-preflight `sufficient-at-read` result has exit 0. Preparation and
+evidence exit 0 mean successful transport. `insufficient-evidence` and `rejected`
+are nonzero and retain explicit reasons. No operation grants edit authority,
+test PASS, runtime/security assurance, a lock or proof of completed consumer review.
+
+The model considers all admitted files, including outside resolver scopeRoot.
+Unsupported JS/Python/HTML/Markdown and other possible origins, computed/bare
+references, omitted bytes and unknown descendants remain unknown. Strict checked
+JSON may prove a non-origin only without a required source/target/unrecognized
+control role. R15 adds no language or resolver expansion. A normal admitted
+AGENTS.md can therefore keep boundary review insufficient even when text inspection
+succeeds. Exclusions remain explicit; relationships outside them are unknown.
+
+The inspector offers both actions through the same fresh server evaluator. It
+shows the named result alongside original global status and can load all reason
+details. Disconnection, hidden tabs and identity changes revoke the result; a new
+action recomputes it. Development mode returns an unbound `scoped-preview`,
+never an installed receipt. The checked read still has a race window after its
+last check. See the
+[R15 implementation record](https://github.com/OnFiala/agent.mind/blob/9b03a7ff5768daea9ffebc10c769d31b89d22c7e/docs/reviews/2026-11-18-scoped-preflight-pilot.md)
+for model, evidence, fixed work limits and exact R14 rollback.
 
 ### Python source analysis (1.3.0)
 
@@ -1228,6 +1288,8 @@ records parser selection and historical declaration-only behavior in 1.2.x.
 - `GET /api/source?path=server.mjs&line=20`: source excerpt; rejects changed content,
   symlinks and paths outside the index.
 - `GET /api/context?path=server.mjs`: fresh file context.
+- `GET /api/scoped`: explicit schema-1 bootstrap, prepare, evidence or preflight
+  stage for the R15 pilot; source mode is an unbound preview.
 - `GET /api/context?block=block:canvas`: named context; also accepts a label, alias,
   source ID or full breadcrumb path.
 
