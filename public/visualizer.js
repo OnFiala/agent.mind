@@ -504,18 +504,24 @@ export function shouldAcceptGraph(previous, next, retiredInstances = new Set()) 
   if (previous?.inputPolicy && !next?.inputPolicy) return false;
   return !(previous?.runtime?.instanceId === next?.runtime?.instanceId
     && previous?.runtime?.sequence !== undefined && previous.runtime.sequence === next?.runtime?.sequence
-    && previous?.inputPolicy?.id !== next?.inputPolicy?.id);
+    && (previous?.inputPolicy?.id !== next?.inputPolicy?.id || previous?.resolver?.id !== next?.resolver?.id));
 }
 
 /** Only a fresh policy-consistent snapshot can authorize cached or incoming source. */
 export function sourceMatchesSnapshot(source, node, snapshot, current) {
   const policy = snapshot?.inputPolicy;
-  return Boolean(policy?.status === 'valid' && current?.inputPolicy?.status === 'valid'
+  const resolverId = snapshot?.resolver?.id;
+  const resolverPresent = Boolean(snapshot?.resolver || current?.resolver || node?.resolverId || source?.resolverId);
+  const resolverMatches = !resolverPresent || Boolean(resolverId && snapshot.resolver.status === 'valid'
+    && current?.resolver?.status === 'valid' && current.resolver.id === resolverId
+    && node.resolverId === resolverId && source?.resolverId === resolverId);
+  return Boolean(resolverMatches && policy?.status === 'valid' && current?.inputPolicy?.status === 'valid'
     && policy.id && policy.id === current.inputPolicy.id && node.policyId === policy.id
     && source?.policyId === policy.id && source.revision === snapshot.revision
     && current.revision === snapshot.revision
     && snapshot.runtime?.instanceId === current.runtime?.instanceId
-    && current.nodes.some(item => item.id === node.id && item.policyId === policy.id && item.hash === node.hash)
+    && current.nodes.some(item => item.id === node.id && item.policyId === policy.id && item.hash === node.hash
+      && (!resolverPresent || item.resolverId === resolverId))
     && source.path === node.path && source.hash === node.hash && Array.isArray(source.lines));
 }
 
@@ -592,9 +598,11 @@ export function sourcePagingControls(source, onLine) {
 }
 
 // A local page bounds the initial inspector DOM; all occurrences remain reachable.
-export function renderReferenceSyntax(envelope, onLine) {
+export function renderReferenceSyntax(envelope, onLine, hasResolution = false) {
   const root = element('div');
-  root.append(element('p', 'hint', 'Restricted syntax only; resolution is unavailable. This does not establish dependency completeness, calls, types, security or runtime behavior.'));
+  root.append(element('p', 'hint', hasResolution
+    ? 'The syntax producer does not resolve references; see the separate model-relative resolution below. This does not establish dependency completeness, calls, types, security or runtime behavior.'
+    : 'Restricted syntax only; resolution is unavailable. This does not establish dependency completeness, calls, types, security or runtime behavior.'));
   if (envelope.extraction === 'withheld') {
     root.append(element('p', 'hint', 'No facts from this pass: extraction was withheld. See file notes for diagnostics.'));
     return root;
@@ -647,6 +655,60 @@ export function renderReferenceSyntax(envelope, onLine) {
     }
     if (end < records.length) {
       const next = element('button', 'panel-button', 'Next occurrences');
+      next.addEventListener('click', () => { page++; renderPage(); });
+      controls.append(next);
+    }
+    content.append(controls);
+  };
+  renderPage();
+  return root;
+}
+
+// The original producer facts remain separate; every model-relative outcome and its
+// evidence is reachable without interpreting any project-supplied string as HTML.
+export function renderReferenceResolution(envelope, onLine) {
+  const root = element('div');
+  const resolver = envelope.resolver || {};
+  root.append(element('p', 'hint', 'Model-relative local resolution; this is not runtime, type, security or dependency-completeness evidence.'));
+  root.append(element('pre', 'hint', `Resolver identity and configuration:\n${JSON.stringify(resolver, null, 2)}`));
+  if (envelope.extraction === 'withheld') {
+    root.append(element('p', 'hint', 'Resolution outcomes withheld; see file notes for diagnostics.'));
+    return root;
+  }
+  const outcomes = envelope.outcomes || [];
+  const counts = ['resolved', 'unresolved', 'ambiguous', 'blocked', 'unsupported']
+    .map(status => `${status}: ${outcomes.filter(outcome => outcome.status === status).length}`).join(' · ');
+  root.append(element('p', 'hint', `${outcomes.length} model-relative outcomes · ${counts}.`));
+  if (!outcomes.length) return root;
+  const content = element('div');
+  root.append(content);
+  const pageSize = 40;
+  let page = 0;
+  const renderPage = () => {
+    content.replaceChildren();
+    const start = page * pageSize;
+    const end = Math.min(start + pageSize, outcomes.length);
+    content.append(element('p', 'hint', `Showing ${start + 1}–${end} of ${outcomes.length} outcomes`));
+    for (const outcome of outcomes.slice(start, end)) {
+      const detail = element('details', 'evidence-item');
+      detail.append(element('summary', '', `${outcome.kind}: ${outcome.specifier} · ${outcome.status}`));
+      detail.append(element('p', 'hint', `Type-only syntax: ${outcome.typed?.typeOnly} · target: ${outcome.target ?? '—'}`));
+      detail.append(element('pre', 'hint', `Complete outcome evidence:\n${JSON.stringify(outcome, null, 2)}`));
+      if (Number.isInteger(outcome.evidence?.line)) {
+        const control = element('button', 'panel-button', `Show line ${outcome.evidence.line}`);
+        control.addEventListener('click', () => onLine(outcome.evidence.line));
+        detail.append(control);
+      }
+      content.append(detail);
+    }
+    const controls = element('div');
+    if (page > 0) {
+      const previous = element('button', 'panel-button', 'Previous outcomes');
+      previous.addEventListener('click', () => { page--; renderPage(); });
+      controls.append(previous);
+    }
+    if (end < outcomes.length) {
+      const next = element('button', 'panel-button', 'Next outcomes');
       next.addEventListener('click', () => { page++; renderPage(); });
       controls.append(next);
     }
@@ -1287,7 +1349,11 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     }
     if (node.referenceSyntax) {
       section('Typed reference syntax', body);
-      body.append(renderReferenceSyntax(node.referenceSyntax, line => showSourceLine(node, line)));
+      body.append(renderReferenceSyntax(node.referenceSyntax, line => showSourceLine(node, line), Boolean(node.referenceResolution)));
+    }
+    if (node.referenceResolution) {
+      section('Local reference resolution', body);
+      body.append(renderReferenceResolution(node.referenceResolution, line => showSourceLine(node, line)));
     }
     if (node.symbols?.length) {
       section(`Symbols (${node.symbols.length})`, body);
@@ -1419,6 +1485,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
       if (node) button(node.label || node.path, () => selectNode(node.id, { center: true }), [node.sourceName || node.qualifiedName, node.path ? `${node.path}${node.line ? `:${node.line}` : ''}` : KIND[node.kind]].filter(Boolean).join(' · '), body);
     }
     $('panel-title').textContent = endpointNames.join(' → ');
+    if (edge.provenance === 'typed-local-resolution') note(`Model-relative local resolution · resolver ${edge.resolverId || 'unavailable'} · ${edge.certainty || 'uncertain'}.`, true, body);
     if (edge.provenance === 'declared-contract') note('Named in project-map.json. The arrow describes the intended relationship. It isn\'t a link found in the code.', true, body);
     let contribution = null;
     if (resolveSourceRelations) {
@@ -1438,7 +1505,9 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
           button(`${side}: ${node.label || node.path || id}`, () => selectNode(node.id, { line: node.line || 1, inspect: true }), location, item);
         }
         if (!reference.evidence?.length) item.append(element('p', 'hint', 'No source lines available for this link.'));
+        if (reference.provenance === 'typed-local-resolution') item.append(element('p', 'hint', `Model-relative local resolution · resolver ${reference.resolverId || 'unavailable'} · ${reference.certainty || 'uncertain'}`));
         for (const evidence of reference.evidence || []) {
+          if (evidence.typed) item.append(element('pre', 'hint', `Typed evidence:\n${JSON.stringify(evidence.typed, null, 2)}`));
           item.append(element('p', 'primary-text', `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}`));
           if (evidence.snippet) item.append(element('p', '', evidence.snippet));
           pathButton(evidence.path, evidence.line, 'Open source line', item);
@@ -1455,6 +1524,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
         const item = element('div', 'evidence-item');
         item.append(element('p', 'primary-text', `${evidence.path}${evidence.line ? `:${evidence.line}` : ''}`));
         if (evidence.snippet) item.append(element('p', '', evidence.snippet));
+        if (evidence.typed) item.append(element('pre', 'hint', `Typed evidence:\n${JSON.stringify(evidence.typed, null, 2)}`));
         pathButton(evidence.path, evidence.line, 'Open source line', item); body.append(item);
       }
     }
@@ -1470,7 +1540,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     state.sourceAbort = controller;
     target.append(element('p', 'hint', 'Loading source…'));
     try {
-      const response = await fetch(`/api/source?path=${encodeURIComponent(node.path)}&line=${encodeURIComponent(line)}&policyId=${encodeURIComponent(snapshot.inputPolicy?.id || '')}&revision=${encodeURIComponent(snapshot.revision || '')}`, { cache: 'no-store', signal: controller.signal });
+      const response = await fetch(`/api/source?path=${encodeURIComponent(node.path)}&line=${encodeURIComponent(line)}&policyId=${encodeURIComponent(snapshot.inputPolicy?.id || '')}&revision=${encodeURIComponent(snapshot.revision || '')}${snapshot.resolver ? `&resolverId=${encodeURIComponent(snapshot.resolver.id || '')}` : ''}`, { cache: 'no-store', signal: controller.signal });
       if (!response.ok) throw new Error(`Source unavailable (HTTP ${response.status}).`);
       const source = await response.json();
       if (request !== state.sourceRequest || !target.isConnected) return;
@@ -1532,6 +1602,13 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (!shouldAcceptGraph(state.graph, graph, retiredInstances)) return;
     const previousInstance = state.runtime?.instanceId;
     if (previousInstance && previousInstance !== graph.runtime?.instanceId) retiredInstances.add(previousInstance);
+    if (state.graph && (state.graph.resolver?.id !== graph.resolver?.id
+      || (graph.resolver && graph.resolver.status !== 'valid'))) {
+      state.sourceAbort?.abort();
+      state.sourceAbort = null;
+      state.sourceRequest++;
+      state.source = null;
+    }
     if (state.graph && (state.graph.inputPolicy?.id !== graph.inputPolicy?.id || graph.inputPolicy?.status !== 'valid')) {
       revokeClientSource(state);
       // Rebuild listeners as well as text: retained DOM closures may own old labels.

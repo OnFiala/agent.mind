@@ -46,8 +46,10 @@ not changed. Current documentation updates do not replace the frozen archive.
 R11 has an owner-accepted scoped-preflight design. R12 completed its private
 evaluation without demonstrated workflow benefit; the full context remains default.
 P1 is merged and unreleased. On 2026-11-17 the owner authorized the separate R13
-implementation after P1, with a review of plan adherence. R14–R16 retain their
-individual evidence and authorization gates. The
+implementation after P1, with a review of plan adherence. R13 is merged and
+unreleased (PR #38). On 2026-11-18 the owner accepted the R14 finite resolver
+contract and authorized a separate implementation PR; merge, release and real
+installations remain excluded. R15/R16 retain separate evidence and authorization gates. The
 [remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
 [audit-theme ledger](#audit-theme-ledger-and-decision-triggers) retain their scope.
 The original audit's 26 themes have differing priorities and are not all release
@@ -351,16 +353,17 @@ merge, publication, host registration or target-operation authority. The owner
 accepted the R11 design and separately authorized PR #36's merge on 2026-11-16;
 R12 completed its private evaluation on 2026-11-17 without demonstrated workflow
 benefit. After the separately accepted P1/R13 design and P1 merge, the owner
-authorized R13 implementation with plan-adherence review on 2026-11-17.
-R14–R16 still require their stated evidence and separate owner authorization.
+authorized R13 implementation with plan-adherence review on 2026-11-17. R13 is
+merged as `247268e98c36b77eaf279706bc16ef147424a38b`. R14 implementation was separately
+authorized on 2026-11-18 under the accepted finite contract; R15/R16 are still gated.
 The historical L0–L6 sequence below remains evidence, not a competing next-work list.
 
 | Work | Priority / state | Prerequisites and next deliverable |
 |---|---|---|
 | R11 | P1, accepted design; no implementation | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); [PR #36](https://github.com/OnFiala/agent.mind/pull/36) owns actual merge/CI evidence; R15 requires separate authorization |
 | R12 | P1, private evaluation completed; no demonstrated benefit | Historical measurement retained separately; no default-format change or new consumer-benefit claim |
-| R13 | P2, implementation candidate; unreleased | Accepted bounded syntax contract; exact reference evidence, zero new dependency edges and unchanged partial/strict gate |
-| R14 | P2, conditional; candidate identified | R13 plus separately accepted rules/counterexamples for one opt-in local bundler mode; no implementation authority |
+| R13 | P2, merged; unreleased | Accepted bounded syntax contract; exact reference evidence, zero new dependency edges and unchanged partial/strict gate |
+| R14 | P2, implementation candidate; unreleased | Owner-accepted `bundler-local-v1`, frozen finite corpus oracle, V01–V17, exact-diff independent review; no merge/release/real-install authority |
 | R15 | P2, conditional | Accepted R11; operation's required coverage from R13/R14 |
 | R16 | P2, deferred | R12 did not demonstrate workflow benefit; no MCP implementation or default-format change follows from this evaluation |
 
@@ -436,15 +439,18 @@ remains explicitly unresolved. No calls, types or framework behavior inferred; J
 IDs/graphs stay stable. Extracting imports alone does not remove typed partial status.
 **Rollback:** return to declaration-only inspection with visible limitations.
 
-**R14 — One local resolver mode (RES-01).** Scope: R12 selects one mode and pinned
-source corpus; document its bounded rules/counterexamples before implementation.
-Node ESM retains explicit relative extensions/index paths; CJS and bundler rules
-are not interchangeable. Config reading is bounded, non-executable and root-confined.
-**Acceptance:** exact expected edges/unresolved cases on the corpus, plus collision,
-extension/index, boundary and mode-mismatch fixtures. Report precision, the resolved
-reference denominator and remaining gaps, not an unqualified 95% target. Aliases,
-conditional package exports, workspace packages and further modes need separate PRs.
-**Rollback:** disable/revert the opt-in mode, invalidate its cache and retain diagnostics.
+**R14 — One local resolver mode (RES-01).** Owner-authorized implementation
+candidate under the accepted 2026-11-18 contract. The
+[R14 record](docs/reviews/2026-11-18-local-resolver.md) and README own the finite
+`bundler-local-v1` behavior, counterexamples and V01–V17 mapping. It is explicit per
+command, root/config-domain confined and backed by complete directory observations.
+Default R13, strict partial refusal, all syntax evidence and legacy language rules remain.
+**Acceptance:** exact preregistered corpus outcomes, every positive target checked,
+zero false positives in that finite corpus/fixtures, collisions/vetoes/denials,
+config/live/source/cursor invalidation, real inspector and exact artifact round trip.
+The PR owns reviewed commit and CI receipts. No universal precision/performance claim.
+**Rollback:** omit the pair or revert only R14; exact prior artifact for an authorized
+installation rollback. Do not conflate unreleased R13 with published 1.4.0.
 
 **R15 — Scoped gate (GATE-01).** Scope: implement only the accepted R11 operation
 contract when its required coverage from R13/R14 exists. Preserve legacy strict
@@ -482,7 +488,7 @@ the original audit's severity labels; no whole-audit closure is claimed.
 | SCOPE-01 | R05/R06/R07 provide the accepted input contract, bounded root-ignore/default exclusions and source priority under existing caps. They do not provide full Git semantics or complete inventory beyond limits. |
 | SENS-01 | Hard sensitive-name guards remain. Source extensions do not prove safe contents; no sensitive-file exception is accepted. A separate exposure design and synthetic no-open/no-disclosure regressions must precede any implementation. |
 | GATE-01 | R11 is an [owner-accepted design](docs/reviews/2026-11-16-r11-scoped-preflight.md); R15 remains conditional and requires separate implementation authority. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
-| RES-01 | R13 syntax-only implementation is authorized after accepted design and merged P1. R14 remains separately gated on an explicit resolver contract/corpus; no broader resolver or typed-completeness claim. |
+| RES-01 | R13 syntax-only implementation is authorized after accepted design and merged P1. R14 is separately authorized under its accepted finite resolver contract/corpus; no broader resolver or typed-completeness claim. |
 | HOST-01 | R12 did not demonstrate workflow benefit; R16 remains deferred. No MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
 | SYM-01 | R10 repairs supported class-accessor identities and descendants. Object methods, computed accessors and other duplicate/binding gaps need a concrete task, exact fixtures and their own PR. |
 | UI-04 | R09 removes repository-specific presentation priority and supplies English fallback copy; user naming files and Czech aliases are preserved. This is not a whole-product UX acceptance. |

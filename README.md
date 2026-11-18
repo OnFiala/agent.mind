@@ -28,6 +28,9 @@ an installation, or a contribution to agent.mind.
 priority and R01–R10 repairs. [PR #34](https://github.com/OnFiala/agent.mind/pull/34)
 records preparation and exact-byte validation; the release page owns published
 downloads and checksums. Existing installations keep their pinned runtime.
+Unreleased source additionally contains R13 reference syntax and the explicit
+[R14 local resolver pilot](#unreleased-local-resolver-r14). Neither is part of the
+published 1.4.0 artifact.
 
 ## Support at a glance
 
@@ -765,7 +768,8 @@ verified edit. Preflight does not lock files or control your other tools.
 After edits, run the target project's relevant checks and obtain fresh context.
 Static test links do not prove tests passed or measure coverage. Security labels
 identify source to review; they are not vulnerability findings. Language capabilities differ:
-typed files expose declarations only; Python adds
+published 1.4.0 typed files expose declarations only; unreleased source adds R13
+syntax and optional R14 local file relations, with the same partial gate. Python adds
 source-module references and conservative bare local calls. Framework routing,
 imported calls and dynamic dispatch remain unsupported even when the map looks plausible. Never execute a scanned project to discover its
 structure; separately authorized project tests are a different operation.
@@ -1002,9 +1006,10 @@ available syntax operations, not typechecking or successful analysis.
 
 Every pilot file retains a syntax-only **partial** diagnostic. Published 1.4.0
 collects declarations only. The unreleased R13 source additionally collects the
-restricted static import/reexport syntax described below. Import resolution, type
-relationships, calls, JSX-component calls, security and HTTP/framework analysis are
-not implemented; existing source-reference resolution cannot target pilot files.
+restricted static import/reexport syntax described below. R14 can explicitly add
+model-relative local file relations. Type relationships, calls, JSX-component calls,
+security and HTTP/framework analysis remain unsupported; the default resolver
+cannot target pilot files.
 Strict installed preflight therefore continues to reject a project containing them.
 This is an inspection pilot, not production acceptance for typed editing workflows.
 Ambient `.d.ts`, `.mts`/`.cts`, decorators and embedded scripts remain outside scope.
@@ -1020,8 +1025,9 @@ existing inventory limits. These bounds are not parser timeouts or a sandbox.
 
 The normal developer dependency closure contains Babel's four npm packages;
 the runtime ships only its self-contained parser JS, package metadata and MIT
-license, alongside Acorn. No project config, compiler, scripts or dependencies
-are loaded. [Comparison and acceptance evidence](https://github.com/OnFiala/agent.mind/blob/b1cac5792e0427369d3e15defc5e590e93edf7db/docs/reviews/2026-11-01-typescript-parser-comparison.md)
+license, alongside Acorn. The syntax parser loads no project config, compiler,
+scripts or dependencies. The separate opt-in R14 guard reads only the explicitly
+selected bounded JSON configuration. [Comparison and acceptance evidence](https://github.com/OnFiala/agent.mind/blob/b1cac5792e0427369d3e15defc5e590e93edf7db/docs/reviews/2026-11-01-typescript-parser-comparison.md)
 records the exact candidates, fixed budgets and measured corpus; these are bounded
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
 installations. Use the original release matching the chosen rollback version.
@@ -1040,8 +1046,9 @@ Typed file nodes carry `referenceSyntax` with version `typed-reference-syntax-v1
 `extraction: collected|withheld`, `facts`, `unsupported`, and
 `resolution: { status: unsupported, reason: typed-resolution-not-enabled }`.
 `collected` means this restricted pass finished, not complete reference coverage.
-The facts never enter the generic resolver and create no dependency, external,
-Security or call edges. No typed-to-JS or JS-to-typed resolution is enabled.
+The facts never enter the generic resolver. By default they create no dependency,
+external, Security or call edges. Explicit R14 may add local outgoing file edges
+through its separate model; JS-to-typed resolution remains disabled.
 
 Dynamic import, import-equals, import-type queries, syntactic bare `require`,
 nested/ambient references and attributes are unsupported. Encountered excluded
@@ -1067,6 +1074,84 @@ establish consumer workflow benefit or change published 1.4.0 installations.
 Rollback to the prior runtime removes facts/capability/inspector while retaining
 project bytes, names and map; its old typed limitation returns. Use only an
 independently verified artifact and an explicitly authorized target upgrade.
+
+#### Unreleased local resolver (R14)
+
+R14 adds one explicit `bundler-local-v1` model for R13 literal import/reexport
+facts. It is a finite conservative model, not TypeScript, Vite or a running bundler.
+The published 1.4.0 CLI does not support these flags. With a separately verified
+runtime containing R14, select the mode for each command:
+
+```sh
+node agent.mind/cli.mjs context "frontend/src/main.ts" --resolver bundler-local-v1 --resolver-config frontend/tsconfig.json
+node agent.mind/cli.mjs view --resolver bundler-local-v1 --resolver-config frontend/tsconfig.json
+```
+
+The same pair is accepted by strict `preflight`, including `--profile agent`,
+and by the development `graph-context.mjs` and `server.mjs` entry points.
+Both flags are required together; duplicate flags, unknown modes and lifecycle
+commands reject them. There is no environment fallback, config discovery or saved
+mode. `status` continues to describe the installation. A new command/view without
+the pair restores the R13 default. Query parameters cannot change a running view's mode.
+
+The explicit root-relative `.json` file must be admitted by the same inventory,
+policy, realpath, UTF-8 and byte checks as source. Its parent defines the domain for
+origins and targets; `include`, `exclude` and `files` are inert string-array metadata,
+not an index filter or TypeScript program-membership claim. Strict JSON is limited
+to 65,536 bytes, depth 32 and 4,096 values. Comments, duplicate keys, BOM and unknown
+keys are rejected. `compilerOptions` requires `moduleResolution: "bundler"` and
+`module: "esnext"|"preserve"` (case-insensitive). Optional `target` is only ES2023,
+`jsx` only `react-jsx`, `lib`/`types` only string arrays, and
+`noEmit`/`strict`/`noUncheckedIndexedAccess`/`skipLibCheck` only booleans.
+Aliases, paths, baseUrl, extends, references, rootDirs and package/loader settings
+are unsupported. An invalid or unavailable configuration yields explicit partial
+and blocked outcomes; there is no fallback to another resolver.
+
+Only `.ts/.tsx/.jsx` R13 origins and local `./` or `../` literals are eligible.
+Paths are case-sensitive POSIX paths with no decoding, query/hash, backslash,
+absolute path or boundary escape. Hidden, sensitive, ignored, integration and
+symlink paths cannot prove a target or its absence. Allowed target suffixes are
+`.ts`, `.tsx`, `.jsx`, `.js` and `.mjs`. An exact suffix selects only that file;
+JS/MJS/JSX alternatives are conservative veto witnesses, never substitutions.
+A stem, including `types.gen`, has ten candidates: each allowed suffix at the stem
+and at `stem/index`. There is no extension/index precedence. Exact stem files,
+declarations, MTS/CTS/CJS/JSON and package files are additional veto witnesses.
+Resource literals and bare/package/alias references remain unsupported.
+
+Each occurrence is `resolved`, `unresolved`, `ambiguous`, `blocked` or `unsupported`.
+Resolution requires exactly one safely parsed candidate, no veto and complete
+fresh directory evidence. Denied or unreadable candidates/vetoes are unknown,
+not absent. An entry/depth/file-allocation or directory-read failure anywhere
+withholds all R14 edges. A content failure outside the candidate domain preserves
+global partial without disproving an otherwise known local relation. Limits are
+32 candidate/veto paths per occurrence and 1,000,000 observed path checks per scan;
+raw traversals also debit the scan budget. Exhaustion withholds every resolution
+outcome/edge while preserving syntax facts. These are not latency guarantees.
+On macOS, opt-in reads check resident-file flags through the OS metadata tool and
+refuse dataless files; no provider download or target code is invoked.
+
+`referenceSyntax` remains the unchanged syntax producer envelope. A separate
+`referenceResolution` carries the resolver identity, original occurrence evidence,
+candidate states/hashes and reasons. Edges retain file IDs and import/reexport
+kinds with `provenance: typed-local-resolution` and `certainty: model-relative`.
+Aggregation preserves each value/type-only occurrence. Testing remains a file
+convention, never PASS or coverage. No external nodes, Security signals, imported
+calls, type edges or runtime claims are added.
+
+Full/agent context, bounded fragments and the inspector share that graph. Resolver
+identity binds mode/version, raw config hash/path/status, domain, policy and source
+implementation. Candidate enumeration is part of the graph revision. Config or
+policy changes revoke old live source data before replacement scans, including on
+scan failure. Source reads require the matching resolver and revision identities.
+Resolution is recomputed on each fresh scan even when parsing is cached. Two
+matching scans observe stability; they do not lock the filesystem.
+
+**Every typed file still makes the project partial and strict preflight refuses it.**
+R14 supplies neither R11 incoming coverage nor R15 scoped preflight; R16 and consumer
+workflow benefit remain unproven. Functional rollback omits the flag pair; code
+rollback reverts only R14 and retains P1/R13. Artifact rollback requires the exact
+previously verified artifact. Unreleased R13 and published 1.4.0 have different
+payloads despite sharing a version string. No real installation changes automatically.
 
 ### Python source analysis (1.3.0)
 

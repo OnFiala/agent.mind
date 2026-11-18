@@ -99,3 +99,15 @@ jobs:
           (cd "$baseline" && npm ci --ignore-scripts && npm run package)
           version="$(node -p "require('./package.json').version")"
           node scripts/smoke-typed-rollback.mjs "$baseline/dist/agent-mind-1.4.0/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
+      - name: Resolver opt-in/default and exact R13 artifact rollback
+        run: |
+          baseline_commit="247268e98c36b77eaf279706bc16ef147424a38b"
+          baseline_tree="8039ecb44eb5cb02cc531ec0e66c6aeb34369721"
+          git fetch --no-tags --depth=1 origin "$baseline_commit"
+          test "$(git rev-parse "$baseline_commit^{tree}")" = "$baseline_tree"
+          baseline="$(mktemp -d "$RUNNER_TEMP/agent-mind-r14-baseline.XXXXXX")"
+          trap 'rm -rf "$baseline"' EXIT
+          git archive "$baseline_commit" | tar -x -C "$baseline"
+          (cd "$baseline" && npm ci --ignore-scripts && npm run package)
+          version="$(node -p "require('./package.json').version")"
+          node scripts/smoke-resolver-rollback.mjs "$baseline/dist/agent-mind-1.4.0/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"

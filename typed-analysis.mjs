@@ -113,7 +113,7 @@ export function collectTypedReferenceSyntax(relative, source, hash, program) {
 
 export function analyzeTypedSource(relative, source, hash) {
   const diagnostics = [{ path: relative, severity: 'warning', message: 'Syntax-only pilot: named declarations and static-reference syntax only; import resolution, type relationships, calls, security and HTTP/framework behavior are not analyzed.' }];
-  const result = { references: [], referenceSyntax: referenceEnvelope('withheld'), symbols: [], security: [], diagnostics, symbolGraph: { nodes: [], edges: [], diagnostics: [] }, producer: { ...PRODUCER } };
+  const result = { parseStatus: 'withheld', references: [], referenceSyntax: referenceEnvelope('withheld'), symbols: [], security: [], diagnostics, symbolGraph: { nodes: [], edges: [], diagnostics: [] }, producer: { ...PRODUCER } };
   const warn = (message, node) => diagnostics.push({ path: relative, ...(node?.loc ? { line: node.loc.start.line, column: node.loc.start.column + 1 } : {}), severity: 'warning', message });
   if (Buffer.byteLength(source, 'utf8') > TYPED_LIMITS.bytes) {
     warn(`Syntax analysis limit: ${TYPED_LIMITS.bytes} bytes per file; text remains available.`);
@@ -126,6 +126,7 @@ export function analyzeTypedSource(relative, source, hash) {
     warn(`Syntax parse error: ${error.message}`, error.loc ? { loc: { start: error.loc } } : null);
     return result;
   }
+  result.parseStatus = 'complete';
   const extracted = collectTypedReferenceSyntax(relative, source, hash, ast.program);
   result.referenceSyntax = extracted.referenceSyntax;
   result.references = extracted.referenceSyntax.facts;

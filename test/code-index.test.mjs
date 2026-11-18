@@ -1287,6 +1287,7 @@ test('Python adapter lookup metadata rejects invalid present values without fall
   const runtime = fixture(t, {
     'code-index.mjs': fs.readFileSync(new URL('../code-index.mjs', import.meta.url)),
     'typed-analysis.mjs': fs.readFileSync(new URL('../typed-analysis.mjs', import.meta.url)),
+    'typed-resolution.mjs': fs.readFileSync(new URL('../typed-resolution.mjs', import.meta.url)),
     'project-map.mjs': fs.readFileSync(new URL('../project-map.mjs', import.meta.url)),
     'public/hierarchy.mjs': fs.readFileSync(new URL('../public/hierarchy.mjs', import.meta.url)),
     'source-analysis.mjs': `export const securityModule = () => false;

@@ -57,6 +57,7 @@ server.mjs
 source-analysis.mjs
 symbol-index.mjs
 typed-analysis.mjs
+typed-resolution.mjs
 `.trim().split('\n');
 const locales = [['en_US.UTF-8', 'en-US'], ['cs_CZ.UTF-8', 'cs-CZ'], ['sk_SK.UTF-8', 'sk-SK'], ['C', 'en-US']];
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');

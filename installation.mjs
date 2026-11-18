@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { normalizeResolverOptions } from './typed-resolution.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const HASH = /^[a-f0-9]{64}$/;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'python-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
+const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'typed-resolution.mjs', 'python-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
 const PUBLIC = new Set(['public/hierarchy.mjs', 'public/visualizer.js', 'public/visualizer.css', 'public/visualizer.html', 'public/assets/canvas-paper.webp', 'public/assets/agent-mind-wordmark.webp', 'public/assets/README.md']);
 const ACORN = new Set(['LICENSE', 'bin/acorn', 'CHANGELOG.md', 'dist/bin.js', 'dist/acorn.mjs', 'dist/acorn.d.ts', 'dist/acorn.js', 'dist/acorn.d.mts', 'README.md', 'package.json'].map(p => `node_modules/acorn/${p}`));
 // Babel's parser JS is self-contained; its npm type dependencies are not runtime inputs.
@@ -588,6 +589,13 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
   const argv = [...args], command = argv.shift();
   const option = name => { const i = argv.indexOf(name); if (i < 0) return undefined; const value = argv[i + 1]; if (!value || value.startsWith('--')) throw new Error(`Missing ${name} value.`); argv.splice(i, 2); return value; };
   const emit = value => console.log(json(value).trimEnd());
+  const resolverNames = ['--resolver', '--resolver-config'];
+  for (const name of resolverNames) if (argv.filter(value => value === name).length > 1) throw new Error(`Duplicate ${name} option.`);
+  const hasResolver = resolverNames.some(name => argv.includes(name));
+  if (hasResolver && !['context', 'preflight', 'view'].includes(command)) throw new Error('Resolver options are only supported by context, preflight and view.');
+  const resolver = option('--resolver'), resolverConfig = option('--resolver-config');
+  const resolverOptions = { ...(resolver !== undefined ? { resolver } : {}), ...(resolverConfig !== undefined ? { resolverConfig } : {}) };
+  normalizeResolverOptions(resolverOptions);
   if (command === 'install') {
     const attachIndex = argv.indexOf('--attach'), attach = attachIndex >= 0; if (attach) argv.splice(attachIndex, 1);
     const adoptIndex = argv.indexOf('--adopt'), adopt = adoptIndex >= 0; if (adopt) argv.splice(adoptIndex, 1);
@@ -610,6 +618,7 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
   if (command === 'purge-plan') { if (argv.length) throw new Error('Unexpected argument.'); return emit(purgePlan(installDir)); }
   if (command === 'purge') { const digest = option('--digest'); if (argv.length || !HASH.test(digest ?? '')) throw new Error('Purge requires --digest from the exact purge-plan you reviewed.'); const result = purgeInstallation(installDir, digest); emit(result); if (result.state !== 'purged') process.exitCode = 1; return; }
   const resolved = resolveInstallation(installDir);
+  resolved.indexOptions = { ...resolved.indexOptions, ...resolverOptions };
   if (command === 'context' || command === 'preflight') {
     const names = ['--revision', '--binding-id', '--generation', '--profile', '--max-bytes', '--section', '--cursor'];
     for (const name of names) if (argv.filter(value => value === name).length > 1) throw new Error(`Duplicate ${name} option.`);
@@ -642,6 +651,7 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
       result = {
         schemaVersion: 1, profile, receipt: 'preflight', selector: argv[0],
         project: projected.project, snapshot: projected.snapshot, revision: projected.revision,
+        ...(projected.resolver ? { resolver: projected.resolver } : {}),
         binding: projected.binding, selection: projected.selection, status: projected.status,
         preflight: 'verified-at-read', coverage: projected.coverage, uncertainty: projected.uncertainty,
         diagnostics: ['diagnostics', 'symbolDiagnostics', 'globalSymbolDiagnostics'].map(section => ({ section, total: projected.sections.find(item => item.kind === section).total, cursor: contextCursor(projected, section) }))
