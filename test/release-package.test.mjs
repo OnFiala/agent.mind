@@ -53,6 +53,9 @@ public/visualizer.html
 public/visualizer.js
 python-analysis.mjs
 README.md
+scoped-context.mjs
+scoped-coverage.mjs
+scoped-preflight.mjs
 server.mjs
 source-analysis.mjs
 symbol-index.mjs

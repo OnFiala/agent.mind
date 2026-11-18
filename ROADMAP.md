@@ -48,8 +48,10 @@ evaluation without demonstrated workflow benefit; the full context remains defau
 P1 is merged and unreleased. On 2026-11-17 the owner authorized the separate R13
 implementation after P1, with a review of plan adherence. R13 is merged and
 unreleased (PR #38). On 2026-11-18 the owner accepted the R14 finite resolver
-contract and authorized a separate implementation PR; merge, release and real
-installations remain excluded. R15/R16 retain separate evidence and authorization gates. The
+contract and authorized a separate implementation PR. R14 is merged as
+`07dd8a39d867cb3302b29ffeae5af3e20994491b` (PR #39), unreleased. The owner then
+approved the R15 proposal and its bounded implementation PR; merge, release and
+real installations remain excluded for R15. R16 retains its separate gate. The
 [remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
 [audit-theme ledger](#audit-theme-ledger-and-decision-triggers) retain their scope.
 The original audit's 26 themes have differing priorities and are not all release
@@ -238,7 +240,7 @@ R05/R06 hard guards, whole-policy rejection, fixed budgets and source-read check
 Every v2 policy identity changes, even for v1-only rules. Returning to published
 1.4.0 restores v1's rejection of set syntax without editing project-owned rules.
 P1 did not implement R13/R14 or relax preflight, and establishes no consumer benefit.
-The owner subsequently authorized R13 separately below; R14 remains gated.
+The owner subsequently authorized R13 and R14 separately below; both are merged and unreleased.
 Published 1.4.0 and pinned installations remain unchanged.
 
 ## R07 — Source priority within existing budgets
@@ -355,16 +357,18 @@ R12 completed its private evaluation on 2026-11-17 without demonstrated workflow
 benefit. After the separately accepted P1/R13 design and P1 merge, the owner
 authorized R13 implementation with plan-adherence review on 2026-11-17. R13 is
 merged as `247268e98c36b77eaf279706bc16ef147424a38b`. R14 implementation was separately
-authorized on 2026-11-18 under the accepted finite contract; R15/R16 are still gated.
+authorized on 2026-11-18 under the accepted finite contract and merged as
+`07dd8a39d867cb3302b29ffeae5af3e20994491b`. The owner separately approved the R15
+bounded pilot; R15 merge/release/real-target actions and R16 remain gated.
 The historical L0–L6 sequence below remains evidence, not a competing next-work list.
 
 | Work | Priority / state | Prerequisites and next deliverable |
 |---|---|---|
-| R11 | P1, accepted design; no implementation | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); [PR #36](https://github.com/OnFiala/agent.mind/pull/36) owns actual merge/CI evidence; R15 requires separate authorization |
+| R11 | P1, accepted design; no implementation | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); [PR #36](https://github.com/OnFiala/agent.mind/pull/36) owns actual merge/CI evidence; R15 now has separate bounded implementation authority; merge/release remain gated |
 | R12 | P1, private evaluation completed; no demonstrated benefit | Historical measurement retained separately; no default-format change or new consumer-benefit claim |
 | R13 | P2, merged; unreleased | Accepted bounded syntax contract; exact reference evidence, zero new dependency edges and unchanged partial/strict gate |
-| R14 | P2, implementation candidate; unreleased | Owner-accepted `bundler-local-v1`, frozen finite corpus oracle, V01–V17, exact-diff independent review; no merge/release/real-install authority |
-| R15 | P2, conditional | Accepted R11; operation's required coverage from R13/R14 |
+| R14 | P2, merged; unreleased | PR #39 / `07dd8a39`; accepted finite model, corpus oracle and V01–V17; no release or real-install authority |
+| R15 | P2, implementation candidate; unreleased | Owner-approved scoped pilot with explicit evidence bridge, both R11 operations, one conservative typed model and independent review; no merge/release/real-install authority |
 | R16 | P2, deferred | R12 did not demonstrate workflow benefit; no MCP implementation or default-format change follows from this evaluation |
 
 Keep UI and CLI on one source-derived graph. Preserve existing source IDs except
@@ -392,8 +396,8 @@ limitation remains visible. R11 proposes no asset-name exception or new read acc
 
 Independent review, actual merge and subsequent CI receipts belong to
 [PR #36](https://github.com/OnFiala/agent.mind/pull/36); approval alone proves neither
-merge completion nor CI success. R15 still needs separate implementation authority
-and the operation's required R13/R14 coverage. Later R12 results and R13
+merge completion nor CI success. R15 subsequently received separate bounded implementation authority and must
+still verify the operation's required coverage. Later R12 results and R13
 syntax extraction do not authorize or implement this gate. Rollback: withdraw/revert these design documents;
 legacy behavior and installed targets remain unchanged.
 
@@ -427,11 +431,11 @@ establish general superiority, nor can lower token use compensate for worse corr
 
 ### Conditional implementation PRs
 
-**R13 — Typed references (RES-01).** Implementation candidate from the accepted
+**R13 — Typed references (RES-01).** Merged, unreleased implementation from the accepted
 2026-11-17 bounded syntax contract, with prior-work review. The
 [R13 record](docs/reviews/2026-11-17-typed-reference-syntax.md) owns behavior,
 acceptance and rollback; the separate PR owns exact review/CI receipts.
-No merge or release authority. Only `static-reference-syntax` is added. Typed facts retain unsupported
+PR #38 records the merge; no release authority. Only `static-reference-syntax` is added. Typed facts retain unsupported
 resolution and create no local, external, Security or call edges. Scope: extract static imports/reexports and
 type-only syntax from the existing Babel AST; resolution stays in `code-index.mjs`.
 **Acceptance:** exact ranges/hashes on TS/TSX/JSX fixtures; malformed/dynamic input
@@ -439,8 +443,8 @@ remains explicitly unresolved. No calls, types or framework behavior inferred; J
 IDs/graphs stay stable. Extracting imports alone does not remove typed partial status.
 **Rollback:** return to declaration-only inspection with visible limitations.
 
-**R14 — One local resolver mode (RES-01).** Owner-authorized implementation
-candidate under the accepted 2026-11-18 contract. The
+**R14 — One local resolver mode (RES-01).** Merged in PR #39, unreleased,
+under the accepted 2026-11-18 contract. The
 [R14 record](docs/reviews/2026-11-18-local-resolver.md) and README own the finite
 `bundler-local-v1` behavior, counterexamples and V01–V17 mapping. It is explicit per
 command, root/config-domain confined and backed by complete directory observations.
@@ -452,8 +456,12 @@ The PR owns reviewed commit and CI receipts. No universal precision/performance 
 **Rollback:** omit the pair or revert only R14; exact prior artifact for an authorized
 installation rollback. Do not conflate unreleased R13 with published 1.4.0.
 
-**R15 — Scoped gate (GATE-01).** Scope: implement only the accepted R11 operation
-contract when its required coverage from R13/R14 exists. Preserve legacy strict
+**R15 — Scoped gate (GATE-01).** Owner-authorized bounded implementation candidate.
+The [R15 record](docs/reviews/2026-11-18-scoped-preflight-pilot.md) owns the actual
+coverage bridge, explicit text/boundary operations, conservative typed model,
+phased protocol, T01–T24/V01–V13 mapping and exact R14 rollback. No merge,
+release or real-install authority. Scope: implement only the accepted R11 operation
+contract against actual required coverage; missing evidence stays unknown. Preserve legacy strict
 preflight; never relabel global partial as current.
 **Acceptance:** all R11 negative controls fail explicitly; a supported selection may
 pass despite a demonstrably unrelated limitation. Context, receipt and UI agree on
@@ -487,7 +495,7 @@ the original audit's severity labels; no whole-audit closure is claimed.
 | SILENT-01 | R04 adds explicit unsupported-reference diagnostics, not CommonJS resolution or implicit Python source-root discovery. Existing Python informational uncertainty remains visible. |
 | SCOPE-01 | R05/R06/R07 provide the accepted input contract, bounded root-ignore/default exclusions and source priority under existing caps. They do not provide full Git semantics or complete inventory beyond limits. |
 | SENS-01 | Hard sensitive-name guards remain. Source extensions do not prove safe contents; no sensitive-file exception is accepted. A separate exposure design and synthetic no-open/no-disclosure regressions must precede any implementation. |
-| GATE-01 | R11 is an [owner-accepted design](docs/reviews/2026-11-16-r11-scoped-preflight.md); R15 remains conditional and requires separate implementation authority. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
+| GATE-01 | R11 is an [owner-accepted design](docs/reviews/2026-11-16-r11-scoped-preflight.md); R15 has separate bounded implementation authority; merge/release/real installations remain gated. Strict preflight stays unchanged; unknown incoming scope cannot prove dependency absence, and global partial is never relabeled current. |
 | RES-01 | R13 syntax-only implementation is authorized after accepted design and merged P1. R14 is separately authorized under its accepted finite resolver contract/corpus; no broader resolver or typed-completeness claim. |
 | HOST-01 | R12 did not demonstrate workflow benefit; R16 remains deferred. No MCP auto-registration or write hook. Instruction activation requires separate host evidence. |
 | SYM-01 | R10 repairs supported class-accessor identities and descendants. Object methods, computed accessors and other duplicate/binding gaps need a concrete task, exact fixtures and their own PR. |

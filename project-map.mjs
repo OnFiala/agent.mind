@@ -1,13 +1,14 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ancestorPath } from './public/hierarchy.mjs';
+import { markScopedDiagnostic, cloneScopedDiagnostics } from './scoped-coverage.mjs';
 
 const TYPES = new Set(['interface', 'service', 'process', 'tests', 'config', 'document', 'module']);
 const GROUPS = new Set(['core', 'tests', 'support']);
 export const normalizeName = value => String(value).normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase('cs').replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 const sha = value => createHash('sha256').update(value).digest('hex');
 const safePath = value => typeof value === 'string' && value.length > 0 && value.length <= 240 && !value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..');
-const diagnostic = message => ({ path: 'project-map.json', message, severity: 'warning' });
+const diagnostic = (message, fields = {}) => markScopedDiagnostic({ path: 'project-map.json', message, severity: 'warning', ...fields }, 'naming-limitation');
 
 function validateConfiguration(config) {
   if (!config || config.schemaVersion !== 1 || !Array.isArray(config.blocks) || config.blocks.length > 64) throw new Error('The block map requires schemaVersion 1 and at most 64 blocks.');
@@ -39,12 +40,13 @@ function fallback(file) {
 }
 
 /** Names/types describe source membership; all relationships come from the source graph. */
-export function buildOverview(graph, configuration = null) {
+export function buildOverview(graph, configuration = null, diagnosticPath = 'project-map.json') {
+  const namingDiagnostic = (message, fields = {}) => diagnostic(message, { ...fields, path: diagnosticPath });
   const diagnostics = [];
   let definitions = [];
   if (configuration !== null) {
     try { definitions = validateConfiguration(configuration); }
-    catch (error) { diagnostics.push(diagnostic(error.message)); }
+    catch (error) { diagnostics.push(namingDiagnostic(error.message)); }
   }
   const files = graph.nodes.filter(node => node.path);
   const fileIds = new Set(files.map(node => node.id));
@@ -52,7 +54,7 @@ export function buildOverview(graph, configuration = null) {
   const membership = new Map();
   for (const file of files) {
     const matches = definitions.filter(block => block.files.includes(file.path) || block.prefixes.some(prefix => file.path.startsWith(prefix)));
-    if (matches.length > 1) diagnostics.push(diagnostic(`File ${file.path} belongs to multiple blocks; using a neutral path group.`));
+    if (matches.length > 1) diagnostics.push(namingDiagnostic(`File ${file.path} belongs to multiple blocks; using a neutral path group.`));
     const definition = matches.length === 1 ? matches[0] : fallback(file);
     const id = `block:${definition.id}`;
     if (!blocks.has(id)) blocks.set(id, {
@@ -66,7 +68,7 @@ export function buildOverview(graph, configuration = null) {
     membership.set(file.id, id);
   }
   for (const definition of definitions) for (const expected of definition.files) {
-    if (!files.some(file => file.path === expected)) diagnostics.push(diagnostic(`The name ${definition.label} refers to a missing file: ${expected}.`));
+    if (!files.some(file => file.path === expected)) diagnostics.push(namingDiagnostic(`The name ${definition.label} refers to a missing file: ${expected}.`));
   }
   for (const block of blocks.values()) {
     block.fileIds.sort();
@@ -141,7 +143,8 @@ function sourcePart(nodes, selector) {
   return matches[0] ?? null;
 }
 
-export function buildHierarchy(graph, configuration = null) {
+export function buildHierarchy(graph, configuration = null, diagnosticPath = 'project-map.json') {
+  const namingDiagnostic = (message, fields = {}) => diagnostic(message, { ...fields, path: diagnosticPath });
   const diagnostics = [];
   const rawFiles = new Map(graph.nodes.filter(node => node.path).map(node => [node.id, node]));
   const nodes = graph.overview.nodes.map(block => ({ ...block, parentId: null, sourceId: block.id, kind: 'block', hasChildren: false }));
@@ -161,31 +164,31 @@ export function buildHierarchy(graph, configuration = null) {
     nodes.push(node); byId.set(node.id, node);
   }
   const parts = configuration?.parts ?? [];
-  if (!Array.isArray(parts) || parts.length > 512) diagnostics.push(diagnostic('Part names must be a list of at most 512 entries.'));
+  if (!Array.isArray(parts) || parts.length > 512) diagnostics.push(namingDiagnostic('Part names must be a list of at most 512 entries.'));
   else {
     const targets = new Set();
     const resolved = new Map();
     for (const part of parts) {
       if (!validPartName(part, targets)) {
-        diagnostics.push(diagnostic('Invalid or duplicate part name.')); continue;
+        diagnostics.push(namingDiagnostic('Invalid or duplicate part name.')); continue;
       }
       targets.add(part.target);
       const validSection = validPartSection(part);
-      if ((part.section !== undefined || part.sectionId !== undefined) && !validSection) diagnostics.push(diagnostic('A named area requires a stable sectionId slug; using Other parts until it is provided.'));
+      if ((part.section !== undefined || part.sectionId !== undefined) && !validSection) diagnostics.push(namingDiagnostic('A named area requires a stable sectionId slug; using Other parts until it is provided.'));
       let node;
       try { node = sourcePart(nodes, part.target); }
       catch (error) {
         if (error.code !== 'AMBIGUOUS_SELECTOR') throw error;
-        diagnostics.push({ ...diagnostic(error.message), code: 'AMBIGUOUS_NAMING_TARGET', target: part.target, candidates: error.candidates });
+        diagnostics.push(namingDiagnostic(error.message, { code: 'AMBIGUOUS_NAMING_TARGET', target: part.target, candidates: error.candidates }));
         continue;
       }
-      if (!node || node.kind === 'block') { diagnostics.push(diagnostic(`The named part ${part.target} is missing from the current sources.`)); continue; }
+      if (!node || node.kind === 'block') { diagnostics.push(namingDiagnostic(`The named part ${part.target} is missing from the current sources.`)); continue; }
       if (!resolved.has(node.id)) resolved.set(node.id, []);
       resolved.get(node.id).push({ node, part, validSection });
     }
     for (const entries of resolved.values()) {
       if (entries.length > 1) {
-        diagnostics.push({ ...diagnostic(`Conflicting part names resolve to ${entries[0].node.id}; none are applied.`), code: 'CONFLICTING_NAMING_TARGET', targets: entries.map(entry => entry.part.target) });
+        diagnostics.push(namingDiagnostic(`Conflicting part names resolve to ${entries[0].node.id}; none are applied.`, { code: 'CONFLICTING_NAMING_TARGET', targets: entries.map(entry => entry.part.target) }));
         continue;
       }
       const { node, part, validSection } = entries[0];
@@ -289,13 +292,13 @@ export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
   catch {
     graph.metadata = { ...graph.metadata, configuration: null, status: 'error' };
     graph.status = 'partial';
-    graph.diagnostics.push({ path: graph.metadata.path, code: 'INVALID_NAMING_METADATA', severity: 'warning', message: 'The naming metadata is invalid; source-derived names are used.' });
+    graph.diagnostics.push(markScopedDiagnostic({ path: graph.metadata.path, code: 'INVALID_NAMING_METADATA', severity: 'warning', message: 'The naming metadata is invalid; source-derived names are used.' }, 'naming-limitation'));
     return graph;
   }
   if (partMessages.size) {
     graph.metadata = { ...graph.metadata, status: 'error' };
     graph.status = 'partial';
-    for (const message of partMessages) graph.diagnostics.push({ path: graph.metadata.path, code: 'INVALID_NAMING_PARTS', severity: 'warning', message });
+    for (const message of partMessages) graph.diagnostics.push(markScopedDiagnostic({ path: graph.metadata.path, code: 'INVALID_NAMING_PARTS', severity: 'warning', message }, 'naming-limitation'));
   }
   const blocks = configuration.blocks.flatMap(block => {
     const files = block.files.filter(value => !denied(value));
@@ -314,13 +317,13 @@ export function sanitizeNamingMetadata(graph, hardDenied = () => false) {
 
 export function attachOverview(graph) {
   const config = graph.metadata?.configuration ?? null;
-  graph.overview = buildOverview(graph, config);
+  graph.overview = buildOverview(graph, config, graph.metadata?.path ?? 'project-map.json');
   if (graph.metadata && graph.overview.source !== 'inferred') graph.overview.source = graph.metadata.path;
-  graph.hierarchy = buildHierarchy(graph, config);
-  graph.hierarchy.diagnostics.push(...graph.diagnostics.filter(item => item.code === 'INVALID_NAMING_PARTS').map(item => ({ ...item })));
+  graph.hierarchy = buildHierarchy(graph, config, graph.metadata?.path ?? 'project-map.json');
+  graph.hierarchy.diagnostics.push(...cloneScopedDiagnostics(graph.diagnostics.filter(item => item.code === 'INVALID_NAMING_PARTS')));
   graph.overview.diagnostics.push(...graph.hierarchy.diagnostics);
   const invalidMetadata = graph.diagnostics.find(item => item.code === 'INVALID_NAMING_METADATA');
-  if (invalidMetadata) graph.overview.diagnostics.push({ ...invalidMetadata });
+  if (invalidMetadata) graph.overview.diagnostics.push(...cloneScopedDiagnostics([invalidMetadata]));
   for (const item of graph.overview.diagnostics) item.path = graph.metadata?.path ?? item.path;
   if (graph.overview.diagnostics.length) {
     graph.status = 'partial';

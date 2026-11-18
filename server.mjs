@@ -6,6 +6,7 @@ import { readIndexedSource } from './code-index.mjs';
 import { normalizeResolverOptions } from './typed-resolution.mjs';
 import { LiveIndex } from './live-index.mjs';
 import { projectContext } from './graph-context.mjs';
+import { scopedResponse, scopedProtocolError } from './scoped-context.mjs';
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = new Map([
@@ -57,6 +58,25 @@ export function createVisualizer({ root = APP_ROOT, intervalMs = 900, indexOptio
       if (live.runtime.status === 'error') return json(res, 503, { error: live.runtime.error });
       try { return json(res, 200, projectContext(snapshot(), url.searchParams.get('block') || url.searchParams.get('path'))); }
       catch (error) { return json(res, 404, { error: error.message }); }
+    }
+    if (url.pathname === '/api/scoped') {
+      try {
+        const keys = new Set(['stage', 'schemaVersion', 'operation', 'model', 'selector', 'revision', 'snapshot', 'bindingId', 'generation', 'scopedSnapshot', 'requirementsDigest', 'section', 'cursor', 'maxBytes']);
+        for (const key of url.searchParams.keys()) if (!keys.has(key) || url.searchParams.getAll(key).length !== 1) throw new Error('Unknown or duplicate scoped query parameter.');
+        const stage = url.searchParams.get('stage');
+        if (!['bootstrap', 'prepare', 'evidence', 'preflight'].includes(stage)) throw new Error('An explicit scoped stage is required.');
+        const request = {};
+        for (const [key, value] of url.searchParams) {
+          if (key === 'stage') continue;
+          if (['schemaVersion', 'generation', 'maxBytes'].includes(key)) {
+            if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new Error('Invalid scoped integer.');
+            request[key] = Number(value);
+          } else request[key] = value;
+        }
+        const result = scopedResponse(root, request, { stage, indexOptions, binding });
+        binding?.verifyScoped?.();
+        return json(res, result.error || result.decision === 'rejected' ? 409 : result.decision === 'insufficient-evidence' ? 422 : 200, result);
+      } catch (error) { return json(res, 409, scopedProtocolError(error)); }
     }
     if (url.pathname === '/api/source') {
       if (live.runtime.status === 'error' || live.graph.inputPolicy?.status === 'invalid' || live.graph.resolver?.status === 'invalid') return json(res, 409, { error: 'Source is unavailable until the input policy and index are current.' });

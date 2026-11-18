@@ -744,6 +744,160 @@ export function renderReferenceResolution(envelope, onLine) {
   return root;
 }
 
+const SCOPED_BOUNDARY = 'review-direct-file-boundary@1';
+const SCOPED_SOURCE = 'inspect-selected-source@1';
+const SCOPED_MODEL = 'typed-static-local-v1@1';
+
+// Identity intentionally excludes camera, layers and filters; they do not affect a decision.
+export function scopedViewIdentity(graph, selection) {
+  if (!graph || !selection) return null;
+  return JSON.stringify({ selector: selection, revision: graph.revision, policy: graph.inputPolicy,
+    resolver: graph.resolver || null, binding: graph.binding || null,
+    instance: graph.runtime?.instanceId, sequence: graph.runtime?.sequence, runtimeStatus: graph.runtime?.status });
+}
+
+const scopedCanonical = value => Array.isArray(value) ? value.map(scopedCanonical) : value && typeof value === 'object'
+  ? Object.fromEntries(Object.keys(value).sort().map(key => [key, scopedCanonical(value[key])])) : value;
+
+// Reconstruct the complete section before presenting it. Cursor and fragment
+// checks are independent of the server's decision and do not evaluate it.
+export async function collectScopedReasons(fetchPage, manifest, validatePage, isCurrent = () => true) {
+  if (!manifest || manifest.kind !== 'reasons' || !Number.isSafeInteger(manifest.total) || manifest.total < 0 || manifest.total > 200000 || !/^[a-f0-9]{64}$/.test(manifest.digest || '') || typeof manifest.cursor !== 'string') throw new Error('Invalid reason evidence manifest.');
+  const encoder = new TextEncoder(), values = [], cursors = new Set();
+  let cursor = manifest.cursor, fragmentText = '', fragmentTotal = null, bytes = 2;
+  for (let pages = 0; cursor !== null; pages++) {
+    if (pages >= 4096 || cursors.has(cursor)) throw new Error('Reason evidence page limit or repeated cursor.');
+    cursors.add(cursor);
+    const response = await fetchPage(cursor);
+    if (!isCurrent()) throw new DOMException('Stale scoped request', 'AbortError');
+    validatePage(response);
+    const page = response.page;
+    if (!page || page.section !== 'reasons' || page.offset !== values.length || !Array.isArray(page.items) || !Array.isArray(page.fragments) || page.items.length && page.fragments.length || page.fragments.length > 1 || (page.next !== null && typeof page.next !== 'string')) throw new Error('Invalid reason evidence page.');
+    if (!page.items.length && !page.fragments.length && (page.next !== null || values.length !== manifest.total)) throw new Error('Incomplete reason evidence page.');
+    for (const item of page.items) {
+      if (fragmentText || item.index !== values.length || values.length >= manifest.total) throw new Error('Out-of-order reason evidence.');
+      const text = JSON.stringify(scopedCanonical(item.value));
+      bytes += encoder.encode(text).length + (values.length ? 1 : 0);
+      if (bytes > 16777216) throw new Error('Reason evidence byte limit exceeded.');
+      values.push(item.value);
+    }
+    for (const part of page.fragments) {
+      if (values.length >= manifest.total || part.index !== values.length || part.encoding !== 'json-text' || typeof part.text !== 'string' || !part.text.length || part.offset !== fragmentText.length || !Number.isSafeInteger(part.total) || part.total <= 0 || (fragmentTotal !== null && part.total !== fragmentTotal)) throw new Error('Invalid reason evidence fragment.');
+      fragmentTotal = part.total;
+      fragmentText += part.text;
+      if (fragmentText.length > fragmentTotal || encoder.encode(fragmentText).length + bytes > 16777216) throw new Error('Reason evidence byte limit exceeded.');
+      if (fragmentText.length === fragmentTotal) {
+        let value;
+        try { value = JSON.parse(fragmentText); } catch { throw new Error('Invalid reason evidence JSON.'); }
+        if (JSON.stringify(scopedCanonical(value)) !== fragmentText) throw new Error('Noncanonical reason evidence fragment.');
+        bytes += encoder.encode(fragmentText).length + (values.length ? 1 : 0);
+        if (bytes > 16777216) throw new Error('Reason evidence byte limit exceeded.');
+        values.push(value); fragmentText = ''; fragmentTotal = null;
+      }
+    }
+    cursor = page.next;
+  }
+  if (fragmentText || values.length !== manifest.total) throw new Error('Incomplete reason evidence.');
+  const data = encoder.encode(JSON.stringify(scopedCanonical(values)));
+  if (data.length > 16777216) throw new Error('Reason evidence byte limit exceeded.');
+  const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', data))].map(value => value.toString(16).padStart(2, '0')).join('');
+  if (!isCurrent()) throw new DOMException('Stale scoped request', 'AbortError');
+  if (hash !== manifest.digest) throw new Error('Reason evidence digest mismatch.');
+  return values;
+}
+
+// Three fresh server observations; preparation is never presented as a receipt.
+export function createScopedRequest(getCurrent, onChange, fetcher = fetch) {
+  let generation = 0, controller = null, loadReasons = null;
+  const revoke = () => { generation++; controller?.abort(); controller = null; loadReasons = null; onChange(null); };
+  const run = async (operation, selector) => {
+    revoke();
+    const initial = getCurrent();
+    if (!initial.ready || !selector || initial.selector !== selector) { onChange({ error: 'The map connection and selected source must be current. Select an action again.' }); return; }
+    const identity = initial.identity, token = generation;
+    controller = new AbortController();
+    const signal = controller.signal;
+    const current = () => token === generation && !signal.aborted && getCurrent().ready && getCurrent().identity === identity && getCurrent().selector === selector;
+    const read = async (stage, args) => {
+      const params = new URLSearchParams({ stage, schemaVersion: '1', operation, selector, maxBytes: '1048576', ...args });
+      const response = await fetcher(`/api/scoped?${params}`, { cache: 'no-store', signal });
+      const body = await response.json();
+      if (!current()) throw new DOMException('Stale scoped request', 'AbortError');
+      if (body?.error || !response.ok && !(stage === 'preflight' && [409, 422].includes(response.status) && body?.decision)) {
+        const error = body?.error;
+        throw new Error(typeof error === 'string' ? error : error?.message || error?.code || `Scoped request failed (HTTP ${response.status}).`);
+      }
+      return body;
+    };
+    try {
+      onChange({ loading: true, operation });
+      const model = operation === SCOPED_BOUNDARY ? SCOPED_MODEL : null;
+      const common = model ? { model } : {};
+      const bootstrap = await read('bootstrap', common);
+      if (bootstrap.phase !== 'bootstrap' || bootstrap.preparation !== true || bootstrap.operation !== operation || bootstrap.selector !== selector || bootstrap.model !== model || bootstrap.revision !== initial.revision || !bootstrap.snapshot || JSON.stringify(bootstrap.binding || null) !== JSON.stringify(initial.binding || null)) throw new Error('Bootstrap identity changed; request a fresh assessment.');
+      const original = { ...common, revision: bootstrap.revision, snapshot: bootstrap.snapshot,
+        ...(bootstrap.binding ? { bindingId: bootstrap.binding.id, generation: String(bootstrap.binding.generation) } : {}) };
+      const prepared = await read('prepare', original);
+      if (prepared.phase !== 'preparation' || prepared.preparation !== true || prepared.operation !== operation || prepared.model !== model || prepared.revision !== bootstrap.revision || prepared.snapshot !== bootstrap.snapshot || prepared.selection?.id !== selector || !prepared.scopedSnapshot || !prepared.requirementsDigest || JSON.stringify(prepared.binding || null) !== JSON.stringify(bootstrap.binding || null) || prepared.inputPolicy?.id !== initial.policyId || (prepared.resolver?.id || null) !== initial.resolverId) throw new Error('Preparation identity changed; request a fresh assessment.');
+      const receipt = await read('preflight', { ...original, scopedSnapshot: prepared.scopedSnapshot, requirementsDigest: prepared.requirementsDigest });
+      if (!['scoped-preflight', 'scoped-preview'].includes(receipt.receipt) || receipt.operation !== operation || receipt.model !== model || receipt.selection?.id !== selector || receipt.revision !== prepared.revision || receipt.snapshot !== prepared.snapshot || receipt.scopedSnapshot !== prepared.scopedSnapshot || receipt.requirementsDigest !== prepared.requirementsDigest || receipt.runtimeId !== prepared.runtimeId || receipt.inputPolicy?.id !== initial.policyId || JSON.stringify(receipt.binding || null) !== JSON.stringify(bootstrap.binding || null) || !['sufficient-at-read', 'insufficient-evidence', 'rejected'].includes(receipt.decision) || !['current', 'partial'].includes(receipt.globalStatus) || !Array.isArray(receipt.blockingReasons) || !Array.isArray(receipt.nonblockingReasons) || !Array.isArray(receipt.claims?.nonclaims) || receipt.claims?.testResults !== 'not-observed' || !receipt.coverage || (bootstrap.binding ? receipt.receipt !== 'scoped-preflight' || receipt.mode !== 'installed' || receipt.installedReceipt !== true : receipt.receipt !== 'scoped-preview' || receipt.mode !== 'unbound-preview' || receipt.installedReceipt !== false)) throw new Error('Receipt identity changed; request a fresh assessment.');
+      if (current()) {
+        const manifest = receipt.evidence?.retrieval?.find(item => item.kind === 'reasons');
+        loadReasons = async () => {
+          if (!current()) return;
+          onChange({ receipt, reasonsLoading: true });
+          try {
+            const expected = prepared.sections?.find(item => item.kind === 'reasons');
+            if (!manifest || !expected || manifest.digest !== expected.digest || manifest.total !== expected.total) throw new Error('Reason evidence manifest changed.');
+            const values = await collectScopedReasons(cursor => read('evidence', { ...original, scopedSnapshot: prepared.scopedSnapshot, requirementsDigest: prepared.requirementsDigest, section: 'reasons', cursor }), manifest, page => {
+              const section = page.sections?.find(item => item.kind === 'reasons');
+              if (page.phase !== 'evidence' || page.preparation !== true || page.operation !== operation || page.model !== model || page.revision !== prepared.revision || page.snapshot !== prepared.snapshot || page.scopedSnapshot !== prepared.scopedSnapshot || page.requirementsDigest !== prepared.requirementsDigest || page.runtimeId !== prepared.runtimeId || page.selection?.id !== selector || page.inputPolicy?.id !== initial.policyId || (page.resolver?.id || null) !== initial.resolverId || JSON.stringify(page.binding || null) !== JSON.stringify(bootstrap.binding || null) || section?.digest !== manifest.digest || section?.total !== manifest.total) throw new Error('Reason evidence identity changed.');
+            }, current);
+            if (current()) onChange({ receipt, reasons: values });
+          } catch (error) { if (current() && error.name !== 'AbortError') onChange({ receipt, reasonsError: error.message }); }
+        };
+        onChange({ receipt });
+      }
+    } catch (error) {
+      if (current() && error.name !== 'AbortError') onChange({ error: error.message });
+    }
+  };
+  return { run, revoke, loadReasons: () => loadReasons?.() };
+}
+
+export function renderScopedResult(result, onLoadReasons = () => {}) {
+  const root = element('div', 'scoped-result');
+  if (result.loading) { root.append(element('p', 'hint', `Checking ${result.operation}…`)); return root; }
+  if (result.error) { root.append(element('p', 'hint', `Assessment unavailable: ${result.error}`)); return root; }
+  const receipt = result.receipt;
+  root.append(element('p', 'primary-text', `${receipt.operation} · ${receipt.decision}`));
+  root.append(element('p', 'hint', `${receipt.receipt} · ${receipt.mode} · original global status: ${receipt.globalStatus} · test results: ${receipt.claims.testResults}`));
+  for (const [label, value] of [['Blocking reasons', receipt.blockingReasons], ['Other reasons', receipt.nonblockingReasons], ['Obligations and coverage', receipt.coverage], ['Nonclaims', receipt.claims?.nonclaims], ['Claims and uncertainty', { claims: receipt.claims, uncertainty: receipt.uncertainty }]]) {
+    const details = element('details', 'evidence-item');
+    details.append(element('summary', '', label), element('pre', 'hint reference-bindings', JSON.stringify(value ?? null, null, 2)));
+    root.append(details);
+  }
+  if (result.reasonsLoading) root.append(element('p', 'hint', 'Loading reason details…'));
+  else if (result.reasons) {
+    const content = element('div'); root.append(content);
+    let page = 0;
+    const renderPage = () => {
+      content.replaceChildren();
+      const start = page * 40, end = Math.min(start + 40, result.reasons.length);
+      content.append(element('p', 'hint', result.reasons.length ? `Reason details ${start + 1}–${end} of ${result.reasons.length}` : 'No reason details.'));
+      for (const reason of result.reasons.slice(start, end)) content.append(element('pre', 'hint reference-bindings', JSON.stringify(reason, null, 2)));
+      if (page > 0) { const previous = element('button', 'panel-button', 'Previous reasons'); previous.addEventListener('click', () => { page--; renderPage(); }); content.append(previous); }
+      if (end < result.reasons.length) { const next = element('button', 'panel-button', 'Next reasons'); next.addEventListener('click', () => { page++; renderPage(); }); content.append(next); }
+    };
+    renderPage();
+  } else {
+    if (result.reasonsError) root.append(element('p', 'hint', `Reason details unavailable: ${result.reasonsError}`));
+    const control = element('button', 'panel-button', 'Load reason details');
+    control.addEventListener('click', onLoadReasons); root.append(control);
+  }
+  return root;
+}
+
 export function startVisualizer(projectScope = null, projectAreaScope = null, resolveSourceRelations = null) {
   const $ = id => document.getElementById(id);
   const canvas = $('canvas');
@@ -759,6 +913,40 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   let version = 0;
   let panelReturnFocus = null;
   let resolverView = null;
+  let scopedResult = null;
+  let scopedIdentity = null;
+  function scopedSelector() {
+    const selected = state.selection;
+    if (selected?.type === 'block') return selected.id;
+    if (selected?.type !== 'node') return null;
+    const file = state.graph?.nodes.find(node => node.id === selected.id);
+    if (!file || file.kind === 'external') return null;
+    const part = state.graph.hierarchy?.nodes.find(node => node.id === selected.partId);
+    return part?.kind === 'symbol' ? part.id : file.id;
+  }
+  function scopedCurrent() {
+    const selector = scopedSelector(), graph = state.graph;
+    return { selector, identity: scopedViewIdentity(graph, selector), revision: graph?.revision,
+      binding: graph?.binding || null, policyId: graph?.inputPolicy?.id, resolverId: graph?.resolver?.id || null,
+      ready: Boolean(selector && state.connected && !document.hidden && !state.indexError && graph?.inputPolicy?.status === 'valid'
+        && graph.runtime?.status !== 'error' && graph.runtime?.status !== 'indexing' && (!graph.resolver || graph.resolver.status === 'valid')) };
+  }
+  const scoped = createScopedRequest(scopedCurrent, result => {
+    scopedResult = result;
+    scopedIdentity = result ? scopedCurrent().identity : null;
+    if (result && state.panel === 'selection') renderPanel();
+  });
+  function scopedActions(body) {
+    const selector = scopedSelector();
+    if (!selector) return;
+    section('Scoped assessment', body);
+    body.append(element('p', 'hint', 'Checks the selected source at read time. This does not authorize edits or establish test results.'));
+    for (const [label, operation] of [['Inspect selected source', SCOPED_SOURCE], ['Review direct file boundary', SCOPED_BOUNDARY]]) {
+      const control = button(label, () => void scoped.run(operation, selector), null, body);
+      control.disabled = !scopedCurrent().ready;
+    }
+    if (scopedResult) body.append(renderScopedResult(scopedResult, () => void scoped.loadReasons()));
+  }
 
   function setMessage(title, description, error = false) {
     const message = $('canvas-message');
@@ -1222,6 +1410,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   }
 
   function renderPanel() {
+    if (scopedResult && scopedIdentity !== scopedCurrent().identity) scoped.revoke();
     const body = $('panel-body');
     const scroll = body.scrollTop;
     const previousKey = body.dataset.key;
@@ -1361,6 +1550,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     if (part) { body.append(element('p', 'primary-text', `${part.description || 'Source part.'} · lines ${part.line}–${part.endLine || part.line}`)); if (part.sourceName || part.qualifiedName) body.append(element('p', 'hint', `Source name: ${part.qualifiedName || part.sourceName}`)); }
     body.append(element('div', 'path-label', node.path || node.label));
     body.append(element('p', 'hint', `${KIND[node.kind] || node.kind}${node.language ? ` · ${node.language}` : ''}${Number.isFinite(node.bytes) ? ` · ${node.bytes.toLocaleString('en-GB')} B` : ''} · hash ${shortHash(node.hash)}`));
+    if (node.kind !== 'external') scopedActions(body);
     if (node.kind === 'external') {
       note('This import points to an external module. The map doesn\'t read or run its code.', true, body);
     } else {
@@ -1418,6 +1608,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
     $('panel-title').textContent = block.label;
     body.append(element('p', 'primary-text', block.description));
     body.append(element('p', 'hint', `${BLOCK_TYPES[block.type] || 'Module'} · ${block.fileIds.length} ${block.fileIds.length === 1 ? 'file' : 'files'} · ${block.id}`));
+    scopedActions(body);
     if (block.aliases?.length) body.append(element('p', 'hint', `Aliases: ${block.aliases.join(', ')}`));
     const ids = new Set(block.fileIds);
     const members = state.graph.nodes.filter(node => ids.has(node.id));
@@ -1627,6 +1818,7 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   function accept(graph) {
     if (!validGraph(graph)) throw new Error('Could not read the map returned by the server.');
     if (!shouldAcceptGraph(state.graph, graph, retiredInstances)) return;
+    if (scopedResult && scopedViewIdentity(state.graph, scopedSelector()) !== scopedViewIdentity(graph, scopedSelector())) scoped.revoke();
     const previousInstance = state.runtime?.instanceId;
     if (previousInstance && previousInstance !== graph.runtime?.instanceId) retiredInstances.add(previousInstance);
     const policyRevoked = state.graph && (state.graph.inputPolicy?.id !== graph.inputPolicy?.id || graph.inputPolicy?.status !== 'valid');
@@ -1666,10 +1858,11 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   }
 
   function failure(error) {
+    scoped.revoke();
     state.indexError = error.message || String(error);
     status();
     if (!state.received) setMessage('Map unavailable', state.indexError, true);
-    if (state.panel === 'project' || state.panel === 'activity') renderPanel();
+    if (state.panel) renderPanel();
   }
 
   async function refresh() {
@@ -1782,10 +1975,15 @@ export function startVisualizer(projectScope = null, projectAreaScope = null, re
   });
   events.addEventListener('state', event => { try { accept(JSON.parse(event.data)); } catch (error) { failure(error); } });
   events.addEventListener('error', () => {
-    state.connected = false; status();
+    state.connected = false; scoped.revoke(); status();
+    if (state.panel === 'selection') renderPanel();
     if (state.panel === 'project' || state.panel === 'activity') renderPanel();
     clearInterval(reconnectTimer);
     reconnectTimer = setInterval(() => void refresh(), 8000);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { scoped.revoke(); if (state.panel === 'selection') renderPanel(); }
+    else { if (state.panel === 'selection') renderPanel(); void refresh(); }
   });
   window.addEventListener('beforeunload', () => { events.close(); clearInterval(reconnectTimer); });
   void refresh();

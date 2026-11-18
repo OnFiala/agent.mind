@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { normalizeResolverOptions } from './typed-resolution.mjs';
@@ -7,7 +8,7 @@ import { normalizeResolverOptions } from './typed-resolution.mjs';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const HASH = /^[a-f0-9]{64}$/;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
-const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'typed-resolution.mjs', 'python-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
+const TOP = new Set(['cli.mjs', 'installation.mjs', 'server.mjs', 'code-index.mjs', 'source-analysis.mjs', 'typed-analysis.mjs', 'typed-resolution.mjs', 'python-analysis.mjs', 'live-index.mjs', 'project-map.mjs', 'symbol-index.mjs', 'graph-context.mjs', 'scoped-coverage.mjs', 'scoped-preflight.mjs', 'scoped-context.mjs', 'package.json', 'package-lock.json', 'README.md', 'LICENSE']);
 const PUBLIC = new Set(['public/hierarchy.mjs', 'public/visualizer.js', 'public/visualizer.css', 'public/visualizer.html', 'public/assets/canvas-paper.webp', 'public/assets/agent-mind-wordmark.webp', 'public/assets/README.md']);
 const ACORN = new Set(['LICENSE', 'bin/acorn', 'CHANGELOG.md', 'dist/bin.js', 'dist/acorn.mjs', 'dist/acorn.d.ts', 'dist/acorn.js', 'dist/acorn.d.mts', 'README.md', 'package.json'].map(p => `node_modules/acorn/${p}`));
 // Babel's parser JS is self-contained; its npm type dependencies are not runtime inputs.
@@ -119,13 +120,21 @@ function validateBinding(state, { requireAttached = true, verifyRuntime = true }
   if (verifyRuntime) verifyArtifact(checked(dir, `.local/runtime/${descriptor.runtime.digest}`), descriptor.runtime.digest);
   return root;
 }
+const bindingIdentity = state => ({ ...state.receipt.binding, state: state.receipt.state, installId: state.receipt.installId, version: state.descriptor.runtime.version, digest: state.descriptor.runtime.digest });
 export function resolveInstallation(installDir, options = {}) {
   const state = load(installDir), root = validateBinding(state, options);
-  const binding = { ...state.receipt.binding, state: state.receipt.state, installId: state.receipt.installId, version: state.descriptor.runtime.version, digest: state.descriptor.runtime.digest };
+  const binding = bindingIdentity(state);
   Object.defineProperty(binding, 'verify', { enumerable: false, value: () => {
     const latest = load(state.dir);
     validateBinding(latest, { ...options, verifyRuntime: false });
     if (latest.receipt.binding.id !== binding.id || latest.receipt.binding.generation !== binding.generation) throw new Error('Context binding has expired. Run context again.');
+  } });
+  Object.defineProperty(binding, 'verifyScoped', { enumerable: false, value: () => {
+    const latest = load(state.dir);
+    validateBinding(latest, { ...options, requireAttached: true, verifyRuntime: false });
+    // Scoped reads always verify bytes, even when the resolver caller opted out.
+    const artifact = verifyArtifact(checked(latest.dir, `.local/runtime/${latest.descriptor.runtime.digest}`), latest.descriptor.runtime.digest);
+    if (latest.descriptor.runtime.version !== artifact.version || !isDeepStrictEqual(bindingIdentity(latest), { ...binding })) throw new Error('Context binding or runtime has expired. Run context again.');
   } });
   return { root, binding, indexOptions: { generic: true, excludePaths: ['agent.mind'], metadataPath: 'agent.mind/project-map.json' }, runtime: checked(state.dir, `.local/runtime/${state.descriptor.runtime.digest}`) };
 }
@@ -585,14 +594,23 @@ function listRemaining(root, prefix = '') {
   }
   return result.sort();
 }
-export async function runCLI(args = process.argv.slice(2), { installDir } = {}) {
+export async function runCLI(args = process.argv.slice(2), options = {}) {
+  if (!['scoped-context', 'scoped-preflight'].includes(args[0])) return runCLIInternal(args, options);
+  try { return await runCLIInternal(args, options); }
+  catch (error) {
+    process.stdout.write(JSON.stringify({ schemaVersion: 1, profile: 'scoped', error: { code: error.code || 'INVALID_SCOPED_REQUEST', message: error.message } }));
+    process.exitCode = 1;
+  }
+}
+
+async function runCLIInternal(args, { installDir } = {}) {
   const argv = [...args], command = argv.shift();
   const option = name => { const i = argv.indexOf(name); if (i < 0) return undefined; const value = argv[i + 1]; if (!value || value.startsWith('--')) throw new Error(`Missing ${name} value.`); argv.splice(i, 2); return value; };
   const emit = value => console.log(json(value).trimEnd());
   const resolverNames = ['--resolver', '--resolver-config'];
   for (const name of resolverNames) if (argv.filter(value => value === name).length > 1) throw new Error(`Duplicate ${name} option.`);
   const hasResolver = resolverNames.some(name => argv.includes(name));
-  if (hasResolver && !['context', 'preflight', 'view'].includes(command)) throw new Error('Resolver options are only supported by context, preflight and view.');
+  if (hasResolver && !['context', 'preflight', 'view', 'scoped-context', 'scoped-preflight'].includes(command)) throw new Error('Resolver options are only supported by context, preflight and view.');
   const resolver = option('--resolver'), resolverConfig = option('--resolver-config');
   const resolverOptions = { ...(resolver !== undefined ? { resolver } : {}), ...(resolverConfig !== undefined ? { resolverConfig } : {}) };
   normalizeResolverOptions(resolverOptions);
@@ -617,6 +635,34 @@ export async function runCLI(args = process.argv.slice(2), { installDir } = {}) 
   }
   if (command === 'purge-plan') { if (argv.length) throw new Error('Unexpected argument.'); return emit(purgePlan(installDir)); }
   if (command === 'purge') { const digest = option('--digest'); if (argv.length || !HASH.test(digest ?? '')) throw new Error('Purge requires --digest from the exact purge-plan you reviewed.'); const result = purgeInstallation(installDir, digest); emit(result); if (result.state !== 'purged') process.exitCode = 1; return; }
+  if (command === 'scoped-context' || command === 'scoped-preflight') {
+    try {
+      const mapping = { '--schema-version': 'schemaVersion', '--operation': 'operation', '--model': 'model', '--revision': 'revision', '--snapshot': 'snapshot', '--binding-id': 'bindingId', '--generation': 'generation', '--scoped-snapshot': 'scopedSnapshot', '--requirements-digest': 'requirementsDigest', '--section': 'section', '--cursor': 'cursor', '--max-bytes': 'maxBytes' };
+      const request = {};
+      for (const [flag, key] of Object.entries(mapping)) {
+        if (argv.filter(value => value === flag).length > 1) throw new Error('Duplicate scoped option: ' + flag);
+        const value = option(flag);
+        if (value === undefined) continue;
+        if (['schemaVersion', 'generation', 'maxBytes'].includes(key)) {
+          if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new Error('Invalid scoped integer: ' + flag);
+          request[key] = Number(value);
+        } else request[key] = value;
+      }
+      if (argv.length !== 1 || argv[0].startsWith('--')) throw new Error('Scoped commands require one exact selector.');
+      request.selector = argv[0];
+      const scoped = resolveInstallation(installDir);
+      const { scopedResponse } = await import(pathToFileURL(path.join(scoped.runtime, 'scoped-context.mjs')));
+      const stage = command === 'scoped-preflight' ? 'preflight' : ['scopedSnapshot', 'requirementsDigest', 'section', 'cursor'].some(key => request[key] !== undefined) ? 'evidence' : 'prepare';
+      const result = scopedResponse(scoped.root, request, { stage, indexOptions: { ...scoped.indexOptions, ...resolverOptions }, binding: scoped.binding });
+      scoped.binding.verifyScoped();
+      process.stdout.write(JSON.stringify(result));
+      if (result.error || result.decision && result.decision !== 'sufficient-at-read' || command === 'scoped-preflight' && result.decision !== 'sufficient-at-read') process.exitCode = 1;
+    } catch (error) {
+      process.stdout.write(JSON.stringify({ schemaVersion: 1, profile: 'scoped', error: { code: error.code || 'INVALID_SCOPED_REQUEST', message: error.message } }));
+      process.exitCode = 1;
+    }
+    return;
+  }
   const resolved = resolveInstallation(installDir);
   resolved.indexOptions = { ...resolved.indexOptions, ...resolverOptions };
   if (command === 'context' || command === 'preflight') {

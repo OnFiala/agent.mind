@@ -75,7 +75,14 @@ directory completeness and fresh model-relative local edges. Preserve the separa
 `referenceResolution` envelope, all occurrence evidence, no substitution/precedence,
 and unknown rather than absent for denied scope. Config/mode/policy/runtime identity
 must revoke stale context/source data and survive live scan failure without fallback.
-No imported calls, types, Security, R11 coverage or R15 scoped gate are inferred.
+No imported calls, types, Security or complete incoming coverage are inferred from R14 alone.
+R15 opt-in coverage stays in `scoped-coverage.mjs` sidecars over the same checked
+graph; `scoped-preflight.mjs` is the pure finite evaluator and `scoped-context.mjs`
+owns shared fresh CLI/UI identity and bounded evidence transport. Preserve the
+original R02/R03 strict path and global partial. Every admitted unknown origin and
+unknown subtree remains relevant; no warning-text/severity or filename waiver.
+Preparation is not a receipt, preview is not an installed binding, and reason
+counts/digests retain complete revision-bound detail retrieval.
 Keep reference/declaration limits independent and preserve exact hash/UTF-16 evidence
 through cache and context. Never cache resolution only by origin hash.
 `python-analysis.mjs` owns bounded Python declarations, import syntax and conservative

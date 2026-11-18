@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parser } from '@lezer/python';
+import { recordAnalysisObservation } from './scoped-coverage.mjs';
 
 // Checked text in, static evidence out. No filesystem, interpreter, environment
 // or installed-package queries are involved in this bounded adapter.
@@ -39,6 +40,7 @@ function sourceLocations(source) {
 export function analyzePythonSource(relative, source, hash) {
   const diagnostics = [{ path: relative, severity: 'info', message: 'Bounded Python static source analysis; editor grammar is not CPython syntax/semantic validation. No type, cross-file call, runtime, installed-package or security inference. Unsupported PEP 614 decorator expressions and PEP 696 type parameter defaults fail parsing.' }];
   const result = { references: [], symbols: [], security: [], diagnostics, symbolGraph: { nodes: [], edges: [], diagnostics: [] }, producer: { ...PRODUCER } };
+  recordAnalysisObservation(result, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'withheld', referenceTraversal: 'withheld', unsupported: [{ reason: 'outside-typed-model' }] });
   if (Buffer.byteLength(source, 'utf8') > PYTHON_LIMITS.bytes) {
     diagnostics.push({ path: relative, severity: 'warning', message: `Syntax analysis limit: ${PYTHON_LIMITS.bytes} bytes per file; analysis is withheld and text remains available.` });
     return result;
@@ -108,6 +110,7 @@ export function analyzePythonSource(relative, source, hash) {
     }
     if (invalid) { report(`Syntax parse error: unsupported or malformed ${invalid}; analysis from this file is withheld.`, node, 'error'); return result; }
   }
+  recordAnalysisObservation(result, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'complete', referenceTraversal: 'withheld', unsupported: [{ reason: 'outside-typed-model' }] });
   const counts = new Map();
   for (const symbol of candidates) counts.set(symbol.id, (counts.get(symbol.id) ?? 0) + 1);
   const invalid = new Set([...counts].filter(([, count]) => count > 1).map(([id]) => id));
@@ -377,5 +380,6 @@ export function analyzePythonSource(relative, source, hash) {
   result.symbolGraph.edges = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id, 'en'));
   if (unresolved) report(`${unresolved} Python call sites remain unresolved; no call edges are guessed.`, null, 'info');
   if (limited) report('Symbol call-site/edge analysis budget exceeded; calls are partial.', null);
+  recordAnalysisObservation(result, { status: 'unknown', producer: 'scoped-origin-ledger-v1', parse: 'complete', referenceTraversal: 'complete', unsupported: [{ reason: 'outside-typed-model' }] });
   return result;
 }
