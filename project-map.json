@@ -75,7 +75,8 @@
         "typed-resolution.mjs",
         "python-analysis.mjs",
         "project-map.mjs",
-        "symbol-index.mjs"
+        "symbol-index.mjs",
+        "scoped-coverage.mjs"
       ],
       "prefixes": []
     },
@@ -92,7 +93,9 @@
         "Kontext agenta"
       ],
       "files": [
-        "graph-context.mjs"
+        "graph-context.mjs",
+        "scoped-preflight.mjs",
+        "scoped-context.mjs"
       ],
       "prefixes": []
     },

@@ -111,3 +111,16 @@ jobs:
           (cd "$baseline" && npm ci --ignore-scripts && npm run package)
           version="$(node -p "require('./package.json').version")"
           node scripts/smoke-resolver-rollback.mjs "$baseline/dist/agent-mind-1.4.0/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
+
+      - name: Scoped operation pilot and exact R14 artifact rollback
+        run: |
+          baseline_commit="07dd8a39d867cb3302b29ffeae5af3e20994491b"
+          baseline_tree="bb1bf14fbcde1ea2fb08dabe1d0789ee3cb424ab"
+          git fetch --no-tags --depth=1 origin "$baseline_commit"
+          test "$(git rev-parse "$baseline_commit^{tree}")" = "$baseline_tree"
+          baseline="$(mktemp -d "$RUNNER_TEMP/agent-mind-r15-baseline.XXXXXX")"
+          trap 'rm -rf "$baseline"' EXIT
+          git archive "$baseline_commit" | tar -x -C "$baseline"
+          (cd "$baseline" && npm ci --ignore-scripts && npm run package)
+          version="$(node -p "require('./package.json').version")"
+          node scripts/smoke-scoped-rollback.mjs "$baseline/dist/agent-mind-1.4.0/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
