@@ -1000,7 +1000,9 @@ carries its native AST kind, parser/version, original content hash, 1-based loca
 and a 0-based, end-exclusive range in UTF-16 code units. File capabilities report
 available syntax operations, not typechecking or successful analysis.
 
-Every pilot file retains a syntax-only **partial** diagnostic. Imports, type
+Every pilot file retains a syntax-only **partial** diagnostic. Published 1.4.0
+collects declarations only. The unreleased R13 source additionally collects the
+restricted static import/reexport syntax described below. Import resolution, type
 relationships, calls, JSX-component calls, security and HTTP/framework analysis are
 not implemented; existing source-reference resolution cannot target pilot files.
 Strict installed preflight therefore continues to reject a project containing them.
@@ -1023,6 +1025,48 @@ are loaded. [Comparison and acceptance evidence](https://github.com/OnFiala/agen
 records the exact candidates, fixed budgets and measured corpus; these are bounded
 measurements, not guarantees for arbitrary projects. This does not upgrade existing
 installations. Use the original release matching the chosen rollback version.
+
+#### Unreleased typed reference syntax (R13)
+
+This source adds `static-reference-syntax` for top-level literal imports and
+source-bearing named/star/namespace reexports in `.ts`, `.tsx` and `.jsx`.
+It records decoded specifiers, declaration and binding type-only syntax, nullable
+AST binding names, exact source/declaration/binding ranges, original-byte hash
+and pinned-parser provenance. Whole type-only is true for explicit declaration
+syntax or a nonempty all-type binding list; false does not promise runtime emission.
+Existing file/symbol identities and ambiguity handling stay unchanged.
+
+Typed file nodes carry `referenceSyntax` with version `typed-reference-syntax-v1`,
+`extraction: collected|withheld`, `facts`, `unsupported`, and
+`resolution: { status: unsupported, reason: typed-resolution-not-enabled }`.
+`collected` means this restricted pass finished, not complete reference coverage.
+The facts never enter the generic resolver and create no dependency, external,
+Security or call edges. No typed-to-JS or JS-to-typed resolution is enabled.
+
+Dynamic import, import-equals, import-type queries, syntactic bare `require`,
+nested/ambient references and attributes are unsupported. Encountered excluded
+forms retain reason, AST kind and range without a target. Comments and strings
+are not occurrences. Unsupported dialects that cannot parse emit no recovery facts.
+The unchanged parser options load no target configuration or code.
+
+A second walk of the same AST, including bodies omitted by declaration analysis,
+is independently bounded at 100,000 node visits and depth 256, with 2,000 combined
+supported/unsupported occurrences and 8,000 bindings per file. At most 200,000 node
+visits span both walks; this is no latency guarantee. Crossing a reference limit
+withholds the entire reference result with `TYPED_REFERENCE_LIMIT` and its reason;
+completed declarations may remain. Declaration limits independently withhold symbols.
+Parse/64-KiB failures withhold both. No list silently retains a truncated prefix.
+
+Full context, bounded node fragments, live snapshots and the read-only inspector
+retain the same evidence and unsupported resolution. The inspector pages 40
+occurrences at a time, escapes source strings and offers hash-bound source lines.
+Fresh source/policy checks and cursor invalidation still apply. Every typed file
+remains partial and strict installed preflight refuses it, including empty facts.
+R13 changes neither the full-context default nor the R11/R15 gate. It does not
+establish consumer workflow benefit or change published 1.4.0 installations.
+Rollback to the prior runtime removes facts/capability/inspector while retaining
+project bytes, names and map; its old typed limitation returns. Use only an
+independently verified artifact and an explicitly authorized target upgrade.
 
 ### Python source analysis (1.3.0)
 

@@ -87,3 +87,15 @@ jobs:
           tar -xzf "$previous/agent-mind-1.4.0.tar.gz" -C "$previous"
           version="$(node -p "require('./package.json').version")"
           node scripts/smoke-policy-rollback.mjs "$previous/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"
+      - name: Typed syntax rollback preserves P1 policy v2
+        run: |
+          baseline_commit="c80b8aa6a07c9cdbd6930af8114f78d9f7baca2d"
+          baseline_tree="c7aacd0c527549eb7508473effd44af48c77c327"
+          git fetch --no-tags --depth=1 origin "$baseline_commit"
+          test "$(git rev-parse "$baseline_commit^{tree}")" = "$baseline_tree"
+          baseline="$(mktemp -d "$RUNNER_TEMP/agent-mind-r13-baseline.XXXXXX")"
+          trap 'rm -rf "$baseline"' EXIT
+          git archive "$baseline_commit" | tar -x -C "$baseline"
+          (cd "$baseline" && npm ci --ignore-scripts && npm run package)
+          version="$(node -p "require('./package.json').version")"
+          node scripts/smoke-typed-rollback.mjs "$baseline/dist/agent-mind-1.4.0/agent-mind-1.4.0" "$PWD/dist/agent-mind-${version}/agent-mind-${version}"

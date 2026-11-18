@@ -21,9 +21,99 @@ function children(node) {
   return result;
 }
 
+
+// Independent second pass over the same AST. These limits are not parser timeouts.
+export const TYPED_REFERENCE_LIMITS = Object.freeze({ astNodes: 100000, depth: 256, occurrences: 2000, bindings: 8000 });
+const referenceEnvelope = extraction => ({
+  version: 'typed-reference-syntax-v1', extraction, facts: [], unsupported: [],
+  resolution: { status: 'unsupported', reason: 'typed-resolution-not-enabled' }
+});
+const syntaxRange = node => ({ start: node.start, end: node.end, unit: 'utf16-code-unit', endExclusive: true });
+const syntaxName = node => node?.type === 'Identifier' ? node.name : node?.type === 'StringLiteral' ? node.value : null;
+const referenceDeclarations = new Set(['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration']);
+
+// Babel 7 uses attributes: [] both with no clause and with an empty `with {}`.
+// Inspect only trivia after the AST source literal, never search the whole source.
+function hasReferenceAttributes(node, source) {
+  if (node.attributes?.length || node.assertions?.length) return true;
+  let at = node.source.end;
+  while (at < node.end) {
+    if (/\s/u.test(source[at])) { at++; continue; }
+    if (source.startsWith('/*', at)) {
+      const end = source.indexOf('*/', at + 2);
+      if (end < 0 || end + 2 > node.end) return true;
+      at = end + 2;
+      continue;
+    }
+    if (source.startsWith('//', at)) {
+      at += 2;
+      while (at < node.end && !/[\r\n\u2028\u2029]/u.test(source[at])) at++;
+      continue;
+    }
+    return source[at] !== ';';
+  }
+  return false;
+}
+
+/** Internal pure pass over a Program from the pinned parser and its checked text. */
+export function collectTypedReferenceSyntax(relative, source, hash, program) {
+  const referenceSyntax = referenceEnvelope('collected');
+  const pending = [{ node: program, parent: null, depth: 0 }];
+  let visited = 0, occurrences = 0, bindingCount = 0;
+  const limited = (reason, node) => ({
+    referenceSyntax: referenceEnvelope('withheld'),
+    diagnostics: [{ path: relative, severity: 'warning', code: 'TYPED_REFERENCE_LIMIT', reason,
+      ...(node.loc ? { line: node.loc.start.line, column: node.loc.start.column + 1 } : {}),
+      message: `Typed reference syntax limit (${reason}); all reference facts and unsupported occurrences from this file are withheld.` }]
+  });
+  while (pending.length) {
+    const { node, parent, depth } = pending.pop();
+    if (visited >= TYPED_REFERENCE_LIMITS.astNodes) return limited('ast-node-limit', node);
+    if (depth > TYPED_REFERENCE_LIMITS.depth) return limited('depth-limit', node);
+    visited++;
+    const declaration = referenceDeclarations.has(node.type) && node.source;
+    let reason = null;
+    if (declaration) {
+      if (parent !== program) reason = 'non-top-level-reference';
+      else if (node.source.type !== 'StringLiteral') reason = 'non-literal-source';
+      else if (hasReferenceAttributes(node, source)) reason = 'import-attributes';
+    } else if (node.type === 'ImportExpression' || node.type === 'CallExpression' && node.callee?.type === 'Import') reason = 'dynamic-import';
+    else if (node.type === 'TSImportEqualsDeclaration') reason = 'import-equals';
+    else if (node.type === 'TSImportType') reason = 'import-type';
+    else if (['CallExpression', 'OptionalCallExpression'].includes(node.type) && node.callee?.type === 'Identifier' && node.callee.name === 'require') reason = 'commonjs-require';
+    if (declaration || reason) {
+      if (occurrences >= TYPED_REFERENCE_LIMITS.occurrences) return limited('occurrence-limit', node);
+      occurrences++;
+      const specifiers = declaration ? node.specifiers ?? [] : [];
+      if (bindingCount + specifiers.length > TYPED_REFERENCE_LIMITS.bindings) return limited('binding-limit', node);
+      bindingCount += specifiers.length;
+      if (reason) referenceSyntax.unsupported.push({ reason, syntaxKind: node.type, range: syntaxRange(node) });
+      else {
+        const declarationType = node.importKind === 'type' || node.exportKind === 'type';
+        const bindings = specifiers.map(binding => ({
+          syntaxKind: binding.type, local: syntaxName(binding.local), imported: syntaxName(binding.imported), exported: syntaxName(binding.exported),
+          typeOnly: declarationType || binding.importKind === 'type' || binding.exportKind === 'type', range: syntaxRange(binding)
+        }));
+        referenceSyntax.facts.push({
+          kind: node.type === 'ImportDeclaration' ? 'import' : 'reexport', specifier: node.source.value,
+          typed: { syntaxKind: node.type, typeOnly: declarationType || bindings.length > 0 && bindings.every(binding => binding.typeOnly), bindings },
+          evidence: { path: relative, hash, producer: { ...PRODUCER },
+            line: node.source.loc.start.line, column: node.source.loc.start.column + 1,
+            endLine: node.source.loc.end.line, endColumn: node.source.loc.end.column + 1,
+            range: syntaxRange(node.source), declarationRange: syntaxRange(node) }
+        });
+      }
+    }
+    for (const child of children(node).reverse()) pending.push({ node: child, parent: node, depth: depth + 1 });
+  }
+  referenceSyntax.facts.sort((a, b) => a.evidence.declarationRange.start - b.evidence.declarationRange.start);
+  referenceSyntax.unsupported.sort((a, b) => a.range.start - b.range.start);
+  return { referenceSyntax, diagnostics: [] };
+}
+
 export function analyzeTypedSource(relative, source, hash) {
-  const diagnostics = [{ path: relative, severity: 'warning', message: 'Syntax-only pilot: named declarations only; imports, type relationships, calls, security and HTTP/framework behavior are not analyzed.' }];
-  const result = { references: [], symbols: [], security: [], diagnostics, symbolGraph: { nodes: [], edges: [], diagnostics: [] }, producer: { ...PRODUCER } };
+  const diagnostics = [{ path: relative, severity: 'warning', message: 'Syntax-only pilot: named declarations and static-reference syntax only; import resolution, type relationships, calls, security and HTTP/framework behavior are not analyzed.' }];
+  const result = { references: [], referenceSyntax: referenceEnvelope('withheld'), symbols: [], security: [], diagnostics, symbolGraph: { nodes: [], edges: [], diagnostics: [] }, producer: { ...PRODUCER } };
   const warn = (message, node) => diagnostics.push({ path: relative, ...(node?.loc ? { line: node.loc.start.line, column: node.loc.start.column + 1 } : {}), severity: 'warning', message });
   if (Buffer.byteLength(source, 'utf8') > TYPED_LIMITS.bytes) {
     warn(`Syntax analysis limit: ${TYPED_LIMITS.bytes} bytes per file; text remains available.`);
@@ -36,6 +126,10 @@ export function analyzeTypedSource(relative, source, hash) {
     warn(`Syntax parse error: ${error.message}`, error.loc ? { loc: { start: error.loc } } : null);
     return result;
   }
+  const extracted = collectTypedReferenceSyntax(relative, source, hash, ast.program);
+  result.referenceSyntax = extracted.referenceSyntax;
+  result.references = extracted.referenceSyntax.facts;
+  diagnostics.push(...extracted.diagnostics);
   const candidates = [];
   const omitted = new Set();
   const omit = (node, reason) => {

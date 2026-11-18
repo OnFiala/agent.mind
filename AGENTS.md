@@ -65,7 +65,11 @@ Never execute a scanned project to discover its structure.
 and graph composition. `source-analysis.mjs` synchronously analyzes checked text
 (JS/HTML/JSON), including static HTTP/SSE references, without I/O or project state. `project-map.mjs` derives the overview from source edges and validated
 naming metadata. `typed-analysis.mjs` owns the bounded syntax-only TS/TSX/JSX pilot and its explicit
-uncertainty; no typed import/call/type/security resolution is inferred.
+uncertainty. It extracts declarations and bounded static import/reexport syntax,
+with an explicit unsupported-resolution envelope and no new dependency/Security/call
+edges. Only `static-reference-syntax` is claimed; partial/strict refusal remains.
+No typed import/call/type/security resolution is inferred. Keep reference/declaration
+limits independent and preserve exact hash/UTF-16 evidence through cache and context.
 `python-analysis.mjs` owns bounded Python declarations, import syntax and conservative
 same-file bare-call bindings; `code-index.mjs` resolves indexed regular-package modules
 from the project root and explicit relative imports. Never execute Python, infer

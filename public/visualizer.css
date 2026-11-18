@@ -119,6 +119,7 @@ button:disabled{opacity:.4;cursor:default}
 .evidence-item{margin:7px 0;padding:9px;border-radius:6px;border:1px solid #41464f;background:#252a30}
 .evidence-item strong{font-size:10px;color:#d4dbe4;font-weight:500}
 .evidence-item p{font-size:10px;white-space:pre-wrap}
+.reference-bindings{white-space:pre-wrap;overflow-wrap:anywhere}
 .inline-link{border:0;background:transparent;color:#d8b88e;padding:0;text-decoration:underline;text-underline-offset:3px;font-size:10px}
 .scope-list{padding-left:15px;color:#a9b2bd;font-size:10px}
 .activity-item{padding:12px 0;border-bottom:1px solid #3e454d}
