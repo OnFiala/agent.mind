@@ -8,7 +8,9 @@ owns dated findings and their evidence. No new language or platform support is
 claimed by this plan or the L1/L2/L3 changes; L2 adds inventory and text reads only,
 and L3 only separates the existing analysis from indexing.
 
-## Current delivery status — 2026-11-16
+<a id="current-delivery-status--2026-11-16"></a>
+
+## Current delivery status — 2026-11-24
 
 The release-preparation base is `main` at
 [`03ddb5b`](https://github.com/OnFiala/agent.mind/commit/03ddb5b726b8ee6d5fc71471ab883a1210f5e84a).
@@ -48,8 +50,10 @@ evaluation without demonstrated workflow benefit; the full context remains defau
 P1 is merged and unreleased. On 2026-11-17 the owner authorized the separate R13
 implementation after P1, with a review of plan adherence. R13 is merged and
 unreleased (PR #38). On 2026-11-18 the owner accepted the R14 finite resolver
-contract and authorized a separate implementation PR; merge, release and real
-installations remain excluded. R15/R16 retain separate evidence and authorization gates. The
+contract and authorized a separate implementation PR. [PR #39](https://github.com/OnFiala/agent.mind/pull/39)
+merged on 2026-11-18 as `07dd8a39d867cb3302b29ffeae5af3e20994491b`.
+R14 is merged source, still unreleased; published 1.4.0 and existing installations
+remain unchanged. R15/R16 retain separate evidence and authorization gates. The
 [remaining-work contracts](#remaining-work-from-the-2026-11-11-repair-plan) and
 [audit-theme ledger](#audit-theme-ledger-and-decision-triggers) retain their scope.
 The original audit's 26 themes have differing priorities and are not all release
@@ -238,7 +242,8 @@ R05/R06 hard guards, whole-policy rejection, fixed budgets and source-read check
 Every v2 policy identity changes, even for v1-only rules. Returning to published
 1.4.0 restores v1's rejection of set syntax without editing project-owned rules.
 P1 did not implement R13/R14 or relax preflight, and establishes no consumer benefit.
-The owner subsequently authorized R13 separately below; R14 remains gated.
+The owner subsequently authorized R13 and R14 separately; both are now merged
+and unreleased as recorded in the current delivery ledger.
 Published 1.4.0 and pinned installations remain unchanged.
 
 ## R07 — Source priority within existing budgets
@@ -355,7 +360,9 @@ R12 completed its private evaluation on 2026-11-17 without demonstrated workflow
 benefit. After the separately accepted P1/R13 design and P1 merge, the owner
 authorized R13 implementation with plan-adherence review on 2026-11-17. R13 is
 merged as `247268e98c36b77eaf279706bc16ef147424a38b`. R14 implementation was separately
-authorized on 2026-11-18 under the accepted finite contract; R15/R16 are still gated.
+authorized on 2026-11-18 under the accepted finite contract; [PR #39](https://github.com/OnFiala/agent.mind/pull/39)
+merged that day as `07dd8a39d867cb3302b29ffeae5af3e20994491b`. R14 remains
+unreleased; R15/R16 are still gated.
 The historical L0–L6 sequence below remains evidence, not a competing next-work list.
 
 | Work | Priority / state | Prerequisites and next deliverable |
@@ -363,7 +370,7 @@ The historical L0–L6 sequence below remains evidence, not a competing next-wor
 | R11 | P1, accepted design; no implementation | [Scoped-preflight contract](docs/reviews/2026-11-16-r11-scoped-preflight.md); [PR #36](https://github.com/OnFiala/agent.mind/pull/36) owns actual merge/CI evidence; R15 requires separate authorization |
 | R12 | P1, private evaluation completed; no demonstrated benefit | Historical measurement retained separately; no default-format change or new consumer-benefit claim |
 | R13 | P2, merged; unreleased | Accepted bounded syntax contract; exact reference evidence, zero new dependency edges and unchanged partial/strict gate |
-| R14 | P2, implementation candidate; unreleased | Owner-accepted `bundler-local-v1`, frozen finite corpus oracle, V01–V17, exact-diff independent review; no merge/release/real-install authority |
+| R14 | P2, merged; unreleased | [PR #39](https://github.com/OnFiala/agent.mind/pull/39), merge `07dd8a3`; accepted `bundler-local-v1`, frozen finite corpus oracle, V01–V17 and exact-diff review; publication and real installations remain separate actions |
 | R15 | P2, conditional | Accepted R11; operation's required coverage from R13/R14 |
 | R16 | P2, deferred | R12 did not demonstrate workflow benefit; no MCP implementation or default-format change follows from this evaluation |
 
@@ -439,8 +446,8 @@ remains explicitly unresolved. No calls, types or framework behavior inferred; J
 IDs/graphs stay stable. Extracting imports alone does not remove typed partial status.
 **Rollback:** return to declaration-only inspection with visible limitations.
 
-**R14 — One local resolver mode (RES-01).** Owner-authorized implementation
-candidate under the accepted 2026-11-18 contract. The
+**R14 — One local resolver mode (RES-01).** Merged in [PR #39](https://github.com/OnFiala/agent.mind/pull/39)
+on 2026-11-18; unreleased. The
 [R14 record](docs/reviews/2026-11-18-local-resolver.md) and README own the finite
 `bundler-local-v1` behavior, counterexamples and V01–V17 mapping. It is explicit per
 command, root/config-domain confined and backed by complete directory observations.

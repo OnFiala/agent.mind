@@ -1,5 +1,15 @@
 # R14 — finite local file resolution
 
+## Current source status — 2026-11-24
+
+[PR #39](https://github.com/OnFiala/agent.mind/pull/39) merged on 2026-11-18 as
+`07dd8a39d867cb3302b29ffeae5af3e20994491b`. R14 is merged source, still unreleased;
+the published 1.4.0 artifact does not include it. A merge does not update pinned
+installations. R15/R16 remain separate gates. The preparation-time scope and
+evidence below are retained as the historical implementation record.
+
+## Preparation scope and evidence
+
 Date: 2026-11-18. Status: **implementation candidate; unreleased**.
 The owner accepted the finite R14 design and authorized a separate implementation
 PR with tests, independent review, documentation and a CORTEX outcome. Merge,
