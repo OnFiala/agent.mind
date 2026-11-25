@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { once } from 'node:events';
+import { spawnSync } from 'node:child_process';
+import { runSmokeCommand, startSmokeView, cleanupSmoke } from './smoke-release-process.mjs';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
@@ -17,12 +17,8 @@ const other = path.join(temporary, 'unrelated cwd');
 fs.mkdirSync(project); fs.mkdirSync(other);
 let view;
 const checks = [];
-const run = (cli, args, ok = true) => {
-  const result = spawnSync(process.execPath, [cli, ...args], { cwd: other, encoding: 'utf8', timeout: 15000, maxBuffer: 8 * 1024 * 1024 });
-  if (ok) assert.equal(result.status, 0, result.stderr || result.error?.message);
-  else assert.notEqual(result.status, 0, 'Expected an explicit rejection');
-  return ok ? JSON.parse(result.stdout) : result.stderr;
-};
+const run = (cli, args, expectedRejection) => runSmokeCommand(cli, args, { cwd: other, expectedRejection });
+let smokeError;
 try {
   fs.mkdirSync(path.join(project, 'src')); fs.mkdirSync(path.join(project, 'test')); fs.mkdirSync(path.join(project, 'legacy'));
   fs.writeFileSync(path.join(project, 'src/module-c.mjs'), 'export function normalizeCount(value) { return Math.max(0, Math.floor(value)); }\n');
@@ -65,7 +61,7 @@ try {
   assert(!context.nodes.some(node => node.path?.startsWith('agent.mind/')));
   const receipt = ['--revision', context.revision, '--binding-id', context.binding.id, '--generation', String(context.binding.generation)];
   assert.equal(run(cli, ['preflight', 'block:module-c', ...receipt]).preflight, 'verified-at-read');
-  run(cli, ['preflight', 'block:module-c'], false);
+  run(cli, ['preflight', 'block:module-c'], /requires one exact selector/i);
   checks.push('exact alias, test reference and full binding/revision preflight');
 
   const profileRun = spawnSync(process.execPath, [cli, 'context', 'block:module-c', '--profile', 'agent'], { cwd: other, encoding: 'utf8', timeout: 15000 });
@@ -99,8 +95,8 @@ try {
     assert(continued.page.items.length || continued.page.fragments.length);
     const rootInventory = run(cli, ['context', ...rootProfile, '--section', 'inventory', ...rootIdentity]);
     assert.equal(rootInventory.snapshot, whole.snapshot); assert.equal(rootInventory.page.section, 'inventory');
-    assert.match(run(cli, ['preflight', ...rootProfile, ...rootIdentity], false), /requires one exact selector/);
-    assert.match(run(cli, ['context', 'block:module-c', ...rootProfile, '--cursor', whole.page.next, ...rootIdentity], false), /snapshot changed/);
+    run(cli, ['preflight', ...rootProfile, ...rootIdentity], /requires one exact selector/);
+    run(cli, ['context', 'block:module-c', ...rootProfile, '--cursor', whole.page.next, ...rootIdentity], /snapshot changed/);
   } finally { fs.unlinkSync(rootFixture); }
   checks.push('installed bounded profile includes binding within wire budget and returns concise gated receipt with pinned section/cursor retrieval');
 
@@ -114,7 +110,7 @@ try {
     const cjsIdentity = ['--revision', cjs.revision, '--binding-id', cjs.binding.id, '--generation', String(cjs.binding.generation)];
     const cjsPage = run(cli, ['context', 'src/legacy.cjs', '--profile', 'agent', '--section', 'diagnostics', ...cjsIdentity]);
     assert(cjsPage.page.items.some(item => item.value.reason === 'cjs-extension'));
-    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'src/legacy.cjs', ...flags, ...cjsIdentity], false), /requires current context/);
+    for (const flags of [[], ['--profile', 'agent']]) run(cli, ['preflight', 'src/legacy.cjs', ...flags, ...cjsIdentity], /requires current context/);
   } finally { fs.rmSync(commonJSPath, { force: true }); }
   assert.equal(run(cli, ['context', 'Module C']).revision, context.revision);
   assert.equal(run(cli, ['preflight', 'block:module-c', ...receipt]).preflight, 'verified-at-read');
@@ -140,7 +136,7 @@ try {
     assert(prioritized.inventory.entries.some(entry => entry.path.startsWith('r07-assets/') && entry.state === 'unscanned' && entry.reason === 'file-limit'));
     const priorityReceipt = ['--revision', prioritized.revision, '--binding-id', prioritized.binding.id, '--generation', String(prioritized.binding.generation)];
     // A readable selected source cannot grant a complete-project preflight.
-    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'src/r07-priority.mjs', ...flags, ...priorityReceipt], false), /requires current context/);
+    for (const flags of [[], ['--profile', 'agent']]) run(cli, ['preflight', 'src/r07-priority.mjs', ...flags, ...priorityReceipt], /requires current context/);
     for (const [name, bytes] of priorityPreserved) assert.deepEqual(fs.readFileSync(path.join(project, name)), bytes, name);
   } finally {
     fs.rmSync(priorityAssets, { recursive: true, force: true });
@@ -151,7 +147,7 @@ try {
 
   const clone = path.join(temporary, 'portable clone');
   fs.cpSync(project, clone, { recursive: true, filter: source => !source.startsWith(path.join(installDir, '.local')) });
-  run(originCLI, ['install', '--project', clone, '--release', release], false);
+  run(originCLI, ['install', '--project', clone, '--release', release], /no local installation.*install --adopt/i);
   const adopted = run(originCLI, ['install', '--project', clone, '--release', release, '--adopt', '--attach']);
   assert.equal(adopted.state, 'attached');
   assert.notEqual(adopted.binding.id, context.binding.id);
@@ -167,18 +163,8 @@ try {
   assert(fs.existsSync(path.join(clone, 'src/module-c.mjs')));
   checks.push('portable clone explicit adoption and reviewed purge preserve host source');
 
-  view = spawn(process.execPath, [cli, 'view'], { cwd: other, stdio: ['ignore', 'pipe', 'pipe'] });
-  const started = await new Promise((resolve, reject) => {
-    let output = '', error = '';
-    const timer = setTimeout(() => reject(new Error(`View readiness timeout: ${error}`)), 10000);
-    view.once('error', err => { clearTimeout(timer); reject(err); });
-    view.stderr.on('data', bytes => { error += bytes; });
-    view.once('exit', code => { clearTimeout(timer); reject(new Error(`View exited ${code}: ${error}`)); });
-    view.stdout.on('data', bytes => {
-      output += bytes;
-      try { const value = JSON.parse(output); if (value.url) { clearTimeout(timer); resolve(value); } } catch {}
-    });
-  });
+  view = startSmokeView(cli, { cwd: other });
+  const started = await view.ready;
   const graph = await (await fetch(`${started.url}/api/graph`)).json();
   assert.equal(graph.project.root, project);
   assert.equal(graph.binding.id, context.binding.id);
@@ -299,8 +285,8 @@ try {
     assert.notEqual(commentGraph.inputPolicy.id, initialGraph.inputPolicy.id);
     assert.notEqual(commentGraph.revision, initialGraph.revision);
     assert.equal(commentGraph.nodes.find(node => node.id === unchangedNode.id).hash, unchangedNode.hash);
-    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'block:module-c', ...flags, ...initialReceipt], false), /revision changed/i);
-    assert.match(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', policyCursor, ...initialReceipt], false), /revision changed/i);
+    for (const flags of [[], ['--profile', 'agent']]) run(cli, ['preflight', 'block:module-c', ...flags, ...initialReceipt], /revision changed/i);
+    run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', policyCursor, ...initialReceipt], /revision changed/i);
     const commentSource = await (await fetch(sourceURL('src/module-c.mjs', commentGraph))).json();
     assert.equal(commentSource.policyId, commentGraph.inputPolicy.id);
     assert.equal(commentSource.revision, commentGraph.revision);
@@ -336,8 +322,8 @@ try {
     assert.notEqual(setComment.revision, setGraph.revision);
     assert.equal(setComment.nodes.find(node => node.id === unchangedNode.id).hash, unchangedNode.hash);
     assert.equal((await fetch(setSourceURL)).status, 409);
-    for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'block:module-c', ...flags, ...setReceipt], false), /revision changed/i);
-    assert.match(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', setCursor, ...setReceipt], false), /revision changed/i);
+    for (const flags of [[], ['--profile', 'agent']]) run(cli, ['preflight', 'block:module-c', ...flags, ...setReceipt], /revision changed/i);
+    run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', setCursor, ...setReceipt], /revision changed/i);
     fs.writeFileSync(ignorePath, Buffer.concat([setPolicy, Buffer.from('unobserved/[a-z]\n')]));
     assertWithheld(await getGraph());
     assertWithheld(await firstSSEState());
@@ -345,7 +331,7 @@ try {
     const setInvalid = run(cli, ['context']);
     assert.equal(setInvalid.inputPolicy.status, 'invalid');
     assert.deepEqual(setInvalid.nodes, []);
-    assert.match(run(cli, ['preflight', 'block:module-c', ...setReceipt], false), /partial|current context|active index/i);
+    run(cli, ['preflight', 'block:module-c', ...setReceipt], /partial|current context|active index/i);
     const recoveredSetPolicy = Buffer.concat([setPolicy, Buffer.from('# recovered v2 policy\r\n')]);
     fs.writeFileSync(ignorePath, recoveredSetPolicy);
     const setRecovered = await getGraph();
@@ -380,7 +366,7 @@ try {
       assert(!JSON.stringify(invalidGraph).includes(labelMarker));
       assert(!JSON.stringify(await firstSSEState()).includes(labelMarker));
       const invalidReceipt = ['--revision', invalidNames.revision, '--binding-id', invalidNames.binding.id, '--generation', String(invalidNames.binding.generation)];
-      for (const flags of [[], ['--profile', 'agent']]) assert.match(run(cli, ['preflight', 'src/module-c.mjs', ...flags, ...invalidReceipt], false), /requires current context/i);
+      for (const flags of [[], ['--profile', 'agent']]) run(cli, ['preflight', 'src/module-c.mjs', ...flags, ...invalidReceipt], /requires current context/i);
     }
     fs.writeFileSync(mapPath, JSON.stringify(naming));
     await waitGraph(current => current.revision === excluded.revision);
@@ -402,7 +388,7 @@ try {
     assert.equal(invalidContext.inputPolicy.status, 'invalid');
     assert.deepEqual(invalidContext.nodes, []); assert.deepEqual(invalidContext.edges, []);
     for (const marker of [sourceMarker, labelMarker, 'R06_RAW_POLICY_MUST_NOT_ECHO']) assert(!JSON.stringify(invalidContext).includes(marker));
-    assert.match(run(cli, ['preflight', 'src/module-c.mjs', '--revision', invalidContext.revision, '--binding-id', invalidContext.binding.id, '--generation', String(invalidContext.binding.generation)], false), /partial|requires current context|not in the active index/i);
+    run(cli, ['preflight', 'src/module-c.mjs', '--revision', invalidContext.revision, '--binding-id', invalidContext.binding.id, '--generation', String(invalidContext.binding.generation)], /partial|requires current context|not in the active index/i);
 
     fs.writeFileSync(ignorePath, Buffer.concat([originalIgnore, Buffer.from('# recovered policy\n')]));
     const recovered = await getGraph();
@@ -428,23 +414,23 @@ try {
   assert.deepEqual(fs.readFileSync(ignorePath), ownerIgnore);
   assert.equal((await waitGraph(current => current.revision === context.revision)).inputPolicy.status, 'valid');
   checks.push('installed bundle enforces root defaults/exact integration/map policy, comment-only stale receipt/cursor/source revocation, invalid-policy graph/SSE/source withholding and fresh recovery while preserving descriptor/policy/map bytes');
-  run(cli, ['detach'], false);
-  const ended = once(view, 'exit'); view.kill('SIGINT'); await ended; view = null;
+  run(cli, ['detach'], /foreground view is recorded/i);
+  await view.stop('SIGINT'); view = null;
   checks.push('real loopback graph/source/assets use same binding; active view protects lifecycle');
 
   fs.appendFileSync(path.join(project, 'src/module-c.mjs'), '// later source edit\n');
-  assert.match(run(cli, ['preflight', 'block:module-c', ...receipt], false), /revision changed/i);
-  assert.match(run(cli, ['preflight', 'block:module-c', '--profile', 'agent', ...receipt], false), /revision changed/i);
-  assert.match(run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', diagnosticReference.cursor, ...receipt], false), /revision changed/i);
+  run(cli, ['preflight', 'block:module-c', ...receipt], /revision changed/i);
+  run(cli, ['preflight', 'block:module-c', '--profile', 'agent', ...receipt], /revision changed/i);
+  run(cli, ['context', 'block:module-c', '--profile', 'agent', '--cursor', diagnosticReference.cursor, ...receipt], /revision changed/i);
   const current = run(cli, ['context', 'Module C']);
   const refreshedProfile = run(cli, ['context', 'block:module-c', '--profile', 'agent']);
   assert.equal(refreshedProfile.revision, current.revision); assert.notEqual(refreshedProfile.revision, bounded.revision);
   assert.equal(run(cli, ['preflight', 'block:module-c', '--profile', 'agent', '--revision', refreshedProfile.revision, '--binding-id', refreshedProfile.binding.id, '--generation', String(refreshedProfile.binding.generation)]).preflight, 'verified-at-read');
   run(cli, ['detach']);
   assert.equal(fs.readFileSync(path.join(project, 'AGENTS.md'), 'utf8'), agents);
-  run(cli, ['context', 'Module C'], false);
+  run(cli, ['context', 'Module C'], /Installation is detached; attach before context or view/);
   run(cli, ['attach']);
-  assert.match(run(cli, ['preflight', 'block:module-c', '--revision', current.revision, '--binding-id', current.binding.id, '--generation', String(current.binding.generation)], false), /expired/i);
+  run(cli, ['preflight', 'block:module-c', '--revision', current.revision, '--binding-id', current.binding.id, '--generation', String(current.binding.generation)], /expired/i);
   checks.push('source drift and pre-detach receipts rejected; exact owner instructions restored');
 
   const typedSource = '// 🧠 Raw evidence retains UTF-16 offsets and CRLF.\r\nimport type { Remote as Alias } from "./remote\\u002ets";\r\nimport fs from "node:fs";\r\nexport { value as publicValue } from "./module-c.mjs";\r\nexport interface Box { value: string; }\r\nexport function typed(value: Box): string { return value.value; }\r\nconst deferred = import("./module-c.mjs");\r\n';
@@ -453,10 +439,10 @@ try {
   assert.equal(typedContext.status, 'partial');
   const partialProfile = run(cli, ['context', 'src/typed.ts', '--profile', 'agent']);
   assert.equal(partialProfile.status, 'partial');
-  assert.match(run(cli, ['preflight', 'src/typed.ts', '--profile', 'agent', '--revision', partialProfile.revision, '--binding-id', partialProfile.binding.id, '--generation', String(partialProfile.binding.generation)], false), /partial/i);
+  run(cli, ['preflight', 'src/typed.ts', '--profile', 'agent', '--revision', partialProfile.revision, '--binding-id', partialProfile.binding.id, '--generation', String(partialProfile.binding.generation)], /partial/i);
   assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#Box'));
   assert(typedContext.symbolGraph.nodes.some(node => node.id === 'symbol:src/typed.ts#typed'));
-  assert.match(run(cli, ['preflight', 'src/typed.ts', '--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)], false), /partial/i);
+  run(cli, ['preflight', 'src/typed.ts', '--revision', typedContext.revision, '--binding-id', typedContext.binding.id, '--generation', String(typedContext.binding.generation)], /partial/i);
   const typedFile = typedContext.nodes.find(node => node.id === 'file:src/typed.ts');
   assert(typedFile.capabilities.includes('static-reference-syntax'));
   assert(!typedFile.capabilities.includes('static-references'));
@@ -494,8 +480,8 @@ try {
   assert.equal(run(cli, ['context', 'src/typed.ts', '--profile', 'agent', '--cursor', typedCursor, ...typedIdentity]).snapshot, typedPage.snapshot);
   const editedTypedSource = `// later source line\r\n${typedSource}`;
   fs.writeFileSync(path.join(project, 'src/typed.ts'), editedTypedSource);
-  assert.match(run(cli, ['context', 'src/typed.ts', ...typedIdentity], false), /revision changed/i);
-  assert.match(run(cli, ['context', 'src/typed.ts', '--profile', 'agent', '--cursor', typedCursor, ...typedIdentity], false), /revision changed/i);
+  run(cli, ['context', 'src/typed.ts', ...typedIdentity], /revision changed/i);
+  run(cli, ['context', 'src/typed.ts', '--profile', 'agent', '--cursor', typedCursor, ...typedIdentity], /revision changed/i);
   const editedTyped = run(cli, ['context', 'src/typed.ts']);
   const editedTypedFile = editedTyped.nodes.find(node => node.id === typedFile.id);
   assert.equal(editedTypedFile.referenceSyntax.facts[0].evidence.line, syntax.facts[0].evidence.line + 1);
@@ -536,13 +522,13 @@ try {
   const pythonReceipt = ['--revision', pythonContext.revision, '--binding-id', pythonContext.binding.id, '--generation', String(pythonContext.binding.generation)];
   assert.equal(run(cli, ['preflight', 'src/python.py', ...pythonReceipt]).preflight, 'verified-at-read');
   fs.appendFileSync(path.join(project, 'src/python.py'), '# changed after preflight\n');
-  assert.match(run(cli, ['preflight', 'src/python.py', ...pythonReceipt], false), /revision changed/i);
+  run(cli, ['preflight', 'src/python.py', ...pythonReceipt], /revision changed/i);
   fs.writeFileSync(path.join(project, 'src/python.py'), 'def original(): pass\ndef broken(\n');
   const failedPython = run(cli, ['context', 'src/python.py']);
   assert(!failedPython.symbolGraph.nodes.some(node => node.path === 'src/python.py'));
   assert(failedPython.diagnostics.some(d => /parse error/i.test(d.message)));
   assert.equal(failedPython.status, 'partial');
-  assert.match(run(cli, ['preflight', 'src/python.py', ...pythonReceipt], false), /partial/i);
+  run(cli, ['preflight', 'src/python.py', ...pythonReceipt], /partial/i);
   fs.writeFileSync(path.join(project, 'src/python.py'), pythonSource);
   const restoredPython = run(cli, ['context', 'src/python.py']);
   assert.equal(restoredPython.status, 'current');
@@ -603,14 +589,16 @@ try {
   checks.push('uninstall preserves edited/unknown/user data and supports tombstone retry');
   const plan = run(originCLI, ['purge-plan', '--install-dir', installDir]);
   fs.appendFileSync(path.join(installDir, 'owner-note.txt'), ' later change');
-  run(originCLI, ['purge', '--install-dir', installDir, '--digest', plan.digest], false);
+  run(originCLI, ['purge', '--install-dir', installDir, '--digest', plan.digest], /Purge inventory or root identity changed/);
   const freshPlan = run(originCLI, ['purge-plan', '--install-dir', installDir]);
   assert.equal(run(originCLI, ['purge', '--install-dir', installDir, '--digest', freshPlan.digest]).state, 'purged');
   assert(!fs.existsSync(installDir));
   assert(fs.existsSync(path.join(project, 'src/module-c.mjs')));
   checks.push('explicit final purge rejects changed inventory and removes only its target');
   console.log(JSON.stringify({ status: 'passed', artifactDigest: installed.runtime.digest, checks }, null, 2));
+} catch (error) {
+  smokeError = error;
+  throw error;
 } finally {
-  if (view) { const ended = once(view, 'exit'); view.kill('SIGTERM'); await ended; }
-  fs.rmSync(temporary, { recursive: true, force: true });
+  await cleanupSmoke(view, temporary, smokeError);
 }
