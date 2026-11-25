@@ -606,6 +606,41 @@ After a crash, `status` may report a leftover view lease. Use
 the recorded process exists and never kills a process. Retain the original
 release archive for recovery. There is no automatic updater.
 
+### Operation-lock recovery
+
+An installation lifecycle operation holds `.local/operation.lock` exclusively.
+The current source candidate never takes over an existing lock automatically,
+even when its PID no longer exists. This includes historical `{ "pid": ... }`
+records, incomplete records and locks left by a crash. A PID or token alone does
+not prove that recovery is safe. This change is unreleased; frozen older CLIs
+retain their original behavior.
+
+If a command reports this lock, keep the installation and owner files intact:
+
+1. Stop all agent.mind CLI operations and foreground views for this installation,
+   including commands launched by other sessions. Ensure that no process can start
+   another lifecycle operation and that only one operator is recovering it. A dead
+   recorded PID alone is insufficient; if you cannot establish this quiescent
+   state, leave the lock in place.
+2. Inspect the exact installation path, lock record, `.local/install.json`,
+   `AGENTS.md` and any `.local/recovery/` entries. Save copies outside the installation.
+   Do not edit its receipt, binding, managed AGENTS block or runtime to bypass a
+   conflict. Use that installation's own verified release and CLI.
+3. While all writers remain stopped, move only that exact
+   `agent.mind/.local/operation.lock` to a new, unused backup path outside the
+   installation. Keep its original bytes. Do not remove `.local/`, a view lease,
+   recovery copies or any other files. This is an explicit local recovery action,
+   not an automatic CLI operation.
+4. Run `status`, inspect its JSON and resolve reported conflicts. Retry only one
+   intended lifecycle operation with the installed CLI, then check `status` and
+   owner instructions again. If the receipt is unreadable or custody is uncertain,
+   preserve the state and stop; moving the lock does not repair other files.
+
+The lock coordinates cooperating lifecycle commands. It does not prevent unrelated
+programs from changing files, and this recovery procedure does not make an interrupted
+operation crash- or power-loss-safe. Stopped-writer recovery is also required before
+using an older frozen CLI on a preserved historical lock.
+
 ### Update from an older version
 
 Published versions through 1.3.1 retain locale-sensitive digest verification.

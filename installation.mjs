@@ -132,18 +132,38 @@ export function resolveInstallation(installDir, options = {}) {
 const save = state => writeAtomic(state.dir, '.local/install.json', json(state.receipt));
 function lock(state, operation) {
   const lockPath = checked(state.dir, '.local/operation.lock', true);
-  try { fs.writeFileSync(lockPath, json({ pid: process.pid }), { flag: 'wx' }); }
+  const record = Buffer.from(json({ schemaVersion: 1, pid: process.pid, token: randomUUID() }));
+  let fd;
+  try { fd = fs.openSync(lockPath, 'wx', 0o600); }
   catch (error) {
     if (error.code !== 'EEXIST') throw error;
-    const previous = readJSON(state.dir, '.local/operation.lock');
-    if (!Number.isSafeInteger(previous.pid) || previous.pid < 1) throw new Error('Invalid operation lock. Check .local/operation.lock before retrying.');
-    try { process.kill(previous.pid, 0); throw new Error('Another installation operation is active.'); }
-    catch (probe) { if (probe.code !== 'ESRCH') throw probe; }
-    fs.unlinkSync(lockPath);
-    return lock(state, operation);
+    // PID liveness cannot transfer custody, including for historical { pid } locks.
+    throw new Error(`An installation operation lock exists: ${lockPath}. Stop all writers and follow the release README's operation-lock recovery procedure before retrying.`);
   }
-  Object.assign(state, load(state.dir));
-  try { return operation(); } finally { if (exists(lockPath)) fs.unlinkSync(lockPath); }
+  let failure, written = false;
+  try {
+    fs.writeFileSync(fd, record); written = true;
+    Object.assign(state, load(state.dir));
+    return operation();
+  } catch (error) { failure = error; throw error; }
+  finally {
+    let cleanupFailure;
+    try {
+      // Keep the descriptor open until removal so its inode cannot be reused.
+      const owner = fs.fstatSync(fd), current = fs.lstatSync(checked(state.dir, '.local/operation.lock'));
+      if (!current.isFile() || owner.dev !== current.dev || owner.ino !== current.ino || (written && !read(state.dir, '.local/operation.lock', 4096).equals(record))) throw new Error('Operation lock ownership changed; the current path was preserved.');
+      fs.unlinkSync(lockPath);
+    } catch (error) { cleanupFailure = error; }
+    finally {
+      try { fs.closeSync(fd); }
+      catch (error) { if (cleanupFailure) cleanupFailure.message += ` Descriptor close also failed: ${error.message}`; else cleanupFailure = error; }
+    }
+    if (cleanupFailure) {
+      if (!failure) throw cleanupFailure;
+      failure.message += ` Operation lock cleanup also failed: ${cleanupFailure.message}`;
+      failure.cause ??= cleanupFailure;
+    }
+  }
 }
 function assertNoView(state) {
   // A view lease is deliberately not removed using a PID guess. A crashed view

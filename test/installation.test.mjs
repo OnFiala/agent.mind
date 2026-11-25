@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { createHash, randomUUID } from 'node:crypto';
+import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ARTIFACT_FILES, artifactDigest, verifyArtifact, installProject, attachInstallation, detachInstallation, uninstallInstallation, rebindInstallation, statusInstallation, resolveInstallation, purgePlan, purgeInstallation } from '../installation.mjs';
 const source = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -687,4 +687,143 @@ test('installed reference diagnostics reject CommonJS partial context without re
   assert.ok(!python.edges.some(edge => edge.to === 'file:src/pkg/worker.py'));
   assert.ok(python.diagnostics.some(item => item.path === 'main.py' && item.line === 3 && item.column === 12 && /Unresolved Python call/.test(item.message)));
   for (const flags of [[], ['--profile', 'agent']]) assert.equal(JSON.parse(call(['preflight', 'main.py', ...flags, ...identity(python)]).stdout).preflight, 'verified-at-read');
+});
+
+
+// These cooperating candidate processes run only on disposable installations.
+// A receipt-publication barrier makes contention deterministic without sleeps.
+function lifecycleWorker(f) {
+  const script = `
+    import fs from 'node:fs';
+    import path from 'node:path';
+    import { attachInstallation } from ${JSON.stringify(pathToFileURL(path.join(source, 'installation.mjs')).href)};
+    const dir = process.argv[1], receipt = path.join(dir, '.local/install.json');
+    const rename = fs.renameSync; let entered = false;
+    fs.renameSync = (from, to) => {
+      if (to === receipt && !entered) {
+        entered = true; process.send({ type: 'entered' });
+        if (fs.readSync(0, Buffer.alloc(1), 0, 1, null) !== 1) throw new Error('Test barrier closed.');
+      }
+      return rename(from, to);
+    };
+    process.on('message', message => {
+      if (message === 'quit') { process.disconnect(); return; }
+      entered = false;
+      try { const result = attachInstallation(dir); process.send({ type: 'result', ok: true, state: result.state }); }
+      catch (error) { process.send({ type: 'result', ok: false, message: error.message }); }
+    });
+    process.send({ type: 'ready' });
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script, f.install], { stdio: ['pipe', 'ignore', 'pipe', 'ipc'] });
+  let stderr = ''; child.stderr.on('data', bytes => { stderr += bytes; });
+  const queued = [], waiting = [];
+  child.on('message', message => { if (waiting.length) waiting.shift()(message); else queued.push(message); });
+  const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
+  return {
+    child,
+    async next() {
+      let timer;
+      try { return await Promise.race([
+        queued.length ? Promise.resolve(queued.shift()) : new Promise(resolve => waiting.push(resolve)),
+        exited.then(result => { throw new Error(`Worker exited early: ${JSON.stringify(result)} ${stderr}`); }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`Worker barrier timed out: ${stderr}`)), 10000); }),
+      ]); } finally { clearTimeout(timer); }
+    },
+    async stop() {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      await exited;
+    },
+    async finish() { child.send('quit'); const result = await exited; assert.deepEqual(result, { code: 0, signal: null }, stderr); },
+  };
+}
+
+test('operation locks fail closed in two processes until explicit quiescent recovery, then admit one writer', { timeout: 30000 }, async t => {
+  const f = fixture(t); install(f);
+  const agents = path.join(f.project, 'AGENTS.md'), receipt = path.join(f.install, '.local/install.json'), lock = path.join(f.install, '.local/operation.lock');
+  const owner = '# Owner instructions\r\nKeep this exact rule.\r\n'; fs.writeFileSync(agents, owner);
+  const before = fs.readFileSync(receipt), completed = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(completed.status, 0); assert(Number.isSafeInteger(completed.pid));
+  const workers = [lifecycleWorker(f), lifecycleWorker(f)];
+  try {
+    for (const worker of workers) assert.equal((await worker.next()).type, 'ready');
+    for (const record of [{ pid: completed.pid }, { schemaVersion: 1, pid: completed.pid, token: randomUUID() }, { pid: process.pid }, null]) {
+      const bytes = record === null ? Buffer.from('{incomplete') : Buffer.from(JSON.stringify(record)); fs.writeFileSync(lock, bytes);
+      for (const worker of workers) worker.child.send('attach');
+      for (const worker of workers) { const result = await worker.next(); assert.equal(result.type, 'result'); assert.equal(result.ok, false); assert.match(result.message, /operation lock exists/); }
+      assert.deepEqual(fs.readFileSync(lock), bytes); assert.deepEqual(fs.readFileSync(receipt), before); assert.equal(fs.readFileSync(agents, 'utf8'), owner);
+      // Both attempts have returned and both workers are idle. This is the
+      // documented single-operator, stopped-writer recovery, preserving bytes.
+      const backup = path.join(f.dir, `stopped-operation-${randomUUID()}.json`); fs.renameSync(lock, backup); assert.deepEqual(fs.readFileSync(backup), bytes);
+    }
+    // An actual candidate writer exits while holding its lock, before receipt
+    // publication. Kernel descriptor cleanup must not make custody transferable.
+    workers[0].child.send('attach'); assert.equal((await workers[0].next()).type, 'entered');
+    const abandoned = fs.readFileSync(lock); await workers[0].stop();
+    workers[0] = lifecycleWorker(f); assert.equal((await workers[0].next()).type, 'ready');
+    for (const worker of workers) worker.child.send('attach');
+    for (const worker of workers) { const result = await worker.next(); assert.equal(result.type, 'result'); assert.equal(result.ok, false); assert.match(result.message, /operation lock exists/); }
+    assert.deepEqual(fs.readFileSync(lock), abandoned); assert.deepEqual(fs.readFileSync(receipt), before); assert.equal(fs.readFileSync(agents, 'utf8'), owner);
+    const abandonedBackup = path.join(f.dir, 'stopped-candidate-lock.json'); fs.renameSync(lock, abandonedBackup); assert.deepEqual(fs.readFileSync(abandonedBackup), abandoned);
+    workers[0].child.send('attach'); assert.equal((await workers[0].next()).type, 'entered');
+    const held = fs.readFileSync(lock), record = JSON.parse(held); assert.equal(record.schemaVersion, 1); assert.equal(record.pid, workers[0].child.pid); assert.match(record.token, /^[a-f0-9-]{36}$/);
+    assert.equal(fs.statSync(lock).mode & 0o777, 0o600);
+    workers[1].child.send('attach'); const refused = await workers[1].next(); assert.equal(refused.type, 'result'); assert.equal(refused.ok, false); assert.match(refused.message, /operation lock exists/);
+    assert.deepEqual(fs.readFileSync(lock), held); assert.deepEqual(fs.readFileSync(receipt), before); assert.equal(fs.readFileSync(agents, 'utf8'), owner);
+    workers[0].child.stdin.write('g'); assert.deepEqual(await workers[0].next(), { type: 'result', ok: true, state: 'attached' }); assert.equal(fs.existsSync(lock), false);
+    const attached = fs.readFileSync(agents), attachedReceipt = fs.readFileSync(receipt); assert(attached.toString().startsWith(owner));
+    workers[1].child.send('attach'); assert.equal((await workers[1].next()).type, 'entered');
+    const nextRecord = JSON.parse(fs.readFileSync(lock)); assert.notEqual(nextRecord.token, record.token); assert.equal(nextRecord.pid, workers[1].child.pid);
+    workers[1].child.stdin.write('g'); assert.deepEqual(await workers[1].next(), { type: 'result', ok: true, state: 'attached' });
+    assert.deepEqual(fs.readFileSync(agents), attached); assert.deepEqual(fs.readFileSync(receipt), attachedReceipt); assert.equal(fs.existsSync(lock), false);
+    const status = statusInstallation(f.install); assert.equal(status.state, 'attached'); assert.equal(status.integrity, 'verified'); assert.deepEqual(status.conflicts, []);
+    for (const worker of workers) await worker.finish();
+  } finally { for (const worker of workers) await worker.stop(); }
+});
+
+test('owned operation lock is removed and its descriptor closed after publication or state reload fails', t => {
+  for (const stage of ['write', 'reload']) {
+    const f = fixture(t); install(f);
+    const lock = path.join(f.install, '.local/operation.lock'), receipt = path.join(f.install, '.local/install.json'), agents = path.join(f.project, 'AGENTS.md');
+    fs.writeFileSync(agents, 'Owner\n'); const before = fs.readFileSync(receipt), failure = new Error(`Expected ${stage} failure`);
+    const open = fs.openSync, write = fs.writeFileSync, close = fs.closeSync; let descriptor, closed = false, injected = false;
+    fs.openSync = (filename, flags, ...rest) => {
+      if (stage === 'reload' && descriptor !== undefined && filename === receipt && !injected) { injected = true; throw failure; }
+      const fd = open(filename, flags, ...rest); if (filename === lock && flags === 'wx') descriptor = fd; return fd;
+    };
+    fs.writeFileSync = (filename, ...args) => { if (stage === 'write' && filename === descriptor) { injected = true; throw failure; } return write(filename, ...args); };
+    fs.closeSync = fd => { if (fd === descriptor) closed = true; return close(fd); };
+    try { assert.throws(() => attachInstallation(f.install), error => error === failure); }
+    finally { fs.openSync = open; fs.writeFileSync = write; fs.closeSync = close; }
+    assert(injected); assert(closed); assert.equal(fs.existsSync(lock), false); assert.deepEqual(fs.readFileSync(receipt), before); assert.equal(fs.readFileSync(agents, 'utf8'), 'Owner\n');
+    assert.throws(() => fs.fstatSync(descriptor), { code: 'EBADF' });
+    assert.equal(attachInstallation(f.install).state, 'attached');
+  }
+});
+
+test('operation cleanup preserves a changed lock and the original reload error, and always closes its descriptor', t => {
+  for (const change of ['replacement-inode', 'changed-record', 'unlink-failure', 'stat-failure']) {
+    const f = fixture(t); install(f);
+    const lock = path.join(f.install, '.local/operation.lock'), receipt = path.join(f.install, '.local/install.json');
+    const before = fs.readFileSync(receipt), replacement = JSON.stringify({ schemaVersion: 1, pid: process.pid, token: randomUUID() });
+    const original = new Error(`Expected reload failure: ${change}`), cleanup = new Error(`Expected cleanup failure: ${change}`);
+    const open = fs.openSync, unlink = fs.unlinkSync, fstat = fs.fstatSync, close = fs.closeSync; let descriptor, closed = false, injected = false;
+    fs.openSync = (filename, flags, ...rest) => {
+      if (descriptor !== undefined && filename === receipt && !injected) {
+        injected = true;
+        if (change === 'replacement-inode') fs.renameSync(lock, path.join(f.dir, 'original-lock.json'));
+        if (['replacement-inode', 'changed-record'].includes(change)) fs.writeFileSync(lock, replacement);
+        throw original;
+      }
+      const fd = open(filename, flags, ...rest); if (filename === lock && flags === 'wx') descriptor = fd; return fd;
+    };
+    fs.unlinkSync = filename => { if (filename === lock && change === 'unlink-failure') throw cleanup; return unlink(filename); };
+    fs.fstatSync = fd => { if (fd === descriptor && injected && change === 'stat-failure') throw cleanup; return fstat(fd); };
+    fs.closeSync = fd => { if (fd === descriptor) closed = true; return close(fd); };
+    try { assert.throws(() => attachInstallation(f.install), error => error === original && /Operation lock cleanup also failed/.test(error.message) && error.cause instanceof Error); }
+    finally { fs.openSync = open; fs.unlinkSync = unlink; fs.fstatSync = fstat; fs.closeSync = close; }
+    assert(injected); assert(closed); assert.throws(() => fs.fstatSync(descriptor), { code: 'EBADF' }); assert.deepEqual(fs.readFileSync(receipt), before);
+    assert.equal(fs.existsSync(path.join(f.project, 'AGENTS.md')), false);
+    if (['replacement-inode', 'changed-record'].includes(change)) assert.equal(fs.readFileSync(lock, 'utf8'), replacement);
+    else assert.equal(JSON.parse(fs.readFileSync(lock)).pid, process.pid);
+  }
 });
