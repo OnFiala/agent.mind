@@ -445,6 +445,12 @@ eligible source-mode map remains readable text and can mention excluded names;
 ordinary included text is not redacted. Observed excluded paths/reasons are visible,
 but their contents, hashes and unseen descendants are not inspected.
 
+Unreleased source matches symbol naming records to their structured owner paths,
+including paths containing `#` and existing accessor aliases. A record that could
+also refer to an observed excluded path is withheld. For unresolved symbol owners,
+the sum of candidate-path lengths is limited to 65,536 UTF-16 units per record;
+an entry exceeding that fallback bound is withheld without a missing-part diagnostic.
+
 The additive `inputPolicy` identity and source `policyId` bind context revisions,
 continuations and source reads. Even comment-only policy edits invalidate old
 receipts; readers check policy before and after source bytes, independently of
